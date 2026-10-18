@@ -25,8 +25,12 @@ Assert-Command "node" "winget install OpenJS.NodeJS.LTS"
 Assert-Command "npm"  "winget install OpenJS.NodeJS.LTS"
 Assert-Command "cargo" "winget install Rustlang.Rustup (with MSVC C++ Build Tools)"
 
-Write-Host "`n[1/4] Installing frontend dependencies..." -ForegroundColor Green
-npm install --legacy-peer-deps
+Write-Host "`n[1/4] Cleaning cross-OS lockfiles & installing Windows native dependencies..." -ForegroundColor Green
+if (Test-Path (Join-Path $PSScriptRoot "package-lock.json")) {
+  Remove-Item -Force (Join-Path $PSScriptRoot "package-lock.json")
+}
+npm install --include=optional --legacy-peer-deps
+npm install --no-save --legacy-peer-deps @rolldown/binding-win32-x64-msvc @tauri-apps/cli@^2.5.0
 
 Write-Host "`n[2/4] Type-checking & building production frontend (dist/)..." -ForegroundColor Green
 npm run lint
