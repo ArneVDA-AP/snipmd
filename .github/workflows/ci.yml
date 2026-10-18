@@ -1,0 +1,47 @@
+name: CI (TypeScript + Vite + Rust Check)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  frontend-and-rust-check:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust stable (x86_64-pc-windows-msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cargo cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies (with Windows Rolldown binding)
+        shell: pwsh
+        run: |
+          if (Test-Path package-lock.json) { Remove-Item -Force package-lock.json }
+          if (Test-Path bun.lock) { Remove-Item -Force bun.lock }
+          npm install --include=optional --legacy-peer-deps
+          npm install --no-save --legacy-peer-deps @rolldown/binding-win32-x64-msvc
+
+      - name: TypeScript strict lint
+        run: npm run lint
+
+      - name: Build production frontend bundle
+        run: npm run build
+
+      - name: Check Tauri v2 Rust crate
+        working-directory: src-tauri
+        run: cargo check

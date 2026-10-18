@@ -1,8 +1,30 @@
+# Dependencies
 node_modules/
+package-lock.json
+bun.lock
+bun.lockb
+
+# Frontend build outputs
 build/
 dist/
 coverage/
+server.js
+
+# Tauri v2 & Rust build artifacts
+src-tauri/target/
+src-tauri/gen/
+src-tauri/WixTools/
+release-win11/
+
+# OS & Editor files
 .DS_Store
+Thumbs.db
 *.log
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Environment variables
 .env*
 !.env.example
