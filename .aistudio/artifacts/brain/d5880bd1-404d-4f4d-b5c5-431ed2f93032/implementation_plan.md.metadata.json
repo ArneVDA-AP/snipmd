@@ -1,0 +1,6 @@
+{
+  "summary": "Implementation plan for SnipMD: a dual-mode Tauri v2 (Rust) and Web-compatible frameless Markdown note-taking application with Vanilla TypeScript, CodeMirror 6 inline screenshot block widgets, atomic collision-free snip naming, scratchpad promotion with mark-and-sweep orphan garbage collection, hot-exit session persistence, and a built-in Snip Simulator for browser testing.",
+  "updatedAt": "2026-10-17T13:55:09.018594439Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

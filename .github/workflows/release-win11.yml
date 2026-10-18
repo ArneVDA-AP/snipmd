@@ -1,0 +1,61 @@
+name: Release Windows 11 (x64 NSIS, MSI & Portable)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-11:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust stable (x86_64-pc-windows-msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cargo cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri v2 Windows 11 Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'SnipMD v__VERSION__ — Windows 11 Release'
+          releaseBody: |
+            ## SnipMD v__VERSION__ for Windows 11 (x64)
+            - **NSIS Per-User Setup (`SnipMD_0.1.0_x64-setup.exe`)**: Registers `.md` and `.markdown` file associations and installs Start Menu shortcuts.
+            - **WiX Enterprise Installer (`SnipMD_0.1.0_x64_en-US.msi`)**: Standard Windows 11 MSI package.
+            - **Frameless WebView2 Architecture**: Instant `Win + Shift + S` -> `Ctrl + V` snip paste, CodeMirror 6 inline screenshot widgets, and mark-and-sweep scratchpad GC.
+          releaseDraft: false
+          prerelease: false
+          args: --bundles nsis,msi
+
+      - name: Upload Portable & Installer Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnipMD-v0.1.0-Win11-x64-Installers
+          path: |
+            src-tauri/target/release/snip-md.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
