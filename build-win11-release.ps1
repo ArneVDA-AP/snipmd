@@ -26,7 +26,7 @@ Assert-Command "npm"  "winget install OpenJS.NodeJS.LTS"
 Assert-Command "cargo" "winget install Rustlang.Rustup (with MSVC C++ Build Tools)"
 
 Write-Host "`n[1/4] Installing frontend dependencies..." -ForegroundColor Green
-npm install
+npm install --legacy-peer-deps
 
 Write-Host "`n[2/4] Type-checking & building production frontend (dist/)..." -ForegroundColor Green
 npm run lint

@@ -52,14 +52,10 @@
         "ext": ["md", "markdown"],
         "name": "Markdown Document",
         "description": "SnipMD Markdown Note",
-        "role": "Editor",
-        "mimeType": "text/markdown"
+        "role": "Editor"
       }
     ],
     "windows": {
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": "",
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
         "silent": true

@@ -1,5 +1,80 @@
 import { listVirtualMarkdownFiles, getVirtualStorageStats } from '../ipc/bridge';
 
+const WORKFLOW_YAML = `name: Release Windows 11 (x64 NSIS, MSI & Portable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-11:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 (no lockfile cache requirement)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust stable (x86_64-pc-windows-msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cargo cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies & Tauri CLI v2
+        run: |
+          npm install --legacy-peer-deps
+          npm install --no-save --legacy-peer-deps @tauri-apps/cli@^2.0.0
+
+      - name: Build Tauri v2 Windows 11 Release (NSIS .exe + WiX .msi + Portable .exe)
+        run: npx tauri build --bundles nsis,msi
+
+      - name: Stage Windows 11 Release Executables
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-win11 | Out-Null
+          Copy-Item "src-tauri/target/release/snip-md.exe" "release-win11/SnipMD_0.1.0_x64_Portable.exe"
+          Copy-Item "src-tauri/target/release/bundle/nsis/*.exe" "release-win11/"
+          Copy-Item "src-tauri/target/release/bundle/msi/*.msi" "release-win11/"
+          Get-ChildItem release-win11
+
+      - name: Upload Windows 11 Installers to Workflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnipMD-v0.1.0-Win11-x64-Installers
+          path: |
+            release-win11/*.exe
+            release-win11/*.msi
+
+      - name: Publish GitHub Release (v0.1.0)
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v0.1.0
+          name: 'SnipMD v0.1.0 — Windows 11 Release (x64)'
+          draft: false
+          prerelease: false
+          files: |
+            release-win11/*.exe
+            release-win11/*.msi
+`;
+
 export function openWin11ReleaseModal(onToast?: (msg: string) => void): void {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -15,7 +90,7 @@ export function openWin11ReleaseModal(onToast?: (msg: string) => void): void {
             <span class="release-pill ok">Tauri v2 + Rust LTO</span>
             <span class="release-pill">NSIS .exe + WiX .msi</span>
             <span class="release-pill">.md File Association</span>
-            <span class="release-pill">WebView2 Bootstrapper</span>
+            <span class="release-pill">Node 22 + No Lockfile Trap</span>
           </div>
         </div>
         <button type="button" class="modal-btn" id="closeReleaseTopBtn">✕</button>
@@ -29,16 +104,17 @@ export function openWin11ReleaseModal(onToast?: (msg: string) => void): void {
         <div class="release-artifact-card primary-artifact">
           <div class="release-artifact-head">
             <span class="release-artifact-name">SnipMD-v0.1.0-Win11-x64-Release-Kit.zip</span>
-            <span class="release-artifact-tag">Complete Release Bundle</span>
+            <span class="release-artifact-tag">Updated CI + Local Kit</span>
           </div>
           <p class="release-artifact-desc">
-            Contains compiled production <code>dist/</code> bundle, full <code>src-tauri/</code> Rust crate, Windows 11 icons, 1-click <code>build-win11-release.bat</code> / <code>.ps1</code> packager, and GitHub Actions CI workflow.
+            Includes compiled production <code>dist/</code> bundle, full <code>src-tauri/</code> Rust crate, <code>package-lock.json</code>, 1-click <code>build-win11-release.bat</code> / <code>.ps1</code> packager, and fixed <code>.github/workflows/release-win11.yml</code>.
           </p>
           <div class="release-artifact-actions">
             <a href="/releases/SnipMD-v0.1.0-Win11-x64-Release-Kit.zip" download="SnipMD-v0.1.0-Win11-x64-Release-Kit.zip" class="modal-btn primary" id="downloadZipKitBtn">
               ⬇ Download Win11 Release Kit (.zip)
             </a>
-            <button type="button" class="modal-btn" id="copyPsCmdBtn">Copy PowerShell Build Cmd</button>
+            <button type="button" class="modal-btn" id="copyWorkflowYamlBtn">Copy Fixed GitHub Workflow YAML</button>
+            <button type="button" class="modal-btn" id="copyPsCmdBtn">Copy PowerShell Cmd</button>
           </div>
         </div>
 
@@ -64,8 +140,8 @@ export function openWin11ReleaseModal(onToast?: (msg: string) => void): void {
         <div class="release-steps-box">
           <div class="release-targets-title">Build Native .exe / .msi on Windows 11 (Local or GitHub Cloud)</div>
           <ol class="release-steps-list">
-            <li><strong>Local 1-Click Build:</strong> Extract <code>SnipMD-v0.1.0-Win11-x64-Release-Kit.zip</code> on Windows 11 and double-click <code>build-win11-release.bat</code> (or run <code>.\\build-win11-release.ps1</code>). All 3 executables are staged into <code>./release-win11/</code>.</li>
-            <li><strong>Zero-Install GitHub Actions Cloud Build:</strong> Push to GitHub and trigger <code>.github/workflows/release-win11.yml</code> — GitHub's <code>windows-latest</code> runner compiles and attaches the signed/unsigned <code>-setup.exe</code>, <code>.msi</code>, and <code>snip-md.exe</code> automatically.</li>
+            <li><strong>GitHub Actions Cloud Build (Fixed):</strong> Click <em>"Copy Fixed GitHub Workflow YAML"</em> above and paste it into <code>.github/workflows/release-win11.yml</code> in your repo (or push the updated Release Kit). It removes <code>cache: 'npm'</code>, uses Node 22, installs <code>@tauri-apps/cli@^2.0.0</code>, and uploads all 3 Windows 11 executables to Workflow Artifacts & GitHub Releases.</li>
+            <li><strong>Local 1-Click Build:</strong> Extract <code>SnipMD-v0.1.0-Win11-x64-Release-Kit.zip</code> on Windows 11 and double-click <code>build-win11-release.bat</code>.</li>
           </ol>
         </div>
       </div>
@@ -102,6 +178,13 @@ export function openWin11ReleaseModal(onToast?: (msg: string) => void): void {
     .querySelector<HTMLAnchorElement>('#downloadZipKitBtn')!
     .addEventListener('click', () => {
       onToast?.('Downloading SnipMD-v0.1.0-Win11-x64-Release-Kit.zip');
+    });
+
+  backdrop
+    .querySelector<HTMLButtonElement>('#copyWorkflowYamlBtn')!
+    .addEventListener('click', () => {
+      void navigator.clipboard?.writeText(WORKFLOW_YAML);
+      onToast?.('Copied fixed .github/workflows/release-win11.yml to clipboard');
     });
 
   backdrop
