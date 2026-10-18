@@ -9,9 +9,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "tauri:dev": "npx @tauri-apps/cli dev",
-    "tauri:build": "npx @tauri-apps/cli build",
-    "release:win11": "npx @tauri-apps/cli build --bundles nsis,msi"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "release:win11": "tauri build --bundles nsis,msi"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -36,6 +37,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for SnipMD: a dual-mode Tauri v2 (Rust) and Web-compatible frameless Markdown note-taking application with Vanilla TypeScript, CodeMirror 6 inline screenshot block widgets, atomic collision-free snip naming, scratchpad promotion with mark-and-sweep orphan garbage collection, hot-exit session persistence, and a built-in Snip Simulator for browser testing.",
-  "updatedAt": "2026-10-17T13:55:09.018594439Z",
+  "summary": "Plan to fix the Vite 8 / Rolldown Windows native binding error (@rolldown/binding-win32-x64-msvc) and Tauri bundle identifier warning in the Windows 11 GitHub Actions & PowerShell release pipeline.",
+  "updatedAt": "2026-10-18T00:55:52.063393227Z",
   "requestFeedback": true,
   "userFacing": true
 }
