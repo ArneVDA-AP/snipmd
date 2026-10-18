@@ -28,12 +28,18 @@ export interface PersistedWorkspaceSnapshot {
 export const WORKSPACE_STORAGE_KEY = 'snipmd_workspace_persistence_v2';
 export const LEGACY_SESSION_KEY = 'snipmd_vfs_session_v1';
 
-const VALID_PRESETS = new Set<UIPreset>([
+export const VALID_PRESETS = new Set<UIPreset>([
+  'archival',
   'paper',
   'latte',
+  'matcha',
+  'swiss',
   'sage',
+  'terracotta',
   'nordic',
   'tokyo',
+  'espresso',
+  'cyberpunk',
   'linear',
   'stealth',
   'oled'
@@ -89,14 +95,17 @@ export class EditorStoragePersistence {
       const preset =
         parsed.uiPreset && VALID_PRESETS.has(parsed.uiPreset)
           ? parsed.uiPreset
-          : 'stealth';
+          : 'archival';
 
       return {
         version: 2,
         activeTabId: parsed.activeTabId || parsed.tabs[0].id,
         untitledCounter: parsed.untitledCounter || parsed.tabs.length + 1,
         uiPreset: preset,
-        inspectorOpen: true,
+        inspectorOpen:
+          typeof parsed.inspectorOpen === 'boolean'
+            ? parsed.inspectorOpen
+            : true,
         lastSavedAt: parsed.lastSavedAt || Date.now(),
         tabs: parsed.tabs.map((t) => ({
           id: String(t.id),

@@ -40,49 +40,55 @@ function getParentDir(filePath: string): string {
 const DEMO_SNIP_SVG_DATA_URL =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="780" height="560" viewBox="0 0 780 560">
-  <rect width="100%" height="100%" fill="#0d0e12"/>
-  <!-- Top Header Banner -->
-  <rect x="20" y="20" width="740" height="52" rx="6" fill="#161822" stroke="#3f3f46"/>
-  <circle cx="44" cy="46" r="6" fill="#f43f5e"/>
-  <circle cx="64" cy="46" r="6" fill="#f59e0b"/>
-  <circle cx="84" cy="46" r="6" fill="#10b981"/>
-  <text x="110" y="51" fill="#fafafa" font-family="monospace" font-weight="700" font-size="13">SNIPMD SYSTEM ARCHITECTURE — 780×560px HIGH-DPI CAPTURE</text>
-  <text x="585" y="51" fill="#a855f7" font-family="monospace" font-weight="600" font-size="11">CLICK IMAGE TO EXPAND</text>
+  <rect width="100%" height="100%" fill="#f5f0e6"/>
+  <!-- Outer Archival Frame -->
+  <rect x="18" y="18" width="744" height="524" rx="4" fill="#fbf8f2" stroke="#bfb299" stroke-width="1.5"/>
+  <rect x="26" y="26" width="728" height="508" rx="2" fill="none" stroke="#d5cbb8" stroke-width="1"/>
 
-  <!-- Stage 1: Clipboard & Atomic File Creation (Visible within 360px cap) -->
-  <rect x="20" y="88" width="355" height="220" rx="6" fill="#14151c" stroke="#38bdf8" stroke-width="1.5"/>
-  <text x="38" y="118" fill="#38bdf8" font-family="monospace" font-weight="700" font-size="13">01. CLIPBOARD INTERCEPTOR (CM6)</text>
-  <text x="38" y="144" fill="#e4e4e7" font-family="monospace" font-size="11">• Win+Shift+S -> Ctrl+V paste event</text>
-  <text x="38" y="168" fill="#e4e4e7" font-family="monospace" font-size="11">• Extracts image/png Blob -> Uint8Array</text>
-  <text x="38" y="192" fill="#e4e4e7" font-family="monospace" font-size="11">• Pre-populates sync Map&lt;key, assetUrl&gt;</text>
-  <rect x="38" y="212" width="318" height="76" rx="4" fill="#0b0c10" stroke="#27272c"/>
-  <text x="52" y="236" fill="#4ade80" font-family="monospace" font-size="11">StateField&lt;DecorationSet&gt;</text>
-  <text x="52" y="256" fill="#a1a1aa" font-family="monospace" font-size="10">Decoration.widget({ block: true, side: 1 })</text>
-  <text x="52" y="274" fill="#f472b6" font-family="monospace" font-size="10">Capped at 360px height by default</text>
+  <!-- Header Plate -->
+  <rect x="42" y="42" width="696" height="54" rx="4" fill="#eae2d3" stroke="#d5cbb8"/>
+  <text x="62" y="67" fill="#120f0c" font-family="Georgia, serif" font-weight="700" font-size="15">FIG. 01 — ARCHITECTURAL PROPORTION &amp; TYPOGRAPHIC GRID</text>
+  <text x="62" y="85" fill="#6e6256" font-family="monospace" font-size="11">PLATE IV · SCALE 1:100 · ARCHIVAL VELLUM FOLIO</text>
+  <text x="565" y="74" fill="#9a6b26" font-family="monospace" font-weight="600" font-size="11">CLICK PLATE TO EXPAND</text>
 
-  <rect x="405" y="88" width="355" height="220" rx="6" fill="#14151c" stroke="#a855f7" stroke-width="1.5"/>
-  <text x="423" y="118" fill="#a855f7" font-family="monospace" font-weight="700" font-size="13">02. RUST TAURI v2 ATOMIC IPC</text>
-  <text x="423" y="144" fill="#e4e4e7" font-family="monospace" font-size="11">• snip-YYYYMMDD-HHMMSS-mmm-XXXX.png</text>
-  <text x="423" y="168" fill="#e4e4e7" font-family="monospace" font-size="11">• OpenOptions::new().create_new(true)</text>
-  <text x="423" y="192" fill="#e4e4e7" font-family="monospace" font-size="11">• 64-attempt collision retry loop</text>
-  <rect x="423" y="212" width="318" height="76" rx="4" fill="#0b0c10" stroke="#27272c"/>
-  <text x="437" y="236" fill="#4ade80" font-family="monospace" font-size="11">Cross-Volume Promotion Fallback</text>
-  <text x="437" y="256" fill="#a1a1aa" font-family="monospace" font-size="10">fs::rename() -> fs::copy() + remove_file()</text>
-  <text x="437" y="274" fill="#38bdf8" font-family="monospace" font-size="10">Handles C:\\ (%APPDATA%) -> D:\\ notes</text>
+  <!-- Left Drafting Study (Visible within 360px cap) -->
+  <rect x="42" y="112" width="336" height="200" rx="4" fill="#f5f0e6" stroke="#c8bba4" stroke-width="1.2"/>
+  <text x="60" y="140" fill="#9f2b2b" font-family="monospace" font-weight="700" font-size="12">I. SPATIAL HARMONY &amp; CANON</text>
+  <line x1="60" y1="152" x2="358" y2="152" stroke="#d5cbb8" stroke-width="1"/>
+  <!-- Geometric Golden Section Diagram -->
+  <rect x="64" y="166" width="180" height="112" fill="#eae2d3" stroke="#9a6b26" stroke-width="1.5"/>
+  <line x1="175" y1="166" x2="175" y2="278" stroke="#9a6b26" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="175" y1="235" x2="244" y2="235" stroke="#9a6b26" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="175" cy="235" r="38" fill="none" stroke="#1f6357" stroke-width="1.5"/>
+  <text x="258" y="190" fill="#24201c" font-family="monospace" font-size="11">Ratio 1 : 1.618</text>
+  <text x="258" y="212" fill="#6e6256" font-family="monospace" font-size="10">Primary Folio</text>
+  <text x="258" y="230" fill="#6e6256" font-family="monospace" font-size="10">Margin 12.5%</text>
+  <text x="258" y="254" fill="#1f6357" font-family="monospace" font-size="10">65ch Measure</text>
+
+  <!-- Right Drafting Study -->
+  <rect x="402" y="112" width="336" height="200" rx="4" fill="#f5f0e6" stroke="#c8bba4" stroke-width="1.2"/>
+  <text x="420" y="140" fill="#1f6357" font-family="monospace" font-weight="700" font-size="12">II. MATERIAL &amp; LIGHT BALANCE</text>
+  <line x1="420" y1="152" x2="718" y2="152" stroke="#d5cbb8" stroke-width="1"/>
+  <text x="420" y="178" fill="#24201c" font-family="monospace" font-size="11">• Warm Craft Vellum (#F5F0E6)</text>
+  <text x="420" y="202" fill="#24201c" font-family="monospace" font-size="11">• Iron-Gall Fountain Ink (#24201C)</text>
+  <text x="420" y="226" fill="#24201c" font-family="monospace" font-size="11">• Burnished Brass Accent (#9A6B26)</text>
+  <rect x="420" y="244" width="298" height="52" rx="3" fill="#eae2d3" stroke="#d5cbb8"/>
+  <text x="434" y="266" fill="#9a6b26" font-family="monospace" font-weight="600" font-size="11">Inline Visual Capture</text>
+  <text x="434" y="284" fill="#6e6256" font-family="monospace" font-size="10">Capped at 360px height for comfortable reading</text>
 
   <!-- 360px Fold Line Indicator -->
-  <line x1="20" y1="334" x2="760" y2="334" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6,6"/>
-  <rect x="230" y="322" width="320" height="24" rx="12" fill="#271a05" stroke="#f59e0b"/>
-  <text x="252" y="338" fill="#fbbf24" font-family="monospace" font-weight="700" font-size="11">▼ 360px CAP FOLD — CLICK TO REVEAL BELOW ▼</text>
+  <line x1="42" y1="334" x2="738" y2="334" stroke="#9a6b26" stroke-width="1.5" stroke-dasharray="6,6"/>
+  <rect x="235" y="322" width="310" height="24" rx="12" fill="#f3e5cc" stroke="#9a6b26"/>
+  <text x="256" y="338" fill="#5c3d0e" font-family="monospace" font-weight="700" font-size="11">▼ 360px FOLD LINE — CLICK TO UNroll ▼</text>
 
-  <!-- Stage 2: Below the 360px fold (Revealed when clicked/expanded!) -->
-  <rect x="20" y="364" width="740" height="176" rx="6" fill="#121916" stroke="#10b981" stroke-width="1.5"/>
-  <text x="40" y="396" fill="#4ade80" font-family="monospace" font-weight="700" font-size="14">03. EXPANDED FULL-RESOLUTION VIEW (BELOW 360px FOLD)</text>
-  <text x="40" y="424" fill="#e4e4e7" font-family="monospace" font-size="12">You clicked the inline snip! It is now expanded to 100% height (560px).</text>
-  <text x="40" y="452" fill="#a1a1aa" font-family="monospace" font-size="11">• Mark-and-Sweep GC (gc_scratch_assets) runs on Ctrl+S, Ctrl+W, and load_session</text>
-  <text x="40" y="476" fill="#a1a1aa" font-family="monospace" font-size="11">• Never runs on window.blur so Ctrl+Z undo inside active scratch tabs stays intact</text>
-  <rect x="40" y="492" width="700" height="32" rx="4" fill="#09130e" stroke="#059669"/>
-  <text x="56" y="513" fill="#6ee7b7" font-family="monospace" font-size="11">Click this image again at any time to re-apply the 360px compact height cap.</text>
+  <!-- Stage 2: Below the 360px fold -->
+  <rect x="42" y="364" width="696" height="152" rx="4" fill="#eae2d3" stroke="#9a6b26" stroke-width="1.2"/>
+  <text x="64" y="394" fill="#120f0c" font-family="Georgia, serif" font-weight="700" font-size="14">III. FULL-HEIGHT ELEVATION (UNROLLED PLATE VIEW)</text>
+  <text x="64" y="420" fill="#24201c" font-family="monospace" font-size="12">Single-clicking any tall image toggles between the compact 360px reading cap and 100% full height.</text>
+  <text x="64" y="446" fill="#6e6256" font-family="monospace" font-size="11">• Double-click any image (or click Lightbox) to inspect in the full-resolution viewer.</text>
+  <text x="64" y="468" fill="#6e6256" font-family="monospace" font-size="11">• All pasted screenshots (Ctrl+V) and imported images are automatically organized in .assets/.</text>
+  <rect x="64" y="480" width="652" height="24" rx="3" fill="#fbf8f2" stroke="#d5cbb8"/>
+  <text x="78" y="496" fill="#1f6357" font-family="monospace" font-size="11">Click this plate again at any time to restore the compact 360px reading height.</text>
 </svg>`);
 
 function loadVfsFiles(): Record<string, string> {
@@ -96,8 +102,8 @@ function loadVfsFiles(): Record<string, string> {
   }
 
   const initialFiles: Record<string, string> = {
-    'D:/projects/notes/architecture-notes.md': `# Work Notes — SnipMD\n\nTake a snip right now with **Win + Shift + S** and press **Ctrl + V** anywhere in this editor (or click **+ Simulate Snip** in the top bar).\n\n- Press \`Ctrl + E\` (or click the top mode button) to switch between **RAW + IMG**, **SPLIT VIEW**, and **RENDERED MD**.\n- **Click the inline screenshot below** to expand past the \`360px\` fold line and reveal Section 03 at the bottom of the diagram.\n- Switch between **8 curated UI themes** (from Alabaster Daylight to Nordic Dusk to OLED Carbon) in the right-hand **Studio & Assets** panel.\n\n![snip](.assets/snip-20261016-223804-419-7f2a.png)\n\n## Core Guardrails Verified\n- Collision-proof \`snip-YYYYMMDD-HHMMSS-mmm-XXXX.png\` naming with \`OpenOptions::create_new(true)\`\n- CodeMirror 6 \`StateField<DecorationSet>\` block widget rendering directly below \`![]()\` lines\n- Cross-volume \`promote_scratch_assets\` & \`gc_scratch_assets\` mark-and-sweep orphan cleanup`,
-    'D:/projects/notes/release-checklist.md': `# Release Checklist — v0.1.0\n\n1. Verify frameless 34px titlebar and keyboard shortcuts (\`Ctrl+T\`, \`Ctrl+O\`, \`Ctrl+S\`, \`Ctrl+W\`, \`Ctrl+E\`, \`Ctrl+Tab\`).\n2. Paste a screenshot into an unsaved \`Untitled\` scratch tab and save with \`Ctrl+S\` to promote \`.assets/\`.\n3. Delete a snip line in a scratch tab and close with \`Ctrl+W\` to trigger mark-and-sweep orphan GC.`
+    'D:/projects/notes/architecture-notes.md': `# Architectural Field Notes\n\nWelcome to **SnipMD** — a quiet, tactile studio for Markdown prose and inline visual references.\n\n## Capturing & Inspecting Visuals\n- Paste any screenshot directly from your clipboard with \`Ctrl + V\`, drag and drop an image onto the page, or click **+ Import Image to Note** in the **Studio** drawer.\n- Switch smoothly between **Editor**, **Split**, and **Reading** views in the top bar (or press \`Ctrl + E\`).\n- **Click the architectural plate below** to unroll past the \`360px\` reading cap and inspect the full diagram.\n\n![Architectural Plate](.assets/snip-20261016-223804-419-7f2a.png)\n\n## Studio Atmospheres & Typography\nExplore **14 curated visual themes** in the Studio drawer — starting with our signature **Archival Studio** craft paper and iron-gall ink, through **Kyoto Matcha** and **Nordic Polar Dusk**, to **Velvet Espresso** and **Carbon OLED**.\n\n> "Simplicity is about subtracting the obvious and adding the meaningful."`,
+    'D:/projects/notes/editorial-monograph.md': `# On Tactile Digital Instruments\n\nWriting tools shape the thoughts composed within them. When an interface removes diagnostic noise and honors typographic measure, attention returns naturally to structure and clarity.\n\n## Key Keyboard Shortcuts\n1. \`Ctrl + T\` — Create a new draft tab\n2. \`Ctrl + O\` — Open a saved note from your workspace\n3. \`Ctrl + S\` — Save active note and organize inline \`.assets/\`\n4. \`Ctrl + E\` — Cycle between Editor, Split, and Reading views\n5. \`Ctrl + \\\` — Toggle the right-hand Studio drawer`
   };
   saveVfsFiles(initialFiles);
   return initialFiles;

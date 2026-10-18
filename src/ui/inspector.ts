@@ -7,11 +7,17 @@ import { openSnipLightboxModal } from './modal';
 import type { TabItem } from '../state/TabManager';
 
 export type UIPreset =
+  | 'archival'
   | 'paper'
   | 'latte'
+  | 'matcha'
+  | 'swiss'
   | 'sage'
+  | 'terracotta'
   | 'nordic'
   | 'tokyo'
+  | 'espresso'
+  | 'cyberpunk'
   | 'linear'
   | 'stealth'
   | 'oled';
@@ -27,32 +33,64 @@ export interface ThemeDefinition {
 
 export const SNIPMD_THEMES: ThemeDefinition[] = [
   {
+    id: 'archival',
+    name: '01. Archival Studio',
+    tier: 'Light',
+    swatchBg: '#f5f0e6',
+    swatchAccent: '#9a6b26',
+    desc: 'Warm craft paper · iron-gall ink · burnished brass & crimson accents'
+  },
+  {
     id: 'paper',
-    name: '01. Alabaster Daylight',
+    name: '02. Alabaster Daylight',
     tier: 'Light',
     swatchBg: '#fafaf9',
     swatchAccent: '#0f766e',
-    desc: 'Pure architectural paper · deep ink prose · teal & crimson accents'
+    desc: 'Pure gallery paper · deep ink prose · teal & crimson accents'
   },
   {
     id: 'latte',
-    name: '02. Warm Parchment',
+    name: '03. Warm Parchment',
     tier: 'Light',
     swatchBg: '#f4efe6',
     swatchAccent: '#c2410c',
     desc: 'Archival drafting vellum · espresso ink · terracotta & olive tokens'
   },
   {
+    id: 'matcha',
+    name: '04. Kyoto Matcha',
+    tier: 'Light',
+    swatchBg: '#f1f4ec',
+    swatchAccent: '#3f6212',
+    desc: 'Bamboo washi paper · sumi charcoal ink · ceremonial matcha green'
+  },
+  {
+    id: 'swiss',
+    name: '05. Swiss Editorial',
+    tier: 'Light',
+    swatchBg: '#ffffff',
+    swatchAccent: '#ea580c',
+    desc: 'Stark architectural white · exposed grid hairlines · international orange'
+  },
+  {
     id: 'sage',
-    name: '03. Botanical Mist',
+    name: '06. Botanical Mist',
     tier: 'In-Between',
     swatchBg: '#e8f0ec',
     swatchAccent: '#047857',
     desc: 'Soft sage drafting surface · deep pine ink · zero daytime glare'
   },
   {
+    id: 'terracotta',
+    name: '07. Desert Terracotta',
+    tier: 'In-Between',
+    swatchBg: '#efe4db',
+    swatchAccent: '#b84a27',
+    desc: 'Sun-baked sandstone canvas · canyon clay & turquoise patina accents'
+  },
+  {
     id: 'nordic',
-    name: '04. Nordic Polar Dusk',
+    name: '08. Nordic Polar Dusk',
     tier: 'In-Between',
     swatchBg: '#2e3440',
     swatchAccent: '#88c0d0',
@@ -60,15 +98,31 @@ export const SNIPMD_THEMES: ThemeDefinition[] = [
   },
   {
     id: 'tokyo',
-    name: '05. Tokyo Twilight',
+    name: '09. Tokyo Twilight',
     tier: 'In-Between',
     swatchBg: '#1f2335',
     swatchAccent: '#7aa2f7',
     desc: 'Deep indigo-violet twilight · electric periwinkle & coral tokens'
   },
   {
+    id: 'espresso',
+    name: '10. Velvet Espresso',
+    tier: 'Dark',
+    swatchBg: '#1c1613',
+    swatchAccent: '#d4a359',
+    desc: 'Roasted mahogany & dark cocoa study · warm gold & cognac highlights'
+  },
+  {
+    id: 'cyberpunk',
+    name: '11. Cyberpunk Solstice',
+    tier: 'Dark',
+    swatchBg: '#0d0b1e',
+    swatchAccent: '#ff2a85',
+    desc: 'Deep synthwave night canvas · bioluminescent cyan & magenta tokens'
+  },
+  {
     id: 'linear',
-    name: '06. Linear Spatial',
+    name: '12. Linear Spatial',
     tier: 'Dark',
     swatchBg: '#0f1117',
     swatchAccent: '#6366f1',
@@ -76,19 +130,19 @@ export const SNIPMD_THEMES: ThemeDefinition[] = [
   },
   {
     id: 'stealth',
-    name: '07. Obsidian Stealth',
+    name: '13. Obsidian Stealth',
     tier: 'Dark',
     swatchBg: '#18181b',
     swatchAccent: '#a855f7',
-    desc: 'Classic SnipMD zinc · 1px razor hairlines · neon snip telemetry'
+    desc: 'Matte zinc monochrome · 1px razor hairlines · amethyst accents'
   },
   {
     id: 'oled',
-    name: '08. Carbon OLED Terminal',
+    name: '14. Carbon OLED',
     tier: 'Dark',
     swatchBg: '#050507',
     swatchAccent: '#f59e0b',
-    desc: 'True pitch-black #050507 · phosphor amber & matrix emerald tokens'
+    desc: 'True pitch-black #050507 · phosphor amber & emerald tokens'
   }
 ];
 
@@ -96,10 +150,8 @@ export interface InspectorCallbacks {
   onJumpToLine: (lineNumber: number, relPath?: string) => void;
   onSelectPreset: (preset: UIPreset) => void;
   onInsertAssetLink: (relPath: string) => void;
-  onRunManualGc: () => void;
-  onSimulateSnip: () => void;
+  onImportImageFile: (file: File) => void;
   onExportNote: (format: 'md' | 'html') => void;
-  onOpenWin11Release: () => void;
 }
 
 export class WorkspaceInspector {
@@ -110,8 +162,7 @@ export class WorkspaceInspector {
 
   public render(
     tab: TabItem | undefined,
-    activePreset: UIPreset,
-    storageBytes: number
+    activePreset: UIPreset
   ): void {
     if (!tab) {
       this.root.innerHTML = '';
@@ -146,7 +197,6 @@ export class WorkspaceInspector {
     });
 
     const stats = getVirtualStorageStats();
-    const kbUsed = (storageBytes / 1024).toFixed(1);
 
     const allDiskSnips: Array<{
       filename: string;
@@ -158,7 +208,7 @@ export class WorkspaceInspector {
     for (const filename of stats.scratchAssets) {
       allDiskSnips.push({
         filename,
-        folderLabel: '%APPDATA%/snip-md/scratchpad/.assets',
+        folderLabel: 'Unsaved Note Assets',
         absPath: `C:/Users/Developer/AppData/Roaming/snip-md/scratchpad/.assets/${filename}`,
         isScratch: true
       });
@@ -208,17 +258,17 @@ export class WorkspaceInspector {
               <div class="inspector-snip-card" data-card-line="${
                 matchedLine || ''
               }" data-card-rel="${relPath}" data-card-src="${previewUrl}">
-                <img src="${previewUrl}" alt="${item.filename}" class="inspector-snip-thumb" title="Click to inspect full resolution" />
+                <img src="${previewUrl}" alt="${item.filename}" class="inspector-snip-thumb" referrerpolicy="no-referrer" title="Click to inspect full resolution" />
                 <div class="inspector-snip-info">
                   <div class="inspector-snip-name" title="${item.filename}">${item.filename}</div>
                   <div class="inspector-snip-meta">${
-                    item.isScratch ? 'Scratchpad .assets/' : item.folderLabel
+                    matchedLine ? `Line ${matchedLine} · Linked` : item.folderLabel
                   }</div>
                   <div class="inspector-snip-actions">
                     ${
                       matchedLine
-                        ? `<button type="button" class="snip-mini-btn" data-jump-line="${matchedLine}" data-jump-rel="${relPath}">Jump & Expand L${matchedLine}</button>`
-                        : `<button type="button" class="snip-mini-btn" data-insert-snip="${relPath}">+ Insert in Note</button>`
+                        ? `<button type="button" class="snip-mini-btn" data-jump-line="${matchedLine}" data-jump-rel="${relPath}">Jump to L${matchedLine}</button>`
+                        : `<button type="button" class="snip-mini-btn" data-insert-snip="${relPath}">Insert in Note</button>`
                     }
                     <button type="button" class="snip-mini-btn" data-lightbox-src="${previewUrl}" data-lightbox-rel="${relPath}">Zoom</button>
                   </div>
@@ -227,7 +277,7 @@ export class WorkspaceInspector {
             `;
             })
             .join('')
-        : `<div class="inspector-empty">No snips stored yet. Click "+ Capture & Paste New Snip" above.</div>`;
+        : `<div class="inspector-empty">No images in this workspace yet. Paste from clipboard (Ctrl+V), drag and drop an image, or click Import Image above.</div>`;
 
     const headingsHtml =
       headings.length > 0
@@ -241,49 +291,30 @@ export class WorkspaceInspector {
             </button>`
             )
             .join('')
-        : `<div class="inspector-empty">No Markdown headings in buffer</div>`;
+        : `<div class="inspector-empty">Add Markdown headings (#, ##, ###) to build a clickable document outline.</div>`;
+
+    const activeThemeDef =
+      SNIPMD_THEMES.find((t) => t.id === activePreset) || SNIPMD_THEMES[0];
 
     this.root.innerHTML = `
       <div class="inspector-section">
         <div class="inspector-header">
-          <span>Windows 11 Release (v0.1.0)</span>
-          <span class="inspector-meta-tag">x64 NSIS · MSI</span>
+          <span>Document Outline</span>
+          <span class="inspector-meta-tag">${headings.length} ${headings.length === 1 ? 'section' : 'sections'}</span>
         </div>
-        <div class="inspector-storage-box">
-          <div class="storage-row">
-            <span>Installer Targets</span>
-            <span class="storage-val ok">-setup.exe & .msi</span>
-          </div>
-          <div class="storage-row">
-            <span>Rust Profile</span>
-            <span class="storage-val">LTO + Strip (~3.5 MB)</span>
-          </div>
-          <a href="/releases/SnipMD-v0.1.0-Win11-x64-Release-Kit.zip" download="SnipMD-v0.1.0-Win11-x64-Release-Kit.zip" class="inspector-action-btn primary-snip" style="text-align:center;text-decoration:none;display:block;">
-            ⬇ Download Win11 Release Kit (.zip)
-          </a>
-          <button type="button" class="inspector-action-btn" id="openReleaseCenterBtn">
-            Open Win11 Release Packager Details
-          </button>
+        <div class="inspector-list">
+          ${headingsHtml}
         </div>
       </div>
 
       <div class="inspector-section">
         <div class="inspector-header">
-          <span>8 Curated Themes (Light → Dark)</span>
-          <span class="inspector-meta-tag">${activePreset.toUpperCase()}</span>
+          <span>Note Assets</span>
+          <span class="inspector-meta-tag">${allDiskSnips.length} ${allDiskSnips.length === 1 ? 'image' : 'images'}</span>
         </div>
-        <div class="preset-switcher-grid">
-          ${themesHtml}
-        </div>
-      </div>
-
-      <div class="inspector-section">
-        <div class="inspector-header">
-          <span>Virtual .assets/ Browser</span>
-          <span class="inspector-meta-tag">${allDiskSnips.length} files</span>
-        </div>
-        <button type="button" class="inspector-action-btn primary-snip" id="drawerSimSnipBtn">
-          + Capture & Paste New Snip (780×540)
+        <input type="file" id="importImageInput" accept="image/*" class="hidden" />
+        <button type="button" class="inspector-action-btn primary-snip" id="importImageBtn">
+          + Import Image to Note
         </button>
         <div class="inspector-snip-list">
           ${assetsGalleryHtml}
@@ -292,50 +323,22 @@ export class WorkspaceInspector {
 
       <div class="inspector-section">
         <div class="inspector-header">
-          <span>Export & Daily-Driver Tools</span>
-          <span class="inspector-meta-tag">Local Disk</span>
+          <span>Export Manuscript</span>
+          <span class="inspector-meta-tag">Local Download</span>
         </div>
         <div class="export-btn-row">
-          <button type="button" class="inspector-action-btn" id="exportMdBtn">Download .md</button>
-          <button type="button" class="inspector-action-btn" id="exportHtmlBtn">Export Self-Contained .html</button>
+          <button type="button" class="inspector-action-btn" id="exportMdBtn">Export .md</button>
+          <button type="button" class="inspector-action-btn" id="exportHtmlBtn">Export .html</button>
         </div>
       </div>
 
       <div class="inspector-section">
         <div class="inspector-header">
-          <span>Storage & Orphan GC</span>
-          <span class="inspector-meta-tag">${kbUsed} KB</span>
+          <span>Theme Studio (14 Atmospheres)</span>
+          <span class="inspector-meta-tag">${activeThemeDef.tier}</span>
         </div>
-        <div class="inspector-storage-box">
-          <div class="storage-row">
-            <span>localStorage Persistence</span>
-            <span class="storage-val ok">Synced (${kbUsed} KB)</span>
-          </div>
-          <div class="storage-row">
-            <span>Sidecar .assets/ Files</span>
-            <span class="storage-val">${stats.localAssetCount} files</span>
-          </div>
-          <div class="storage-row">
-            <span>Scratchpad .assets/ Pool</span>
-            <span class="storage-val">${stats.scratchAssetCount} files</span>
-          </div>
-          <div class="storage-row">
-            <span>Last GC Sweep Deleted</span>
-            <span class="storage-val">${stats.lastGcDeletedCount} orphans</span>
-          </div>
-          <button type="button" class="inspector-action-btn" id="manualGcBtn">
-            Run Mark-and-Sweep GC Now
-          </button>
-        </div>
-      </div>
-
-      <div class="inspector-section">
-        <div class="inspector-header">
-          <span>Document Outline</span>
-          <span class="inspector-meta-tag">${headings.length}</span>
-        </div>
-        <div class="inspector-list">
-          ${headingsHtml}
+        <div class="preset-switcher-grid">
+          ${themesHtml}
         </div>
       </div>
     `;
@@ -349,7 +352,6 @@ export class WorkspaceInspector {
         });
       });
 
-    // Clicking anywhere on an .inspector-snip-card jumps to and expands the snip (or opens lightbox)
     this.root
       .querySelectorAll<HTMLElement>('.inspector-snip-card')
       .forEach((card) => {
@@ -360,7 +362,7 @@ export class WorkspaceInspector {
           if (line > 0) {
             this.callbacks.onJumpToLine(line, relPath);
           } else if (src && relPath) {
-            openSnipLightboxModal(src, relPath, '780×540px');
+            openSnipLightboxModal(src, relPath, 'Full Resolution');
           }
         });
       });
@@ -403,17 +405,20 @@ export class WorkspaceInspector {
         });
       });
 
-    this.root
-      .querySelector<HTMLButtonElement>('#openReleaseCenterBtn')
-      ?.addEventListener('click', () => this.callbacks.onOpenWin11Release());
+    const importInput = this.root.querySelector<HTMLInputElement>('#importImageInput');
+    const importBtn = this.root.querySelector<HTMLButtonElement>('#importImageBtn');
 
-    this.root
-      .querySelector<HTMLButtonElement>('#manualGcBtn')
-      ?.addEventListener('click', () => this.callbacks.onRunManualGc());
+    importBtn?.addEventListener('click', () => {
+      importInput?.click();
+    });
 
-    this.root
-      .querySelector<HTMLButtonElement>('#drawerSimSnipBtn')
-      ?.addEventListener('click', () => this.callbacks.onSimulateSnip());
+    importInput?.addEventListener('change', () => {
+      const file = importInput.files?.[0];
+      if (file) {
+        this.callbacks.onImportImageFile(file);
+        importInput.value = '';
+      }
+    });
 
     this.root
       .querySelector<HTMLButtonElement>('#exportMdBtn')

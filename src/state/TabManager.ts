@@ -11,8 +11,7 @@ import {
   subscribeExternalOpenFiles,
   openNativeFileDialog,
   saveNativeFileDialog,
-  isTauriRuntime,
-  getVirtualStorageStats
+  isTauriRuntime
 } from '../ipc/bridge';
 import { createEditorState } from '../editor/setup';
 import {
@@ -29,21 +28,20 @@ import { renderMarkdownPreview } from '../preview/renderer';
 import { TitlebarUI } from '../ui/titlebar';
 import {
   promptSaveFileModal,
-  promptOpenFileModal,
-  openWin11ReleaseModal
+  promptOpenFileModal
 } from '../ui/modal';
-import { generateSimulatedSnipPngBytes } from '../utils/snipSimulator';
 import {
   EditorStoragePersistence,
   PersistedWorkspaceSnapshot,
-  WorkspaceViewMode
+  WorkspaceViewMode,
+  VALID_PRESETS
 } from './storagePersistence';
 import {
   WorkspaceInspector,
   UIPreset,
   SNIPMD_THEMES
 } from '../ui/inspector';
-import { applyThemeVariablesToDOM } from '../styles/themes';
+import { applyThemeVariablesToDOM, THEME_PALETTES } from '../styles/themes';
 
 export interface TabItem {
   id: string;
@@ -63,7 +61,7 @@ export class TabManager {
   private tabs: TabItem[] = [];
   private activeTabId = '';
   private untitledCounter = 1;
-  private uiPreset: UIPreset = 'stealth';
+  private uiPreset: UIPreset = 'archival';
   private inspectorOpen = true;
   private editorView: EditorView | null = null;
   private titlebar: TitlebarUI;
@@ -90,12 +88,9 @@ export class TabManager {
       onNewTab: () => void this.createNewScratchTab(),
       onOpenFile: () => void this.openFileFlow(),
       onSaveFile: () => void this.saveActiveTabFlow(),
-      onSimulateSnip: () => void this.simulateSnipFlow(),
       onSetMode: (mode) => void this.setActiveTabMode(mode),
       onToggleInspector: () => this.toggleInspectorDrawer(),
       onSelectPreset: (preset) => this.setUIPreset(preset),
-      onOpenWin11Release: () =>
-        openWin11ReleaseModal((msg) => this.titlebar.showToast(msg)),
       onBeforeWindowClose: () => this.flushAllOnBlurOrExit(false)
     });
 
@@ -104,11 +99,8 @@ export class TabManager {
         this.jumpToLineAndExpand(lineNumber, relPath),
       onSelectPreset: (preset) => this.setUIPreset(preset),
       onInsertAssetLink: (relPath) => this.insertAssetLinkAtCursor(relPath),
-      onRunManualGc: () => void this.runManualGcFlow(),
-      onSimulateSnip: () => void this.simulateSnipFlow(),
-      onExportNote: (format) => void this.exportActiveNoteFlow(format),
-      onOpenWin11Release: () =>
-        openWin11ReleaseModal((msg) => this.titlebar.showToast(msg))
+      onImportImageFile: (file) => void this.importImageFileFlow(file),
+      onExportNote: (format) => void this.exportActiveNoteFlow(format)
     });
 
     this.registerGlobalShortcuts();
@@ -125,12 +117,19 @@ export class TabManager {
       try {
         const parsed = JSON.parse(rawTauriSession);
         if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+          const validPreset =
+            parsed.uiPreset && VALID_PRESETS.has(parsed.uiPreset)
+              ? (parsed.uiPreset as UIPreset)
+              : 'archival';
           restoredSnapshot = {
             version: 2,
             activeTabId: parsed.activeTabId || parsed.tabs[0].id,
             untitledCounter: parsed.untitledCounter || parsed.tabs.length + 1,
-            uiPreset: parsed.uiPreset || 'stealth',
-            inspectorOpen: true,
+            uiPreset: validPreset,
+            inspectorOpen:
+              typeof parsed.inspectorOpen === 'boolean'
+                ? parsed.inspectorOpen
+                : true,
             lastSavedAt: Date.now(),
             tabs: parsed.tabs
           };
@@ -150,15 +149,15 @@ export class TabManager {
         restoredSnapshot.activeTabId || this.tabs[0].id;
       this.untitledCounter =
         restoredSnapshot.untitledCounter || this.tabs.length + 1;
-      this.uiPreset = restoredSnapshot.uiPreset || 'stealth';
-      this.inspectorOpen = true;
+      this.uiPreset = restoredSnapshot.uiPreset || 'archival';
+      this.inspectorOpen = restoredSnapshot.inspectorOpen ?? true;
     } else {
       const demoPath = 'D:/projects/notes/architecture-notes.md';
       let demoContent = '';
       try {
         demoContent = await readMarkdownFile(demoPath);
       } catch {
-        demoContent = `# Work Notes — SnipMD\n\nPress **Ctrl+V** after taking a screenshot with **Win+Shift+S**, or click **+ Simulate Snip** in the titlebar.`;
+        demoContent = `# Architectural Field Notes\n\nWelcome to **SnipMD** — paste any image from your clipboard with **Ctrl+V** or drag and drop images directly into your manuscript.`;
       }
 
       this.tabs = [
@@ -178,7 +177,7 @@ export class TabManager {
           id: 'tab-2',
           title: 'Untitled-1',
           filePath: null,
-          content: `# Scratchpad Buffer\n\nUnsaved tabs route pasted snips to \`%APPDATA%/snip-md/scratchpad/.assets/\` automatically and sweep unreferenced orphans on save (\`Ctrl+S\`), tab close (\`Ctrl+W\`), or startup (\`load_session\`).\n\nTry clicking **+ Simulate Snip** above, then either press \`Ctrl+S\` to promote the snip or delete the markdown line and press \`Ctrl+W\` to watch Mark-and-Sweep GC clean up the orphan.`,
+          content: `# Studio Sketchbook\n\nUse this untitled draft to jot down thoughts, outline ideas, and paste visual references (\`Ctrl + V\`).\n\n## Quick Tips\n- Press \`Ctrl + S\` when you are ready to save this draft as a permanent Markdown file.\n- Switch between **Editor**, **Split**, and **Reading** views in the top bar.\n- Click any section heading in the **Document Outline** to jump directly to that line.`,
           dirty: true,
           mode: 'edit',
           scrollTop: 0,
@@ -189,7 +188,7 @@ export class TabManager {
       ];
       this.activeTabId = 'tab-1';
       this.untitledCounter = 2;
-      this.uiPreset = 'stealth';
+      this.uiPreset = 'archival';
       this.inspectorOpen = true;
     }
 
@@ -341,7 +340,7 @@ export class TabManager {
                   current.filePath
                 );
               }
-              this.titlebar.showToast('Saved snip to .assets/');
+              this.titlebar.showToast('Added image to note');
               this.refreshInspectorAndStatus();
             }
           });
@@ -407,7 +406,7 @@ export class TabManager {
     this.storagePersistence.saveImmediately(this.buildWorkspaceSnapshot());
     this.refreshInspectorAndStatus();
     const found = SNIPMD_THEMES.find((t) => t.id === preset);
-    this.titlebar.showToast(`Theme: ${found ? found.name : preset}`);
+    this.titlebar.showToast(`Theme: ${found ? found.name.replace(/^\d+\.\s*/, '') : preset}`);
   }
 
   private applyUIPresetDOM(): void {
@@ -431,15 +430,14 @@ export class TabManager {
     const tab = this.getActiveTab();
     if (!tab) return;
 
-    // If a snip relPath was clicked in the inspector, toggle its expanded state and notify the user!
     if (relPath) {
       const nextExpanded = !expandedSnipSet.has(relPath);
       if (nextExpanded) {
         expandedSnipSet.add(relPath);
-        this.titlebar.showToast(`Expanded ${relPath} to 100% height`);
+        this.titlebar.showToast(`Expanded image to full height`);
       } else {
         expandedSnipSet.delete(relPath);
-        this.titlebar.showToast(`Capped ${relPath} at 360px height`);
+        this.titlebar.showToast(`Restored 360px reading cap`);
       }
     }
 
@@ -465,26 +463,56 @@ export class TabManager {
   }
 
   private insertAssetLinkAtCursor(relPath: string): void {
+    const tab = this.getActiveTab();
+    if (!tab) return;
+
+    if (tab.mode === 'preview') {
+      void this.setActiveTabMode('edit').then(() => {
+        this.insertAssetLinkAtCursor(relPath);
+      });
+      return;
+    }
+
     if (!this.editorView) return;
     const pos = this.editorView.state.selection.main.head;
-    const insertText = `\n![snip](${relPath})\n`;
+    const insertText = `\n![Image](${relPath})\n`;
     this.editorView.dispatch({
       changes: { from: pos, to: pos, insert: insertText },
       selection: { anchor: pos + insertText.length },
       scrollIntoView: true
     });
     this.editorView.focus();
+    this.titlebar.showToast('Inserted image into note');
   }
 
-  private async runManualGcFlow(): Promise<void> {
-    const liveUnsaved = this.getUnsavedTabContentsExcept();
-    const deleted = await gcScratchAssets(liveUnsaved);
-    this.titlebar.showToast(
-      deleted > 0
-        ? `Swept ${deleted} orphan snip${deleted > 1 ? 's' : ''}`
-        : '0 orphans found (scratchpad clean)'
+  private async importImageFileFlow(file: File): Promise<void> {
+    const tab = this.getActiveTab();
+    if (!tab) return;
+
+    if (tab.mode === 'preview') {
+      await this.setActiveTabMode('edit');
+    }
+
+    if (!this.editorView) return;
+
+    const buf = await file.arrayBuffer();
+    await processAndInsertSnipBytes(
+      this.editorView,
+      new Uint8Array(buf),
+      tab.filePath,
+      () => {
+        this.storagePersistence.saveImmediately(this.buildWorkspaceSnapshot());
+        if (tab.mode === 'split') {
+          void renderMarkdownPreview(
+            this.previewPane,
+            tab.content,
+            tab.filePath
+          );
+        }
+        this.titlebar.showToast(`Imported ${file.name}`);
+        this.refreshInspectorAndStatus();
+      }
     );
-    this.refreshInspectorAndStatus();
   }
 
   private async exportActiveNoteFlow(format: 'md' | 'html'): Promise<void> {
@@ -499,20 +527,26 @@ export class TabManager {
       blob = new Blob([tab.content], { type: 'text/markdown;charset=utf-8' });
       downloadName = `${baseName}.md`;
     } else {
-      // Self-contained HTML with embedded data URLs for all .assets/ images
+      const palette = THEME_PALETTES[this.uiPreset] || THEME_PALETTES.archival;
       const tempContainer = document.createElement('div');
       await renderMarkdownPreview(tempContainer, tab.content, tab.filePath);
       const htmlDoc = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>${tab.title} — SnipMD Export</title>
+<title>${tab.title} — SnipMD Manuscript</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px; background: #18181b; color: #e4e4e7; line-height: 1.7; }
-  h1, h2, h3 { color: #fafafa; }
-  h1 { border-bottom: 1px solid #27272c; padding-bottom: 8px; }
-  code { font-family: monospace; background: #27272c; color: #38bdf8; padding: 2px 6px; border-radius: 4px; }
-  img { max-width: 100%; border-radius: 6px; border: 1px solid #3f3f46; margin: 12px 0; }
+  body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 780px; margin: 48px auto; padding: 0 24px; background: ${palette['--bg-main']}; color: ${palette['--text-main']}; line-height: 1.75; }
+  h1, h2, h3, h4 { font-family: 'Fraunces', Georgia, serif; color: ${palette['--text-heading']}; letter-spacing: -0.015em; }
+  h1 { border-bottom: 1px solid ${palette['--border']}; padding-bottom: 10px; }
+  code { font-family: 'JetBrains Mono', monospace; background: ${palette['--bg-code-inline']}; color: ${palette['--syn-code']}; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: ${palette['--bg-bar']}; border: 1px solid ${palette['--border']}; padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; padding: 0; color: ${palette['--text-main']}; }
+  blockquote { background: ${palette['--bg-elevated']}; border: 1px solid ${palette['--border']}; border-radius: 6px; padding: 10px 16px; color: ${palette['--syn-quote']}; font-style: italic; margin: 16px 0; }
+  img { max-width: 100%; border-radius: 6px; border: 1px solid ${palette['--border-subtle']}; margin: 14px 0; }
   .img-meta, .snip-cap-indicator { display: none; }
 </style>
 </head>
@@ -532,7 +566,7 @@ ${tempContainer.innerHTML}
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    this.titlebar.showToast(`Downloaded ${downloadName}`);
+    this.titlebar.showToast(`Exported ${downloadName}`);
   }
 
   public async createNewScratchTab(): Promise<void> {
@@ -542,7 +576,7 @@ ${tempContainer.innerHTML}
       id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       title: `Untitled-${num}`,
       filePath: null,
-      content: `# Untitled-${num}\n\nTake a snip with **Win + Shift + S** and press **Ctrl + V** (or click **+ Simulate Snip**).\n`,
+      content: `# Untitled-${num}\n\nBegin writing here, or paste an image from your clipboard with **Ctrl + V**.\n`,
       dirty: true,
       mode: 'edit',
       scrollTop: 0,
@@ -641,7 +675,7 @@ ${tempContainer.innerHTML}
     tab.editorState = undefined;
 
     await this.activateTab(tab.id);
-    this.titlebar.showToast(`Promoted .assets/ & saved ${tab.title}`);
+    this.titlebar.showToast(`Saved ${tab.title}`);
     await this.persistSessionState();
     this.refreshInspectorAndStatus();
   }
@@ -657,12 +691,7 @@ ${tempContainer.innerHTML}
 
     if (wasUnsaved) {
       const remainingUnsaved = this.getUnsavedTabContentsExcept();
-      const deletedCount = await gcScratchAssets(remainingUnsaved);
-      if (deletedCount > 0) {
-        this.titlebar.showToast(
-          `GC swept ${deletedCount} orphan snip${deletedCount > 1 ? 's' : ''}`
-        );
-      }
+      await gcScratchAssets(remainingUnsaved);
     }
 
     if (this.tabs.length === 0) {
@@ -712,50 +741,13 @@ ${tempContainer.innerHTML}
     await this.activateTab(this.tabs[nextIdx].id);
   }
 
-  public async simulateSnipFlow(): Promise<void> {
-    const tab = this.getActiveTab();
-    if (!tab) return;
-
-    if (tab.mode === 'preview') {
-      await this.setActiveTabMode('edit');
-    }
-
-    if (!this.editorView) return;
-
-    const pngBytes = await generateSimulatedSnipPngBytes(
-      tab.title,
-      tab.filePath === null
-    );
-    await processAndInsertSnipBytes(
-      this.editorView,
-      pngBytes,
-      tab.filePath,
-      () => {
-        this.storagePersistence.saveImmediately(this.buildWorkspaceSnapshot());
-        if (tab.mode === 'split') {
-          void renderMarkdownPreview(
-            this.previewPane,
-            tab.content,
-            tab.filePath
-          );
-        }
-        this.titlebar.showToast(
-          tab.filePath
-            ? 'Snip saved to sidecar .assets/'
-            : 'Snip saved to scratchpad/.assets/'
-        );
-        this.refreshInspectorAndStatus();
-      }
-    );
-  }
-
   private async persistSessionState(): Promise<void> {
     const snapshot = this.buildWorkspaceSnapshot();
     this.storagePersistence.saveImmediately(snapshot);
     await saveSession(JSON.stringify(snapshot));
   }
 
-  private async flushAllOnBlurOrExit(showToast = true): Promise<void> {
+  private async flushAllOnBlurOrExit(showToast = false): Promise<void> {
     let savedAnyDiskTab = false;
     for (const tab of this.tabs) {
       if (tab.dirty && tab.filePath !== null) {
@@ -768,10 +760,8 @@ ${tempContainer.innerHTML}
     this.titlebar.renderTabs(this.tabs, this.activeTabId);
     await this.persistSessionState();
 
-    if (showToast) {
-      this.titlebar.showToast(
-        savedAnyDiskTab ? 'Auto-saved on blur' : 'Session saved on blur'
-      );
+    if (showToast && savedAnyDiskTab) {
+      this.titlebar.showToast('Saved changes');
     }
     this.refreshInspectorAndStatus();
   }
@@ -812,7 +802,7 @@ ${tempContainer.innerHTML}
 
   private registerBlurAndUnloadPersistence(): void {
     window.addEventListener('blur', () => {
-      void this.flushAllOnBlurOrExit(true);
+      void this.flushAllOnBlurOrExit(false);
     });
 
     window.addEventListener('beforeunload', () => {
@@ -853,24 +843,8 @@ ${tempContainer.innerHTML}
             await writeMarkdownFile(vfsPath, text);
             await this.openFileByPath(vfsPath);
           });
-        } else if (file.type.startsWith('image/') && this.editorView) {
-          void file.arrayBuffer().then(async (buf) => {
-            const tab = this.getActiveTab();
-            if (tab && this.editorView) {
-              await processAndInsertSnipBytes(
-                this.editorView,
-                new Uint8Array(buf),
-                tab.filePath,
-                () => {
-                  this.storagePersistence.saveImmediately(
-                    this.buildWorkspaceSnapshot()
-                  );
-                  this.titlebar.showToast('Dropped image saved to .assets/');
-                  this.refreshInspectorAndStatus();
-                }
-              );
-            }
-          });
+        } else if (file.type.startsWith('image/')) {
+          void this.importImageFileFlow(file);
         }
       }
     });
@@ -880,7 +854,6 @@ ${tempContainer.innerHTML}
     const tab = this.getActiveTab();
     if (!tab) return;
 
-    // Ensure demo asset URL cache stays fresh
     for (const m of tab.content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
       const rel = m[2].trim();
       const key = getCacheKey(tab.filePath, rel);
@@ -889,38 +862,62 @@ ${tempContainer.innerHTML}
       }
     }
 
-    const bytesUsed = this.storagePersistence.getStorageUsageBytes();
     if (this.inspectorOpen) {
-      this.inspector.render(tab, this.uiPreset, bytesUsed);
+      this.inspector.render(tab, this.uiPreset);
     }
 
-    const stats = getVirtualStorageStats();
-    const targetStorage = tab.filePath
-      ? `${tab.filePath} (Sidecar .assets/)`
-      : `%APPDATA%/snip-md/scratchpad/.assets/ (Unsaved Scratchpad)`;
+    const strippedText = tab.content
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+      .replace(/[#*`~>_|-]/g, ' ')
+      .trim();
+    const wordCount = strippedText
+      ? strippedText.split(/\s+/).filter(Boolean).length
+      : 0;
+    const charCount = tab.content.length;
+    const readMinutes = Math.max(1, Math.ceil(wordCount / 200));
 
-    const snipCount = (
-      tab.content.match(/\.assets\/snip-[A-Za-z0-9_-]+\.png/g) || []
+    const imageCount = (
+      tab.content.match(/!\[([^\]]*)\]\(([^)]+)\)/g) || []
     ).length;
 
-    const kbUsed = (bytesUsed / 1024).toFixed(1);
+    const docStatus = tab.filePath
+      ? tab.dirty
+        ? `${tab.title} · Edited`
+        : `${tab.title} · Saved`
+      : `${tab.title} · Draft`;
+
+    const modeLabel =
+      tab.mode === 'edit'
+        ? 'Editor'
+        : tab.mode === 'split'
+        ? 'Split View'
+        : 'Reading View';
+
+    const activeTheme =
+      SNIPMD_THEMES.find((t) => t.id === this.uiPreset)?.name.replace(
+        /^\d+\.\s*/,
+        ''
+      ) || 'Archival Studio';
 
     this.statusBarEl.innerHTML = `
       <div class="statusbar-group">
-        <span class="statusbar-item"><strong>localStorage:</strong> Synced (${kbUsed} KB)</span>
+        <span class="statusbar-item"><strong>${docStatus}</strong></span>
         <span class="statusbar-sep">·</span>
-        <span class="statusbar-item"><strong>Target:</strong> ${targetStorage}</span>
+        <span class="statusbar-item">${wordCount} ${wordCount === 1 ? 'word' : 'words'}</span>
         <span class="statusbar-sep">·</span>
-        <span class="statusbar-item"><strong>Snips:</strong> ${snipCount}</span>
+        <span class="statusbar-item">${charCount} chars</span>
         <span class="statusbar-sep">·</span>
-        <span class="statusbar-item"><strong>Scratchpad:</strong> ${stats.scratchAssetCount} live / ${stats.lastGcDeletedCount} swept</span>
+        <span class="statusbar-item">${readMinutes} min read</span>
+        ${
+          imageCount > 0
+            ? `<span class="statusbar-sep">·</span><span class="statusbar-item">${imageCount} ${imageCount === 1 ? 'image' : 'images'}</span>`
+            : ''
+        }
       </div>
       <div class="statusbar-group">
-        <span class="statusbar-item"><strong>Click Image</strong> Expand 360px/100%</span>
+        <span class="statusbar-item">${activeTheme}</span>
         <span class="statusbar-sep">·</span>
-        <span class="statusbar-item"><strong>Ctrl+S</strong> Save/Promote</span>
-        <span class="statusbar-sep">·</span>
-        <span class="statusbar-item"><strong>Ctrl+E</strong> Cycle View (${tab.mode.toUpperCase()})</span>
+        <span class="statusbar-item"><strong>${modeLabel}</strong></span>
       </div>
     `;
   }
