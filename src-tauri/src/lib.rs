@@ -61,7 +61,7 @@ fn extract_referenced_snips(text: &str) -> HashSet<String> {
 }
 
 #[tauri::command]
-pub fn save_clipboard_image(
+fn save_clipboard_image(
     app: AppHandle,
     bytes: Vec<u8>,
     current_file_path: Option<String>,
@@ -109,7 +109,7 @@ pub fn save_clipboard_image(
 }
 
 #[tauri::command]
-pub fn resolve_asset_abs_path(
+fn resolve_asset_abs_path(
     app: AppHandle,
     rel_path: String,
     current_file_path: Option<String>,
@@ -129,7 +129,7 @@ pub fn resolve_asset_abs_path(
 }
 
 #[tauri::command]
-pub fn gc_scratch_assets(
+fn gc_scratch_assets(
     app: AppHandle,
     live_unsaved_contents: Vec<String>,
 ) -> Result<usize, String> {
@@ -167,7 +167,7 @@ pub fn gc_scratch_assets(
 }
 
 #[tauri::command]
-pub fn promote_scratch_assets(
+fn promote_scratch_assets(
     app: AppHandle,
     content: String,
     target_md_path: String,
@@ -206,12 +206,12 @@ pub fn promote_scratch_assets(
 }
 
 #[tauri::command]
-pub fn read_markdown_file(path: String) -> Result<String, String> {
+fn read_markdown_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("Failed to read markdown file {path}: {e}"))
 }
 
 #[tauri::command]
-pub fn write_markdown_file(path: String, content: String) -> Result<(), String> {
+fn write_markdown_file(path: String, content: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&path).parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -219,7 +219,7 @@ pub fn write_markdown_file(path: String, content: String) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub fn load_session(app: AppHandle) -> Result<Option<String>, String> {
+fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     let app_data = app
         .path()
         .app_data_dir()
@@ -247,7 +247,7 @@ pub fn load_session(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn save_session(app: AppHandle, json: String) -> Result<(), String> {
+fn save_session(app: AppHandle, json: String) -> Result<(), String> {
     let app_data = app
         .path()
         .app_data_dir()
@@ -259,7 +259,7 @@ pub fn save_session(app: AppHandle, json: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_cli_startup_files() -> Vec<String> {
+fn get_cli_startup_files() -> Vec<String> {
     std::env::args()
         .skip(1)
         .filter(|arg| {

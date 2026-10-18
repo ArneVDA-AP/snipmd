@@ -1,7 +1,23 @@
 {
   "name": "snip-md",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
+  "description": "Ultra-lightweight frameless Windows 11 Markdown & screenshot note-taking workspace built with Tauri v2 (Rust) and CodeMirror 6.",
+  "license": "MIT",
+  "keywords": [
+    "markdown",
+    "tauri",
+    "tauri-v2",
+    "rust",
+    "codemirror-6",
+    "windows-11",
+    "screenshot",
+    "note-taking",
+    "scratchpad"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

@@ -1,0 +1,19 @@
+name: Feature Request
+description: Propose an ergonomic enhancement, keyboard shortcut, or theme for SnipMD
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Workflow Problem or Motivation
+      description: What note-taking or screenshot workflow friction does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe how the feature should work while keeping SnipMD's <80ms cold-start and zero-bloat philosophy.
+    validations:
+      required: true
