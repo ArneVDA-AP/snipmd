@@ -7,7 +7,7 @@ fn hex(b: u8) -> Option<u8> {
     (b as char).to_digit(16).map(|d| d as u8)
 }
 
-fn percent_decode(s: &str) -> Result<String, PathError> {
+pub fn percent_decode(s: &str) -> Result<String, PathError> {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
@@ -93,6 +93,26 @@ pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError> 
     Ok(out)
 }
 
+/// R1b. Resolves `untitled.assets/<file>` against the tab's scratch folder.
+pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError> {
+    let p = resolve_image(Path::new(""), link)?;
+    let mut it = p.components();
+    match it.next() {
+        Some(c) if c.as_os_str() == "untitled.assets" => {}
+        _ => return Err(PathError::NotAllowed(PathBuf::from(link))),
+    }
+    let rest = it.as_path();
+    if rest.as_os_str().is_empty() {
+        return Err(PathError::NotAllowed(PathBuf::from(link)));
+    }
+    Ok(tab_dir.join(rest))
+}
+
+/// R1b. 1 to 64 chars of `[A-Za-z0-9_-]`.
+pub fn valid_tab_id(id: &str) -> bool {
+    (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
 /// Lexically normalizes an absolute path to a string with `/` separators.
 /// Returns None for relative paths and for components Windows would trim.
 fn normalize(p: &Path) -> Option<String> {
@@ -154,6 +174,13 @@ impl AllowedSet {
         };
         self.dirs.insert(dir_key(&format!("{parent}/{stem}.assets")));
         self.files.insert(fold(&n));
+    }
+
+    /// Allows exactly this file, no folder.
+    pub fn allow_file(&mut self, p: &Path) {
+        if let Some(n) = normalize(p) {
+            self.files.insert(fold(&n));
+        }
     }
 
     /// Allows a folder and everything below it.

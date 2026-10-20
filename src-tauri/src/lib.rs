@@ -1,18 +1,20 @@
-use chrono::Local;
-use rand::Rng;
 use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashSet;
-use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Read, Write};
-use snipmd_core::{atomic, paths::{resolve_image, AllowedSet}, text};
+use std::fs;
+use std::io::{ErrorKind, Read};
+use snipmd_core::{atomic, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 type Allowed = Mutex<AllowedSet>;
+
+/// Image files the user dropped on the window; the only sources `import_image` will copy.
+struct Dropped(Mutex<AllowedSet>);
 
 const MD_EXTENSIONS: &[&str] = &["md", "markdown"];
 
@@ -93,9 +95,9 @@ async fn pick_save(app: AppHandle, default_name: String) -> Result<Option<String
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaveImageResult {
-    pub markdown_rel_path: String,
-    pub abs_disk_path: String,
+pub struct SavedImage {
+    pub link: String,
+    pub abs_path: String,
 }
 
 /// Every tab object in a session (open and closed). Read leniently: the TypeScript parser is
@@ -119,23 +121,71 @@ fn file_path(tab: &Value) -> Option<&str> {
 }
 
 fn resolve_scratchpad_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to resolve app_data_dir: {e}"))?;
+    let app_data = app.path().app_data_dir().map_err(|e| format!("Failed to resolve app_data_dir: {e}"))?;
     Ok(app_data.join("scratchpad"))
 }
 
-fn resolve_assets_dir(app: &AppHandle, current_file_path: Option<&str>) -> Result<PathBuf, String> {
-    match current_file_path {
-        Some(path_str) if !path_str.trim().is_empty() => {
-            let md_path = check_path(app, path_str)?;
-            let parent = md_path
-                .parent()
-                .ok_or_else(|| format!("Cannot resolve parent directory of {path_str}"))?;
-            Ok(parent.join(".assets"))
+fn scratch_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| format!("Failed to resolve app_data_dir: {e}"))?;
+    Ok(app_data.join("scratch"))
+}
+
+fn tab_scratch_dir(app: &AppHandle, tab_id: &str) -> Result<PathBuf, String> {
+    if !paths::valid_tab_id(tab_id) {
+        return Err("Invalid tab id".to_string());
+    }
+    Ok(scratch_root(app)?.join(tab_id))
+}
+
+fn disk_note(note_path: Option<&str>) -> Option<&str> {
+    note_path.filter(|p| !p.trim().is_empty())
+}
+
+/// The folder a tab's images go into and the link prefix for them (not yet percent-encoded).
+fn image_folder(app: &AppHandle, tab_id: &str, note_path: Option<&str>) -> Result<(PathBuf, String), String> {
+    if let Some(p) = disk_note(note_path) {
+        let note = check_path(app, p)?;
+        let name = note_name(&note);
+        let parent = note.parent().ok_or_else(|| format!("Cannot resolve folder of {name}"))?;
+        let stem = note.file_stem().unwrap_or(note.as_os_str()).to_string_lossy().into_owned();
+        let prefix = format!("{stem}.assets");
+        let dir = parent.join(&prefix);
+        match fs::create_dir(&dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("Failed to create the image folder of {name}: {e}")),
         }
-        _ => Ok(resolve_scratchpad_dir(app)?.join(".assets")),
+        Ok((dir, prefix))
+    } else {
+        let dir = tab_scratch_dir(app, tab_id)?;
+        fs::create_dir_all(&dir).map_err(|e| format!("Failed to create the image folder of this note: {e}"))?;
+        Ok((dir, "untitled.assets".to_string()))
+    }
+}
+
+fn store_image(
+    app: &AppHandle,
+    tab_id: &str,
+    note_path: Option<&str>,
+    ext: &str,
+    bytes: &[u8],
+) -> Result<SavedImage, String> {
+    let (dir, prefix) = image_folder(app, tab_id, note_path)?;
+    let name = disk_note(note_path).map_or_else(|| "this note".to_string(), |p| note_name(Path::new(p)));
+    let file = naming::create_snip(&dir, ext, bytes).map_err(|e| format!("Failed to save the image for {name}: {e}"))?;
+    let link = format!("{prefix}/{}", note_name(&file));
+    let link = if disk_note(note_path).is_some() { encode_link_path(&link) } else { link };
+    Ok(SavedImage { link, abs_path: displayable(app, &file) })
+}
+
+fn header(request: &Request<'_>, name: &str) -> Option<String> {
+    request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned)
+}
+
+fn raw_body<'a>(request: &'a Request<'_>) -> Result<&'a [u8], String> {
+    match request.body() {
+        InvokeBody::Raw(b) => Ok(b),
+        _ => Err("Expected a raw request body".to_string()),
     }
 }
 
@@ -151,65 +201,46 @@ fn extract_referenced_snips(text: &str) -> HashSet<String> {
 }
 
 #[tauri::command(async)]
-fn save_clipboard_image(
-    app: AppHandle,
-    bytes: Vec<u8>,
-    current_file_path: Option<String>,
-) -> Result<SaveImageResult, String> {
-    let assets_dir = resolve_assets_dir(&app, current_file_path.as_deref())?;
-    fs::create_dir_all(&assets_dir)
-        .map_err(|e| format!("Failed to create .assets directory {:?}: {e}", assets_dir))?;
-
-    let timestamp = Local::now().format("%Y%m%d-%H%M%S-%3f").to_string();
-    let mut rng = rand::thread_rng();
-
-    for _attempt in 0..64 {
-        let hex_suffix: u16 = rng.gen();
-        let filename = format!("snip-{timestamp}-{hex_suffix:04x}.png");
-        let target_path = assets_dir.join(&filename);
-
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&target_path)
-        {
-            Ok(mut file) => {
-                file.write_all(&bytes)
-                    .map_err(|e| format!("Failed to write clipboard image bytes: {e}"))?;
-                return Ok(SaveImageResult {
-                    markdown_rel_path: format!(".assets/{filename}"),
-                    abs_disk_path: displayable(&app, &target_path),
-                });
-            }
-            Err(err) if err.kind() == ErrorKind::AlreadyExists => continue,
-            Err(err) => {
-                return Err(format!(
-                    "Failed to create snip file {:?}: {err}",
-                    target_path
-                ))
-            }
-        }
+fn save_image(app: AppHandle, request: Request<'_>) -> Result<SavedImage, String> {
+    let bytes = raw_body(&request)?;
+    if bytes.is_empty() {
+        return Err("The image is empty".to_string());
     }
+    let tab_id = header(&request, "x-tab-id").ok_or_else(|| "Missing tab id".to_string())?;
+    let note_path = match header(&request, "x-note-path") {
+        Some(raw) => Some(paths::percent_decode(&raw).map_err(|e| e.to_string())?),
+        None => None,
+    };
+    store_image(&app, &tab_id, note_path.as_deref(), "png", bytes)
+}
 
-    Err("Unable to allocate collision-free snip filename after 64 attempts".to_string())
+#[tauri::command(async)]
+fn import_image(app: AppHandle, tab_id: String, note_path: Option<String>, src: String) -> Result<SavedImage, String> {
+    let checked = app.state::<Dropped>().0.lock().unwrap_or_else(|e| e.into_inner()).check(Path::new(&src));
+    let src_path = checked.map_err(|_| "That file was not dropped on the window".to_string())?;
+    let name = note_name(&src_path);
+    let ext = naming::image_ext(&src_path).ok_or_else(|| format!("{name} is not an image"))?;
+    let bytes = fs::read(&src_path).map_err(|e| format!("Failed to read {name}: {e}"))?;
+    store_image(&app, &tab_id, note_path.as_deref(), ext, &bytes)
 }
 
 #[tauri::command(async)]
 fn resolve_asset_abs_path(
     app: AppHandle,
+    tab_id: String,
     rel_path: String,
     current_file_path: Option<String>,
 ) -> Result<String, String> {
-    let base_dir = match current_file_path.as_deref() {
-        Some(p) if !p.trim().is_empty() => {
+    let resolved = match disk_note(current_file_path.as_deref()) {
+        Some(p) => {
             let note = check_path(&app, p)?;
-            note.parent()
-                .ok_or_else(|| format!("Invalid parent directory for {p}"))?
-                .to_path_buf()
+            let name = note_name(&note);
+            let dir = note.parent().ok_or_else(|| format!("Invalid folder for {name}"))?;
+            resolve_image(dir, &rel_path).map_err(|e| format!("{name}: {e}"))?
         }
-        _ => resolve_scratchpad_dir(&app)?,
+        None => paths::resolve_untitled(&tab_scratch_dir(&app, &tab_id)?, &rel_path)
+            .map_err(|e| format!("This note: {e}"))?,
     };
-    let resolved = resolve_image(&base_dir, &rel_path).map_err(|e| e.to_string())?;
     Ok(displayable(&app, &resolved))
 }
 
@@ -361,7 +392,10 @@ fn load_session(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command(async)]
-fn save_session(app: AppHandle, json: String) -> Result<(), String> {
+fn save_session(app: AppHandle, request: Request<'_>) -> Result<(), String> {
+    let json = std::str::from_utf8(raw_body(&request)?)
+        .map_err(|_| "Session is not UTF-8 text".to_string())?
+        .to_owned();
     let mut parsed: Value =
         serde_json::from_str(&json).map_err(|e| format!("Invalid session JSON: {e}"))?;
     // A path outside the allowed set is dropped (the tab restores as untitled; a clean tab's
@@ -450,6 +484,7 @@ pub fn run() {
                 .build(),
         )
         .manage(Allowed::new(AllowedSet::new()))
+        .manage(Dropped(Mutex::new(AllowedSet::new())))
         .setup(|app| {
             let handle = app.handle();
             if let Ok(dir) = handle.path().app_data_dir() {
@@ -458,20 +493,31 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, position }) = event {
                 let app = window.app_handle();
-                for p in paths.iter().filter(|p| is_md(p)) {
-                    allow_note(app, p);
-                }
-                let all: Vec<String> = paths
+                let notes: Vec<String> = paths
                     .iter()
+                    .filter(|p| is_md(p))
+                    .inspect(|p| allow_note(app, p))
                     .map(|p| p.to_string_lossy().into_owned())
                     .collect();
-                let _ = app.emit("files-dropped", all);
+                let images: Vec<String> = paths
+                    .iter()
+                    .filter(|p| naming::image_ext(p).is_some())
+                    .inspect(|p| {
+                        app.state::<Dropped>().0.lock().unwrap_or_else(|e| e.into_inner()).allow_file(p)
+                    })
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect();
+                let _ = app.emit(
+                    "files-dropped",
+                    serde_json::json!({ "notes": notes, "images": images, "x": position.x, "y": position.y }),
+                );
             }
         })
         .invoke_handler(tauri::generate_handler![
-            save_clipboard_image,
+            save_image,
+            import_image,
             resolve_asset_abs_path,
             promote_scratch_assets,
             gc_scratch_assets,

@@ -116,3 +116,33 @@ fn windows_trimmed_components_are_refused() {
         assert!(s.check(Path::new(p)).is_err(), "{p}");
     }
 }
+
+#[test]
+fn resolve_untitled_stays_in_tab_folder() {
+    use snipmd_core::paths::resolve_untitled;
+    let tab = Path::new("/scratch/abc");
+    assert_eq!(resolve_untitled(tab, "untitled.assets/x.png").unwrap(), tab.join("x.png"));
+    for bad in ["../x.png", "x.png", "other.assets/x.png", "untitled.assets/", "untitled.assets", "untitled.assets/../x"] {
+        assert!(resolve_untitled(tab, bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn valid_tab_id_rules() {
+    use snipmd_core::paths::valid_tab_id;
+    assert!(valid_tab_id("123e4567-e89b-12d3-a456-426614174000"));
+    for bad in ["", "..", "a/b", "a:b", "a\\b"] {
+        assert!(!valid_tab_id(bad), "{bad}");
+    }
+    assert!(valid_tab_id(&"a".repeat(64)));
+    assert!(!valid_tab_id(&"a".repeat(65)));
+}
+
+#[test]
+fn allow_file_allows_only_that_file() {
+    let mut a = AllowedSet::new();
+    a.allow_file(Path::new("/n/a.png"));
+    assert!(a.check(Path::new("/n/a.png")).is_ok());
+    assert!(a.check(Path::new("/n/b.png")).is_err());
+    assert!(a.check(Path::new("/n")).is_err());
+}
