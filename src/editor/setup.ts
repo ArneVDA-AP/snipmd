@@ -36,7 +36,7 @@ export function createEditorState(tabId: string, doc: string): EditorState {
       pasteExtension(),
       imageWidgetField,
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) notifyChange(tabId, u.state.doc.toString());
+        if (u.docChanged) notifyChange(tabId);
       })
     ]
   });

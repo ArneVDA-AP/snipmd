@@ -1,23 +1,12 @@
 // The 34px top bar: tabs, +, drag region, window controls (SPEC §4).
 import { appWindow } from './ipc';
+import { button } from './dom';
 import type { TabState } from './types';
 
 export interface TitlebarHandlers {
   select: (id: string) => void;
   close: (id: string) => void;
   newTab: () => void;
-  beforeClose: () => Promise<void>;
-}
-
-function button(className: string, text: string, label: string, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = className;
-  b.textContent = text;
-  b.title = label;
-  b.setAttribute('aria-label', label);
-  b.addEventListener('click', onClick);
-  return b;
 }
 
 export class Titlebar {
@@ -37,13 +26,14 @@ export class Titlebar {
     controls.append(
       button('win-btn', '─', 'Minimize', () => void appWindow.minimize()),
       button('win-btn', '□', 'Maximize', () => void appWindow.toggleMaximize()),
-      button('win-btn close', '✕', 'Close', () => void this.h.beforeClose().finally(() => appWindow.close()))
+      // Goes through the window's close-requested handler (app.ts), like Alt+F4.
+      button('win-btn close', '✕', 'Close', () => void appWindow.close())
     );
 
     root.replaceChildren(this.strip, button('new-tab', '+', 'New tab (Ctrl+T)', () => this.h.newTab()), drag, controls);
   }
 
-  render(tabs: TabState[], activeId: string): void {
+  render(tabs: readonly TabState[], activeId: string): void {
     const els = tabs.map((tab) => {
       const el = document.createElement('div');
       el.className = `tab${tab.id === activeId ? ' active' : ''}${tab.dirty ? ' dirty' : ''}`;

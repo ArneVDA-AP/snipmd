@@ -1,5 +1,6 @@
 // Info bar (SPEC §4). Minimal version; phase 2 completes it.
 import type { InfoMessage } from './types';
+import { button } from './dom';
 
 let topHost: HTMLElement | null = null;
 let bottomHost: HTMLElement | null = null;
@@ -19,33 +20,39 @@ export function showInfo(msg: InfoMessage): () => void {
   const bar = document.createElement('div');
   bar.className = `infobar ${msg.kind}`;
   bar.setAttribute('role', msg.kind === 'error' ? 'alert' : 'status');
+  const dismiss = () => bar.remove();
 
   const text = document.createElement('span');
   text.className = 'infobar-text';
   text.textContent = msg.text;
   bar.appendChild(text);
-
-  const dismiss = () => bar.remove();
   for (const action of msg.actions ?? []) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = action.primary ? 'primary' : '';
-    btn.textContent = action.label;
-    btn.addEventListener('click', () => {
-      dismiss();
-      action.run();
-    });
-    bar.appendChild(btn);
+    bar.appendChild(
+      button(action.primary ? 'primary' : '', action.label, action.label, () => {
+        dismiss();
+        action.run();
+      })
+    );
   }
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'infobar-close';
-  close.textContent = '×';
-  close.setAttribute('aria-label', 'Dismiss');
-  close.addEventListener('click', dismiss);
-  bar.appendChild(close);
+  bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
 
   host.replaceChildren(bar);
   if (msg.timeoutMs) setTimeout(dismiss, msg.timeoutMs);
   return dismiss;
+}
+
+/** Readable text for anything thrown or rejected; Rust commands reject with strings. */
+export function errorText(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+/** T1. Error bar for a failed action: "Could not <what>: <reason>". */
+export function showError(what: string, err: unknown): () => void {
+  return showInfo({ kind: 'error', text: `Could not ${what}: ${errorText(err)}` });
 }
