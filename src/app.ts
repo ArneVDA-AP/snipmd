@@ -29,6 +29,9 @@ const SKELETON = `
   <div class="infobar-host" id="infoBottom"></div>
 `;
 
+/** Longest a close waits for note writes. */
+const CLOSE_WAIT_MS = 3000;
+
 function registerKeys(): void {
   window.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -71,7 +74,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   await openPaths(cliFiles);
 
   await Promise.all([
-    onCloseRequested(flushDirty),
+    // A hung note write (drive removed) must not keep the window open; the session was written first.
+    onCloseRequested(() => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))])),
     onForwardedFiles((paths) => void openPaths(paths)),
     // Phase 3 adds dropped images here.
     onFilesDropped((paths) => void openPaths(paths.filter(isMarkdownPath)))

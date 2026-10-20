@@ -5,8 +5,8 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Write};
-use snipmd_core::paths::{resolve_image, AllowedSet};
+use std::io::{ErrorKind, Read, Write};
+use snipmd_core::{atomic, paths::{resolve_image, AllowedSet}, text};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WindowEvent};
@@ -150,7 +150,7 @@ fn extract_referenced_snips(text: &str) -> HashSet<String> {
     set
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_clipboard_image(
     app: AppHandle,
     bytes: Vec<u8>,
@@ -293,19 +293,33 @@ fn promote_scratch_assets(
     Ok(())
 }
 
-#[tauri::command]
-fn read_markdown_file(app: AppHandle, path: String) -> Result<String, String> {
-    let checked = check_path(&app, &path)?;
-    fs::read_to_string(&checked).map_err(|e| format!("Failed to read markdown file {path}: {e}"))
+fn note_name(path: &Path) -> String {
+    path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
+fn read_markdown_file(app: AppHandle, path: String) -> Result<String, String> {
+    let checked = check_path(&app, &path)?;
+    let name = note_name(&checked);
+    let bytes = fs::read(&checked).map_err(|e| format!("Failed to read {name}: {e}"))?;
+    text::decode(&bytes).map(|(t, _)| t).map_err(|_| format!("{name} is not UTF-8 text"))
+}
+
+#[tauri::command(async)]
 fn write_markdown_file(app: AppHandle, path: String, content: String) -> Result<(), String> {
     let checked = check_path(&app, &path)?;
-    if let Some(parent) = checked.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    fs::write(&checked, content).map_err(|e| format!("Failed to write markdown file {path}: {e}"))
+    let name = note_name(&checked);
+    // The format comes from the start of the file; a first line longer than 64 KB is not a note.
+    let fmt = match fs::File::open(&checked).and_then(|f| {
+        let mut head = Vec::new();
+        f.take(64 * 1024).read_to_end(&mut head).map(|_| head)
+    }) {
+        Ok(head) => text::sniff(&head),
+        Err(e) if e.kind() == ErrorKind::NotFound => text::TextFormat::NEW_FILE,
+        Err(e) => return Err(format!("Failed to read {name} before saving: {e}")),
+    };
+    atomic::atomic_write(&checked, &text::encode(&content, fmt))
+        .map_err(|e| format!("Failed to write {name}: {e}"))
 }
 
 #[tauri::command]
@@ -341,11 +355,12 @@ fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     Ok(Some(raw))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_session(app: AppHandle, json: String) -> Result<(), String> {
     let mut parsed: Value =
         serde_json::from_str(&json).map_err(|e| format!("Invalid session JSON: {e}"))?;
-    // A path outside the allowed set is dropped (the tab restores as untitled with its text),
+    // A path outside the allowed set is dropped (the tab restores as untitled; a clean tab's
+    // text is not in the session, so it comes back empty),
     // so a compromised webview cannot plant paths for the next start. Normal use never gets
     // here, and the save itself must not fail over it (guardrail 5), so it is only logged.
     let mut dropped = 0usize;
@@ -366,7 +381,7 @@ fn save_session(app: AppHandle, json: String) -> Result<(), String> {
     if dropped > 0 {
         eprintln!("session: left out {dropped} file path(s) outside the allowed set");
     }
-    fs::write(&session_path, json).map_err(|e| format!("Failed to write session.json: {e}"))
+    atomic::atomic_write(&session_path, json.as_bytes()).map_err(|e| format!("Failed to write session.json: {e}"))
 }
 
 #[tauri::command]

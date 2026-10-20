@@ -9,7 +9,6 @@ const DEBOUNCE_MS = 500;
 let source: (() => SessionFile) | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let queue: Promise<void> = Promise.resolve();
-let failing = false;
 /** Last JSON handed to the write queue; an identical snapshot is not written again. */
 let lastQueued = '';
 
@@ -32,6 +31,14 @@ export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
   }, DEBOUNCE_MS);
 }
 
+/** T2b. Cancels a pending debounce, writes the current snapshot now and resolves when every queued write is done. Never rejects. */
+export function flushSession(): Promise<void> {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  enqueueWrite();
+  return queue;
+}
+
 function enqueueWrite(): void {
   if (!source) return;
   const json = JSON.stringify(source());
@@ -40,11 +47,11 @@ function enqueueWrite(): void {
   queue = queue.then(async () => {
     try {
       await saveSessionRaw(json);
-      failing = false;
     } catch (err) {
       if (lastQueued === json) lastQueued = ''; // retry on the next save
-      if (!failing) showError('save the session', err);
-      failing = true;
+      // Shown on every failure: the info bar keeps an identical bar, and a bar replaced by
+      // another message comes back while the session still cannot be saved.
+      showError('save the session', err);
     }
   });
 }

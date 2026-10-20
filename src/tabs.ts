@@ -87,17 +87,36 @@ function captureVisible(): void {
   if (active && active.mode === 'read' && !panes.read.hidden) active.scrollTop = panes.read.scrollTop;
 }
 
+/** Copies of the tabs for the session file; live tabs are left alone. A clean disk tab stores no text: the disk is its source. */
 export function snapshot(): SessionFile {
   captureVisible();
-  for (const t of tabs) t.content = textOf(t);
-  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs, closedTabs };
+  const copies = tabs.map((t) => ({ ...t, content: t.filePath !== null && !t.dirty ? '' : textOf(t) }));
+  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs: copies, closedTabs };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
-  tabs = s.tabs;
+  const reads = await Promise.allSettled(
+    s.tabs.map((t) => (t.filePath !== null && !t.dirty ? readNote(t.filePath) : null))
+  );
+  const kept: TabState[] = [];
+  const failed: string[] = [];
+  let reason: unknown;
+  s.tabs.forEach((t, i) => {
+    const r = reads[i];
+    if (r.status === 'rejected') {
+      if (failed.length === 0) reason = r.reason;
+      failed.push(t.title);
+      return;
+    }
+    if (r.value) t.content = r.value.text;
+    kept.push(t);
+  });
+  if (failed.length > 0) showError(`reopen ${failed.join(', ')}`, reason);
+  tabs = kept;
   untitledCounter = s.untitledCounter;
   lastFolder = s.lastFolder;
   closedTabs = s.closedTabs;
+  if (tabs.length === 0) return newUntitled();
   await activate(s.activeTabId);
 }
 
