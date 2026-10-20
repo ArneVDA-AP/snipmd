@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import type { NoteFile, SavedImage } from './types';
+import { MD_EXTENSIONS } from './paths';
 
 interface SaveImageResult {
   markdownRelPath: string;
@@ -69,7 +70,7 @@ export function getCliStartupFiles(): Promise<string[]> {
 export async function pickFileToOpen(): Promise<string | null> {
   const selected = await openDialog({
     multiple: false,
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+    filters: [{ name: 'Markdown', extensions: MD_EXTENSIONS }]
   });
   return typeof selected === 'string' ? selected : null;
 }
@@ -88,14 +89,23 @@ export const appWindow = {
   close: () => getCurrentWindow().close()
 };
 
-/** Files forwarded by a second app instance, or dropped on the window. */
-export async function onExternalFiles(callback: (paths: string[]) => void): Promise<void> {
+/** Paths forwarded by a second app instance (single-instance plugin). */
+export async function onForwardedFiles(callback: (paths: string[]) => void): Promise<void> {
   await listen<string[]>('open-files', (e) => {
     if (Array.isArray(e.payload) && e.payload.length > 0) callback(e.payload);
   });
+}
+
+/** Files dropped on the window. What to do with them is decided by the caller. */
+export async function onFilesDropped(callback: (paths: string[]) => void): Promise<void> {
   await getCurrentWindow().onDragDropEvent((e) => {
-    if (e.payload.type !== 'drop') return;
-    const md = e.payload.paths.filter((p) => /\.(md|markdown)$/i.test(p));
-    if (md.length > 0) callback(md);
+    if (e.payload.type === 'drop' && e.payload.paths.length > 0) callback(e.payload.paths);
+  });
+}
+
+/** Runs `beforeClose` on every close request (titlebar button, Alt+F4, taskbar, shutdown), then the window closes. */
+export async function onCloseRequested(beforeClose: () => Promise<void>): Promise<void> {
+  await getCurrentWindow().onCloseRequested(async () => {
+    await beforeClose().catch(() => {});
   });
 }

@@ -1,7 +1,8 @@
 // Session persistence: %APPDATA%/snip-md/session.json is the only store (SPEC §7).
 import type { ClosedTab, SessionFile, TabState } from './types';
 import { loadSessionRaw, saveSessionRaw } from './ipc';
-import { showInfo } from './infobar';
+import { showError } from './infobar';
+import { normPath } from './paths';
 
 const DEBOUNCE_MS = 500;
 
@@ -9,6 +10,8 @@ let source: (() => SessionFile) | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let queue: Promise<void> = Promise.resolve();
 let failing = false;
+/** Last JSON handed to the write queue; an identical snapshot is not written again. */
+let lastQueued = '';
 
 export function bindSessionSource(fn: () => SessionFile): void {
   source = fn;
@@ -32,12 +35,15 @@ export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
 function enqueueWrite(): void {
   if (!source) return;
   const json = JSON.stringify(source());
+  if (json === lastQueued) return;
+  lastQueued = json;
   queue = queue.then(async () => {
     try {
       await saveSessionRaw(json);
       failing = false;
     } catch (err) {
-      if (!failing) showInfo({ kind: 'error', text: `Could not save the session: ${String(err)}` });
+      if (lastQueued === json) lastQueued = ''; // retry on the next save
+      if (!failing) showError('save the session', err);
       failing = true;
     }
   });
@@ -54,7 +60,7 @@ function parseTab(raw: unknown): TabState | null {
   if (!raw || typeof raw !== 'object') return null;
   const t = raw as Record<string, unknown>;
   if (typeof t.id !== 'string' || !t.id) return null;
-  const filePath = typeof t.filePath === 'string' && t.filePath ? t.filePath : null;
+  const filePath = typeof t.filePath === 'string' && t.filePath ? normPath(t.filePath) : null;
   return {
     id: t.id,
     title: str(t.title, 'Untitled'),

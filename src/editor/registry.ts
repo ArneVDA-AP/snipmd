@@ -12,7 +12,7 @@ export const tabIdFacet = Facet.define<string, string>({
 const states = new Map<string, EditorState>();
 let view: EditorView | null = null;
 let filePathLookup: (tabId: string) => string | null = () => null;
-let changeListener: (tabId: string, doc: string) => void = () => {};
+let changeListener: (tabId: string) => void = () => {};
 
 export function setView(v: EditorView): void {
   view = v;
@@ -48,12 +48,18 @@ export function filePathFor(tabId: string): string | null {
   return filePathLookup(tabId);
 }
 
-export function bindChangeListener(fn: (tabId: string, doc: string) => void): void {
+export function bindChangeListener(fn: (tabId: string) => void): void {
   changeListener = fn;
 }
 
-export function notifyChange(tabId: string, doc: string): void {
-  changeListener(tabId, doc);
+/** Called on every document change. Cheap on purpose: the text is read only when it is needed (textOf). */
+export function notifyChange(tabId: string): void {
+  changeListener(tabId);
+}
+
+/** Current text of a tab's editor, or undefined when the tab has no editor state yet. */
+export function textOf(tabId: string): string | undefined {
+  return getState(tabId)?.doc.toString();
 }
 
 /** Applies a transaction to a tab's document, whether it is visible or not. Returns false if the tab is gone. */
@@ -66,6 +72,6 @@ export function applyToTab(tabId: string, spec: TransactionSpec): boolean {
   if (!state) return false;
   const tr = state.update(spec);
   states.set(tabId, tr.state);
-  if (tr.docChanged) notifyChange(tabId, tr.state.doc.toString());
+  if (tr.docChanged) notifyChange(tabId);
   return true;
 }

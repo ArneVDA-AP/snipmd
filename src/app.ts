@@ -3,7 +3,8 @@ import { Titlebar } from './titlebar';
 import { mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveTab } from './saving';
-import { getCliStartupFiles, onExternalFiles, pickFileToOpen } from './ipc';
+import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen } from './ipc';
+import { isMarkdownPath } from './paths';
 import {
   activate,
   closeTab,
@@ -12,6 +13,7 @@ import {
   initTabs,
   newUntitled,
   openPath,
+  openPaths,
   restore,
   snapshot,
   toggleMode
@@ -53,22 +55,25 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),
     close: (id) => void closeTab(id),
-    newTab: () => void newUntitled(),
-    beforeClose: flushDirty
+    newTab: () => void newUntitled()
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar);
   bindSessionSource(snapshot);
   registerKeys();
   window.addEventListener('blur', () => void flushDirty());
 
-  const session = await loadSession().catch(() => null);
+  const [session, cliFiles] = await Promise.all([
+    loadSession().catch(() => null),
+    getCliStartupFiles().catch(() => [])
+  ]);
   if (session) await restore(session);
-  else await newUntitled();
+  else if (cliFiles.length === 0) await newUntitled();
+  await openPaths(cliFiles);
 
-  for (const path of await getCliStartupFiles().catch(() => [])) await openPath(path);
-  await onExternalFiles((paths) => {
-    void (async () => {
-      for (const p of paths) await openPath(p);
-    })();
-  });
+  await Promise.all([
+    onCloseRequested(flushDirty),
+    onForwardedFiles((paths) => void openPaths(paths)),
+    // Phase 3 adds dropped images here.
+    onFilesDropped((paths) => void openPaths(paths.filter(isMarkdownPath)))
+  ]);
 }

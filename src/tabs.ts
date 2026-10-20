@@ -1,8 +1,10 @@
 // Tab list state and the visible workspace (editor or read view).
+// The text of a tab lives in its EditorState; TabState.content is only filled when the session is
+// written and used to create the editor state on restore. Read it through textOf().
 import { EditorView } from '@codemirror/view';
 import type { ClosedTab, SessionFile, TabState } from './types';
 import { createEditorState } from './editor/setup';
-import { assetResolved } from './editor/imageWidget';
+import { redrawImages } from './editor/imageWidget';
 import {
   bindChangeListener,
   bindFilePathLookup,
@@ -11,12 +13,14 @@ import {
   getView,
   setState,
   setView,
+  textOf as editorText,
   visibleTabId
 } from './editor/registry';
 import { renderRead } from './preview/render';
 import { gcScratchAssets, readNote } from './ipc';
 import { scheduleSessionSave } from './session';
-import { showInfo } from './infobar';
+import { showError } from './infobar';
+import { basename, normPath, samePath } from './paths';
 import type { Titlebar } from './titlebar';
 
 interface Panes {
@@ -39,43 +43,42 @@ export function initTabs(p: Panes, t: Titlebar): void {
   bindChangeListener(onDocChange);
 }
 
-function onDocChange(id: string, doc: string): void {
+/** Every change to the tab list or a tab ends here: redraw the tab strip, persist the session. */
+function changed(opts?: { immediate?: boolean }): void {
+  titlebar.render(tabs, activeId);
+  scheduleSessionSave(opts);
+}
+
+function onDocChange(id: string): void {
   const tab = getTab(id);
   if (!tab) return;
-  tab.content = doc;
-  if (!tab.dirty) {
-    tab.dirty = true;
-    renderTitlebar();
+  if (tab.dirty) {
+    scheduleSessionSave();
+    return;
   }
-  scheduleSessionSave();
+  tab.dirty = true;
+  changed();
 }
 
 export const getTabs = (): readonly TabState[] => tabs;
 export const getTab = (id: string): TabState | undefined => tabs.find((t) => t.id === id);
 export const getActiveTab = (): TabState | undefined => getTab(activeId) ?? tabs[0];
-export const getLastFolder = (): string | null => lastFolder;
+/** Current text of a tab. */
+export const textOf = (tab: TabState): string => editorText(tab.id) ?? tab.content;
 export const untitledContentsExcept = (id?: string): string[] =>
-  tabs.filter((t) => t.filePath === null && t.id !== id).map((t) => t.content);
+  tabs.filter((t) => t.filePath === null && t.id !== id).map(textOf);
 
 export function setLastFolder(folder: string): void {
   lastFolder = folder;
 }
 
-const newId = (): string => `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-const basename = (p: string): string => p.replace(/\\/g, '/').split('/').pop() || p;
-
-function renderTitlebar(): void {
-  titlebar.render(tabs, activeId);
-}
-
 /** Stores the visible editor's state, cursor and scroll back into its tab. */
 function captureVisible(): void {
   const view = getView();
-  const vid = visibleTabId();
-  if (view && vid) {
-    const tab = getTab(vid);
-    setState(vid, view.state);
-    if (tab && tab.mode === 'edit') {
+  const tab = getTab(visibleTabId() ?? '');
+  if (view && tab) {
+    setState(tab.id, view.state);
+    if (tab.mode === 'edit') {
       tab.cursor = view.state.selection.main.head;
       tab.scrollTop = view.scrollDOM.scrollTop;
     }
@@ -86,14 +89,8 @@ function captureVisible(): void {
 
 export function snapshot(): SessionFile {
   captureVisible();
-  return {
-    version: 3,
-    activeTabId: activeId,
-    untitledCounter,
-    lastFolder,
-    tabs: tabs.map((t) => ({ ...t })),
-    closedTabs
-  };
+  for (const t of tabs) t.content = textOf(t);
+  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs, closedTabs };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
@@ -118,11 +115,7 @@ function mountEditor(tab: TabState): void {
     view.setState(state);
   }
   const v = view;
-  // Redraw images whose URLs resolved while this tab was hidden.
-  v.dispatch({
-    selection: { anchor: Math.min(tab.cursor, v.state.doc.length) },
-    effects: assetResolved.of('activate')
-  });
+  v.dispatch({ selection: { anchor: Math.min(tab.cursor, v.state.doc.length) } });
   requestAnimationFrame(() => {
     v.scrollDOM.scrollTop = tab.scrollTop;
     v.focus();
@@ -136,22 +129,21 @@ export async function activate(id: string): Promise<void> {
   activeId = tab.id;
   panes.editor.hidden = tab.mode !== 'edit';
   panes.read.hidden = tab.mode !== 'read';
-  renderTitlebar();
+  changed();
   if (tab.mode === 'edit') {
     mountEditor(tab);
   } else {
-    await renderRead(panes.read, tab.id, tab.content);
+    await renderRead(panes.read, tab.id, textOf(tab));
     requestAnimationFrame(() => (panes.read.scrollTop = tab.scrollTop));
   }
-  scheduleSessionSave();
 }
 
-export async function newUntitled(): Promise<void> {
+async function addTab(title: string, filePath: string | null, content: string): Promise<void> {
   const tab: TabState = {
-    id: newId(),
-    title: `Untitled-${untitledCounter++}`,
-    filePath: null,
-    content: '',
+    id: crypto.randomUUID(),
+    title,
+    filePath,
+    content,
     dirty: false,
     mode: 'edit',
     cursor: 0,
@@ -159,33 +151,27 @@ export async function newUntitled(): Promise<void> {
   };
   tabs.push(tab);
   await activate(tab.id);
-  scheduleSessionSave({ immediate: true });
+  changed({ immediate: true });
+}
+
+export function newUntitled(): Promise<void> {
+  return addTab(`Untitled-${untitledCounter++}`, null, '');
 }
 
 export async function openPath(path: string): Promise<void> {
-  const norm = path.replace(/\\/g, '/');
-  const existing = tabs.find((t) => t.filePath?.replace(/\\/g, '/').toLowerCase() === norm.toLowerCase());
+  const norm = normPath(path);
+  const existing = tabs.find((t) => t.filePath && samePath(t.filePath, norm));
   if (existing) return activate(existing.id);
-  let text: string;
   try {
-    text = (await readNote(norm)).text;
+    const { text } = await readNote(norm);
+    await addTab(basename(norm), norm, text);
   } catch (err) {
-    showInfo({ kind: 'error', text: `Could not open ${basename(norm)}: ${String(err)}` });
-    return;
+    showError(`open ${basename(norm)}`, err);
   }
-  const tab: TabState = {
-    id: newId(),
-    title: basename(norm),
-    filePath: norm,
-    content: text,
-    dirty: false,
-    mode: 'edit',
-    cursor: 0,
-    scrollTop: 0
-  };
-  tabs.push(tab);
-  await activate(tab.id);
-  scheduleSessionSave({ immediate: true });
+}
+
+export async function openPaths(paths: string[]): Promise<void> {
+  for (const p of paths) await openPath(p);
 }
 
 export async function closeTab(id: string): Promise<void> {
@@ -198,13 +184,9 @@ export async function closeTab(id: string): Promise<void> {
   if (closing.filePath === null) {
     await gcScratchAssets(untitledContentsExcept()).catch(() => 0);
   }
-  if (tabs.length === 0) {
-    await newUntitled();
-    return;
-  }
+  if (tabs.length === 0) return newUntitled();
   if (activeId === id) await activate(tabs[Math.min(idx, tabs.length - 1)].id);
-  else renderTitlebar();
-  scheduleSessionSave({ immediate: true });
+  changed({ immediate: true });
 }
 
 export async function toggleMode(): Promise<void> {
@@ -221,21 +203,15 @@ export async function cycle(delta: 1 | -1): Promise<void> {
   await activate(tabs[(idx + delta + tabs.length) % tabs.length].id);
 }
 
-/** Marks a tab clean if its content still equals what was written. Sets the path after a first save. */
+/** Marks a tab clean if its text still equals what was written. Sets the path after a first save. */
 export function markSaved(id: string, writtenText: string, newPath?: string): void {
   const tab = getTab(id);
   if (!tab) return;
   if (newPath) {
-    tab.filePath = newPath;
+    tab.filePath = normPath(newPath);
     tab.title = basename(newPath);
-    // Image links now resolve against the new folder.
-    if (getState(id)) applyRedraw(id);
+    redrawImages(id); // image links now resolve against the new folder
   }
-  if (tab.content === writtenText) tab.dirty = false;
-  renderTitlebar();
-}
-
-function applyRedraw(id: string): void {
-  const view = getView();
-  if (view && visibleTabId() === id) view.dispatch({ effects: assetResolved.of('path-changed') });
+  if (textOf(tab) === writtenText) tab.dirty = false;
+  changed();
 }

@@ -47,7 +47,7 @@ Build:
 Done when: `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core` pass here; CI `cargo check` passes on Windows; the app starts on one empty untitled tab.
 
 ## Contract (frozen in phase 0)
-`contract.shared`: `src/types.ts`, `src-tauri/core/src/lib.rs` (module declarations and shared error types only).
+`contract.shared`: `src/types.ts`, `src/paths.ts` (path helpers), `src/dom.ts` (DOM helpers), `src-tauri/core/src/lib.rs` (module declarations and shared error types only).
 
 Rust, crate `snipmd_core`:
 | Id | Module | Signature |
@@ -64,7 +64,7 @@ Rust, crate `snipmd_core`:
 TypeScript:
 | Id | File | Signature |
 |---|---|---|
-| T1 | `src/infobar.ts` | `export function showInfo(msg: InfoMessage): () => void` |
+| T1 | `src/infobar.ts` | `export function showInfo(msg: InfoMessage): () => void`; `export function showError(what: string, err: unknown): () => void` |
 | T2 | `src/session.ts` | `export function scheduleSessionSave(opts?: { immediate?: boolean }): void` |
 | T3 | `src/ipc.ts` | `export function saveImage(tabId: string, notePath: string \| null, bytes: Uint8Array): Promise<SavedImage>` |
 | T4 | `src/ipc.ts` | `export function writeNote(path: string, text: string): Promise<void>`; `export function readNote(path: string): Promise<NoteFile>` |
