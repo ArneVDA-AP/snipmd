@@ -132,7 +132,7 @@ Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab 
 Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
 
 ## Status
-- [ ] 0 Strip and foundation: **done on branch `claude/phase-0`, not merged, no PR yet.** Two commits: the phase itself and the `/simplify` cleanup. CI (Windows: lint, test, build, `cargo test -p snipmd-core`, `cargo check`) was green on the first commit; check the latest run for the second. Waiting for the user's Windows test (`npm ci`, `npm run tauri dev`: starts on one empty tab; Win+Shift+S + Ctrl+V works; tabs come back after restart).
+- [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
 - [ ] 1 Security
 - [ ] 2 Storage foundation
 - [ ] 3 Images and paste
@@ -145,7 +145,6 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
 - The thin-* agents load at session start from `.claude/agents/`. Phases 1-5 run as thin-standard: write the `args` JSON from the phase table, show it to the user, then run. Recommended: local Windows session (Rust compiles there); in the cloud only `snipmd-core` compiles, CI checks the Tauri crate.
 - Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
 - Open items outside the phases:
-  - `.github/workflows/release-win11.yml` publishes release `v0.1.0` on every push to `main`. Change the trigger to tags + manual before the first merge.
   - Bundle 583 KB: `@codemirror/lang-markdown` pulls in lang-html/javascript and autocomplete. Phase 6.
   - README, CHANGELOG, RELEASE-WIN11.md, ARCHITECTURE.md and the build scripts still partly describe the prototype.
 - Deferred review findings, by phase:
