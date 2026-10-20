@@ -2,9 +2,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import type { NoteFile, SavedImage } from './types';
-import { MD_EXTENSIONS } from './paths';
 
 interface SaveImageResult {
   markdownRelPath: string;
@@ -67,20 +65,17 @@ export function getCliStartupFiles(): Promise<string[]> {
   return invoke<string[]>('get_cli_startup_files');
 }
 
-export async function pickFileToOpen(): Promise<string | null> {
-  const selected = await openDialog({
-    multiple: false,
-    filters: [{ name: 'Markdown', extensions: MD_EXTENSIONS }]
-  });
-  return typeof selected === 'string' ? selected : null;
+export function pickFileToOpen(): Promise<string | null> {
+  return invoke<string | null>('pick_open');
 }
 
-export async function pickSavePath(defaultName: string): Promise<string | null> {
-  const selected = await saveDialog({
-    defaultPath: defaultName.endsWith('.md') ? defaultName : `${defaultName}.md`,
-    filters: [{ name: 'Markdown', extensions: ['md'] }]
-  });
-  return typeof selected === 'string' ? selected : null;
+export function pickSavePath(defaultName: string): Promise<string | null> {
+  return invoke<string | null>('pick_save', { defaultName });
+}
+
+/** Opens a web or mailto link in the user's default app. Rust checks the scheme. */
+export function openLink(url: string): Promise<void> {
+  return invoke<void>('open_link', { url });
 }
 
 export const appWindow = {
@@ -98,8 +93,8 @@ export async function onForwardedFiles(callback: (paths: string[]) => void): Pro
 
 /** Files dropped on the window. What to do with them is decided by the caller. */
 export async function onFilesDropped(callback: (paths: string[]) => void): Promise<void> {
-  await getCurrentWindow().onDragDropEvent((e) => {
-    if (e.payload.type === 'drop' && e.payload.paths.length > 0) callback(e.payload.paths);
+  await listen<string[]>('files-dropped', (e) => {
+    if (Array.isArray(e.payload) && e.payload.length > 0) callback(e.payload);
   });
 }
 
