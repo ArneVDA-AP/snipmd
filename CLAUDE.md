@@ -50,13 +50,17 @@
 - **No retry loops by accident.** A failure path must not trigger the same work again (e.g. no redraw after a failed image lookup).
 - **Security checks parse like the consumer.** Decide on URLs and paths with the same parser the webview or OS uses (`new URL`, `Url::parse`, one lexical walk in `snipmd_core::paths`), never with a prefix match; `:80`, `\\`, a newline or a trailing dot/space disguises a prefix.
 - **Trust is applied after sanitizing.** Content the app vouches for (resolved image URLs) is set on the clean DOM, never recognized from a string or attribute the note could have written.
+- **File-system commands run off the main thread.** Every Tauri command that touches the disk is `#[tauri::command(async)]` (or `async fn`); a plain sync command runs on the main thread, so a removed drive freezes the window.
+- **Lasting messages are keyed.** An error that holds until its cause is fixed uses `showError(what, err, key)` and `clearInfo(key)` (`src/infobar.ts`); the info bar keeps it under newer messages. No module-level map of dismiss handles.
+- **Closed tabs keep their text.** `closeTab` stores the latest text in `TabState.content` before dropping the editor state, so work still queued for that tab reads it through `textOf`. Don't capture text at call time to work around it.
+- **Repeated work merges.** Saves of one tab run one at a time and a save asked for during a write joins the one queued behind it; it reads the newest text when it starts.
 - **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
 - Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
 
 ## Verification
 - Frontend: `npm run lint` (`tsc --noEmit`), `npm test` (Vitest, jsdom) and `npm run build`.
 - Rust logic: `cargo test -p snipmd-core` in `src-tauri/`. Runs anywhere.
-- Tauri crate: `cargo check` in `src-tauri/`. On a Linux cloud box this fails on missing GTK system libraries (`gdk-3.0`); that is the environment, not the code. CI checks it on Windows for every push. Say so instead of claiming the Rust side compiles.
+- Tauri crate: `cargo check` in `src-tauri/`. It needs the GTK system libraries on Linux; without them it fails on `gdk-3.0`, which is the environment, not the code. CI checks it on Windows for every push. Say which one ran.
 - UI in a browser: `npx vite` plus a page with a mocked `window.__TAURI_INTERNALS__` (invoke, transformCallback, convertFileSrc, metadata) gives a quick smoke test; it does not replace the Windows test.
 - Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; write down a concrete Windows test.
 

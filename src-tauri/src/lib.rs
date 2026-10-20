@@ -194,7 +194,7 @@ fn save_clipboard_image(
     Err("Unable to allocate collision-free snip filename after 64 attempts".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn resolve_asset_abs_path(
     app: AppHandle,
     rel_path: String,
@@ -213,7 +213,7 @@ fn resolve_asset_abs_path(
     Ok(displayable(&app, &resolved))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn gc_scratch_assets(
     app: AppHandle,
     live_unsaved_contents: Vec<String>,
@@ -251,7 +251,7 @@ fn gc_scratch_assets(
     Ok(deleted_count)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn promote_scratch_assets(
     app: AppHandle,
     content: String,
@@ -305,15 +305,20 @@ fn read_markdown_file(app: AppHandle, path: String) -> Result<String, String> {
     text::decode(&bytes).map(|(t, _)| t).map_err(|_| format!("{name} is not UTF-8 text"))
 }
 
+/// Enough of a note to read its format: sniff needs the BOM and the first line break.
+const HEAD_BYTES: u64 = 64 * 1024;
+
+fn read_head(p: &Path) -> std::io::Result<Vec<u8>> {
+    let mut head = Vec::new();
+    fs::File::open(p)?.take(HEAD_BYTES).read_to_end(&mut head)?;
+    Ok(head)
+}
+
 #[tauri::command(async)]
 fn write_markdown_file(app: AppHandle, path: String, content: String) -> Result<(), String> {
     let checked = check_path(&app, &path)?;
     let name = note_name(&checked);
-    // The format comes from the start of the file; a first line longer than 64 KB is not a note.
-    let fmt = match fs::File::open(&checked).and_then(|f| {
-        let mut head = Vec::new();
-        f.take(64 * 1024).read_to_end(&mut head).map(|_| head)
-    }) {
+    let fmt = match read_head(&checked) {
         Ok(head) => text::sniff(&head),
         Err(e) if e.kind() == ErrorKind::NotFound => text::TextFormat::NEW_FILE,
         Err(e) => return Err(format!("Failed to read {name} before saving: {e}")),
@@ -322,7 +327,7 @@ fn write_markdown_file(app: AppHandle, path: String, content: String) -> Result<
         .map_err(|e| format!("Failed to write {name}: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     let app_data = app
         .path()
@@ -384,7 +389,7 @@ fn save_session(app: AppHandle, json: String) -> Result<(), String> {
     atomic::atomic_write(&session_path, json.as_bytes()).map_err(|e| format!("Failed to write session.json: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
     let cwd = std::env::current_dir().unwrap_or_default();
     open_args(&app, std::env::args().skip(1), &cwd)

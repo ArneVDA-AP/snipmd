@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mountInfobar, showInfo } from './infobar';
+import { clearInfo, mountInfobar, showInfo } from './infobar';
 
 let top: HTMLElement;
 let bottom: HTMLElement;
@@ -73,5 +73,26 @@ describe('infobar', () => {
     d();
     expect(top.children.length).toBe(1);
     expect(bottom.children.length).toBe(0);
+  });
+});
+
+describe('keyed messages', () => {
+  it('a keyed error waits under a newer message and comes back when that one goes', () => {
+    showInfo({ kind: 'error', text: 'session failed', key: 'session' });
+    const dismissInfo = showInfo({ kind: 'info', text: 'saved' });
+    expect(top.textContent).toContain('saved');
+    dismissInfo();
+    expect(top.textContent).toContain('session failed');
+    clearInfo('session');
+    expect(top.children.length).toBe(0);
+  });
+
+  it('showing a key again updates it in place; two keys stay apart', () => {
+    showInfo({ kind: 'error', text: 'a: locked', key: 'save:a' });
+    showInfo({ kind: 'error', text: 'b: gone', key: 'save:b' });
+    showInfo({ kind: 'error', text: 'a: still locked', key: 'save:a' });
+    expect(top.textContent).toContain('b: gone');
+    clearInfo('save:b');
+    expect(top.textContent).toContain('a: still locked');
   });
 });

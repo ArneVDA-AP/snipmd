@@ -134,7 +134,7 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
 ## Status
 - [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
 - [x] 1 Security: PR #2 merged (reviews R1-R3 in `review/`, R2-M1 closed). **Windows test open** (does not block phase 2): open `fixtures/evil.md` in edit and read mode; nothing runs, no file outside the note folder loads, links open in the browser, the app does not navigate away.
-- [ ] 2 Storage foundation
+- [x] 2 Storage foundation: branch `claude/phase-2` (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 - [ ] 3 Images and paste
 - [ ] 4 Saving flows
 - [ ] 5 Tabs and recovery
@@ -152,5 +152,10 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
   - Phase 1: `escapeAttr` in `src/preview/render.ts` becomes part of the sanitizer work.
   - Phase 3 (B4 imageWidget): find images through the Markdown syntax tree (`syntaxTree`, `Image` nodes) instead of a per-line regex; that also skips code blocks and handles several images per line.
   - Phase 3: send the session and images to Rust as raw bytes, not JSON strings / number arrays.
+  - Phase 3: one core helper for "unique name + `create_new` + retry" shared by `atomic_write` temp files and `create_snip`; name files with `note_name` in the older command errors too.
+  - Phase 4: carry the note's format from `read_markdown_file` with the tab and send it on write, instead of sniffing the file before every save; mixed line endings are rewritten to the first one (R1 D5), lone-CR files get CRLF (D6).
+  - Phase 4: atomic writes replace a symlinked note with a file (D7) and drop ACLs/attributes (D8); a crash between write and rename leaves a `.tmp` next to the note (D9; set the hidden attribute on Windows).
+  - Phase 4/5: compare dirty tabs with disk on restore (SPEC §7, D11); a clean tab whose drive is briefly missing at start is dropped for good, and restore waits for the slowest read before the first paint.
+  - Phase 6: session.json is fsynced on every debounced write; measure. Test mocks and fixtures are written per file; share them once a third test needs them.
   - Phase 4: consider keeping the note path in the EditorState (StateField + effect) once Save As and rename add more path changes.
   - Phase 6: incremental image decorations (only changed lines); titlebar updates in place instead of a full rebuild; bundle size.

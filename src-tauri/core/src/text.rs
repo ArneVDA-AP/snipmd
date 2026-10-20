@@ -28,17 +28,24 @@ pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), crate::TextError> {
     let fmt = sniff(bytes);
     let body = if fmt.bom { &bytes[3..] } else { bytes };
     let text = std::str::from_utf8(body).map_err(|_| crate::TextError::NotUtf8)?;
-    Ok((text.replace("\r\n", "\n"), fmt))
+    let text = if text.contains('\r') { text.replace("\r\n", "\n") } else { text.to_owned() };
+    Ok((text, fmt))
 }
 
 /// R6. Encodes `\n` text back in the given format.
 pub fn encode(text: &str, fmt: TextFormat) -> Vec<u8> {
-    let norm = text.replace("\r\n", "\n");
-    let body = if fmt.crlf { norm.replace('\n', "\r\n") } else { norm };
-    let mut out = Vec::with_capacity(body.len() + 3);
+    // One pass: a `\r` that already precedes a `\n` is dropped, every `\n` gets the chosen break.
+    let mut out = Vec::with_capacity(text.len() + if fmt.crlf { text.len() / 16 } else { 0 } + 3);
     if fmt.bom {
         out.extend_from_slice(&BOM);
     }
-    out.extend_from_slice(body.as_bytes());
+    let bytes = text.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'\r' if bytes.get(i + 1) == Some(&b'\n') => {}
+            b'\n' if fmt.crlf => out.extend_from_slice(b"\r\n"),
+            _ => out.push(b),
+        }
+    }
     out
 }

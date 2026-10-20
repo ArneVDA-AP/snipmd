@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseSession } from './session';
 
 vi.mock('./ipc', () => ({ saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
-vi.mock('./infobar', () => ({ showError: vi.fn() }));
+vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
 
 describe('parseSession', () => {
   it('round-trips a v3 session', () => {

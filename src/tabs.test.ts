@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionFile, TabState } from './types';
 
-vi.mock('./ipc', () => ({ readNote: vi.fn(), gcScratchAssets: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
-vi.mock('./infobar', () => ({ showError: vi.fn() }));
+vi.mock('./ipc', () => ({ readNote: vi.fn(), gcScratchAssets: vi.fn().mockResolvedValue(0), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
+vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({ renderRead: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
 import { showError } from './infobar';
-import { initTabs, restore, snapshot, getTabs, textOf } from './tabs';
+import { closeTab, initTabs, restore, snapshot, getTabs, textOf } from './tabs';
+import { getView } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, ...o
@@ -78,5 +79,17 @@ describe('restore', () => {
     await restore(session([tab({ id: 'b', title: 'b.md', filePath: 'C:/n/b.md' })]));
     expect(getTabs()).toHaveLength(1);
     expect(getTabs()[0].filePath).toBeNull();
+  });
+});
+
+describe('closeTab', () => {
+  it('keeps the latest text on the closed tab, for a write still queued for it', async () => {
+    await restore(session([tab({ id: 'a', mode: 'edit', content: 'old' }), tab({ id: 'b', mode: 'edit', content: 'other' })]));
+    const closing = getTabs()[0];
+    const view = getView()!;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'typed' } });
+    await closeTab('a');
+    expect(getTabs().map((t) => t.id)).toEqual(['b']);
+    expect(textOf(closing)).toBe('typed');
   });
 });

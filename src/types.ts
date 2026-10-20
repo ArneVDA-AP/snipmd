@@ -46,6 +46,8 @@ export interface InfoMessage {
   /** Auto-dismiss after this many ms. Omitted = stays until dismissed. */
   timeoutMs?: number;
   position?: 'top' | 'bottom';
+  /** A keyed message stays until it is dismissed or cleared with clearInfo(key); showing the key again updates it in place. */
+  key?: string;
 }
 
 export interface SavedImage {
