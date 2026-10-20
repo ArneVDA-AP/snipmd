@@ -1,11 +1,10 @@
 name: Release Windows 11 (x64 NSIS, MSI & Portable)
 
+# Releases come from version tags only. A manual run builds the installers
+# as workflow artifacts but publishes nothing.
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-      - master
     tags:
       - 'v*'
 
@@ -57,12 +56,13 @@ jobs:
             release-win11/*.exe
             release-win11/*.msi
 
-      - name: Publish GitHub Release (v0.1.0)
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v0.1.0
+          tag_name: ${{ github.ref_name }}
           name: 'SnipMD v0.1.0 — Windows 11 Release (x64)'
           body: |
             ## SnipMD v0.1.0 for Windows 11 (x64)
