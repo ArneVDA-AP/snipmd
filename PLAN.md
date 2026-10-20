@@ -1,3 +1,5 @@
+> **Outdated.** This describes the original prototype design and is superseded by `SPEC.md`. Kept for reference until the cleanup replaces it.
+
 # SnipMD — Plan-Mode Execution Blueprint (Shared Substrate)
 
 ## 1. Authoritative Technical Constraints

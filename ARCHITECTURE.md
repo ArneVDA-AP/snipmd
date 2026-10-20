@@ -1,3 +1,5 @@
+> **Outdated.** This describes the original prototype design and is superseded by `SPEC.md`. Kept for reference until the cleanup replaces it.
+
 # SnipMD — Architecture & Data Flow Diagrams
 
 ## 1. High-Level Component Architecture
