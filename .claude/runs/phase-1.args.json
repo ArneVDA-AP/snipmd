@@ -1,0 +1,97 @@
+{
+  "goal": "SnipMD phase 1: security (SPEC §8)",
+  "root": "/home/user/snipmd",
+  "contract": {
+    "shared": ["src/types.ts", "src/paths.ts", "src/dom.ts", "src-tauri/core/src/lib.rs"],
+    "signatures": [
+      { "id": "R1", "owner": "B1", "signature": "pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError>", "doc": "snipmd_core::paths. Percent-decodes the link, then accepts only a relative path that stays inside note_dir. Rejects: absolute (/x, C:\\x), drive-relative (C:x), UNC (\\\\server\\share, //server/share), any `..` that leaves note_dir, any `:` after decoding (NTFS streams, schemes), empty links, NUL, malformed percent-encoding (PathError::Invalid). Accepts both / and \\ as separators. `./a.png` and `sub/../a.png` are fine. Returns note_dir joined with the cleaned relative path; purely lexical, no file system access." },
+      { "id": "R2", "owner": "B1", "signature": "pub struct AllowedSet; pub fn new() -> Self; pub fn allow_note(&mut self, note: &Path); pub fn allow_dir(&mut self, dir: &Path); pub fn check(&self, p: &Path) -> Result<PathBuf, PathError>", "doc": "snipmd_core::paths. allow_note allows exactly that file plus its `<stem>.assets/` folder (recursive). allow_dir allows a folder recursively. check normalizes lexically (removes `.`, resolves `..`, unifies separators) and returns the normalized path when it equals an allowed file or lies inside an allowed folder; otherwise PathError::NotAllowed. Relative input is NotRelative. Comparison is case-insensitive on Windows (cfg(windows)) and exact elsewhere. `C:\\notes\\a.md` must not allow `C:\\notes\\a.md.evil` or `C:\\notes-other\\x`. No file system access, so a note that does not exist yet (Save As target) can be allowed." },
+      { "id": "C1", "owner": "B2", "signature": "#[tauri::command] async fn pick_open(app, state) -> Result<Option<String>, String>; #[tauri::command] async fn pick_save(app, state, default_name: String) -> Result<Option<String>, String>", "doc": "The open and save dialogs run in Rust (tauri_plugin_dialog::DialogExt, non-blocking pick with a oneshot channel). A picked path is added to the allowed set before it is returned. Filters: Markdown md/markdown for open, md for save." },
+      { "id": "C2", "owner": "B2", "signature": "event `files-dropped`: Vec<String>", "doc": "Rust handles WindowEvent::DragDrop(Drop) in on_window_event, allows every dropped .md/.markdown path as a note, then emits `files-dropped` with all dropped paths. The frontend no longer uses onDragDropEvent." },
+      { "id": "C3", "owner": "B2", "signature": "fn allow_note(app: &AppHandle, note: &Path)", "doc": "The one path into the allowed set for a note: AllowedSet::allow_note (state: Mutex<AllowedSet> managed by Tauri) plus asset_protocol_scope().allow_directory(note's parent folder, true). At startup the app data folder is allowed the same way (allow_dir + asset scope). Callers: pick_open, pick_save, drop, get_cli_startup_files, the single-instance callback, load_session." }
+    ]
+  },
+  "phases": [
+    {
+      "title": "Build",
+      "units": [
+        {
+          "id": "B1",
+          "agentType": "thin-builder",
+          "task": "Implement R1 and R2 in src-tauri/core/src/paths.rs exactly as documented in the contract (replace the todo!() stubs; keep the public signatures and the PathError variants from src-tauri/core/src/lib.rs, which you may not edit). No new dependencies: write the percent-decoding yourself. Write integration tests in src-tauri/core/tests/paths.rs covering at least: `../x.png`, `a/../../x.png`, `%2e%2e/x.png`, `/etc/x`, `C:\\\\x.png`, `C:x.png`, `\\\\\\\\srv\\\\share\\\\x.png`, `//srv/share/x.png`, `a.png:evil`, `a%3Aevil`, `%zz`, empty link are rejected; `a.png`, `./sub/a.png`, `sub/../a.png`, `labo%2004.assets/snip.png` (space) resolve inside the folder; AllowedSet: the note and its `<stem>.assets/` subtree pass, a sibling note, `a.md.evil`, a prefix-sharing folder and a `..` escape fail; allow_dir covers subfolders.",
+          "output": "paths.rs implemented, tests in core/tests/paths.rs, the check passing.",
+          "owns": ["src-tauri/core/src/paths.rs", "src-tauri/core/tests/paths.rs"],
+          "reads": ["src-tauri/core/src/lib.rs", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R1", "R2"],
+          "checks": [{ "cmd": "cd src-tauri && cargo test -p snipmd-core --test paths", "expect_exit": 0, "proves": "../, absolute, UNC, C: and :stream links are rejected; the allowed set admits only opened notes, their assets folders and allowed dirs" }],
+          "limits": "paths.rs under 250 lines; no unsafe; no new crates"
+        },
+        {
+          "id": "B3",
+          "agentType": "thin-builder",
+          "task": "Sanitize read mode (SPEC §8). Add `dompurify` as a dependency (npm install dompurify; it ships its own types). In src/preview/render.ts run marked's output through DOMPurify before it reaches innerHTML: no scripts, no event handlers, no iframes/object/embed/form, no style attributes, no javascript:/data:/vbscript: URLs in href or src. Images: keep an <img> only when its src is an http(s) URL or an asset URL produced by the app (`toAssetUrl`; on Windows `http://asset.localhost/...`, elsewhere `asset://localhost/...`); drop any other img. Links keep href only for http(s), mailto and `#` fragments. Keep the existing walkTokens image resolution and the click-to-expand behaviour. Write src/preview/render.test.ts (Vitest, jsdom; mock ../editor/imageWidget and ../editor/registry with vi.mock) proving that `<img src=x onerror=alert(1)>`, `<script>`, `<iframe>`, `<a href=\"javascript:alert(1)\">`, `<svg onload>`, `![x](data:image/png;base64,AAAA)` and `<img src=\"file:///C:/Windows/win.ini\">` are neutralized, and that a normal heading, an https link and an https image survive. Write fixtures/evil.md containing every one of those payloads plus a relative `../../secret.png` image and a `C:\\\\Windows\\\\win.ini` image, for the user's Windows test. src/titlebar.ts already uses textContent; confirm no other innerHTML in your files takes user text.",
+          "output": "render.ts sanitized, render.test.ts, fixtures/evil.md, package.json + package-lock.json with dompurify.",
+          "owns": ["src/preview/", "package.json", "package-lock.json", "fixtures/evil.md"],
+          "reads": ["src/editor/imageWidget.ts", "src/editor/registry.ts", "src/ipc.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": [],
+          "checks": [{ "cmd": "npx vitest run src/preview", "expect_exit": 0, "proves": "<img onerror>, <script>, <iframe>, javascript: links, data: and file: images are removed; normal Markdown survives" }],
+          "limits": "do not touch src/ipc.ts or src/app.ts; do not remove other dependencies"
+        }
+      ]
+    },
+    {
+      "title": "Build Tauri",
+      "units": [
+        {
+          "id": "B2",
+          "agentType": "thin-builder",
+          "task": "Wire the allowed set into the Tauri crate (SPEC §8, CLAUDE.md guardrails 8 and 9). In src-tauri/src/lib.rs: manage `Mutex<snipmd_core::paths::AllowedSet>`; implement C1, C2, C3 exactly as in the contract. Every command that takes a path validates it in Rust: read_markdown_file and write_markdown_file through AllowedSet::check; resolve_asset_abs_path checks the note path (or uses the scratch folder for null) and resolves the link with snipmd_core::paths::resolve_image, no canonicalize fallback that escapes; promote_scratch_assets checks target_md_path. get_cli_startup_files and the single-instance callback allow the .md/.markdown paths they pass on. load_session parses session.json and allows every non-null tabs[].filePath and closedTabs[].tab.filePath. save_session parses the JSON and returns an error, writing nothing, if any of those paths is not in the allowed set (in normal use they always are; this stops a compromised webview from planting paths for the next start). Startup allows the app data folder (allow_dir + asset scope). In src-tauri/tauri.conf.json: assetProtocol scope allow becomes [] (granted at runtime only); set csp to \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: http:; connect-src ipc: http://ipc.localhost; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'\" and a devCsp that adds the Vite dev server (http://localhost:3000 and ws://localhost:3000) to script-src/connect-src so `npm run tauri dev` keeps working. In src-tauri/capabilities/default.json remove dialog:default (the frontend no longer calls the dialog plugin). In src/ipc.ts: pickFileToOpen and pickSavePath call the new commands with the same TypeScript signatures; onFilesDropped listens to `files-dropped` with the same signature; remove the @tauri-apps/plugin-dialog import. Keep every other command name and payload unchanged; atomic writes and the scratch layout are later phases, do not start them.",
+          "output": "lib.rs, tauri.conf.json, capabilities/default.json, src/ipc.ts changed; cargo check and lint passing.",
+          "owns": ["src-tauri/src/lib.rs", "src-tauri/tauri.conf.json", "src-tauri/capabilities/", "src/ipc.ts"],
+          "reads": ["src-tauri/core/src/paths.rs", "src-tauri/core/src/lib.rs", "src/app.ts", "src/session.ts", "src/types.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R1", "R2", "C1", "C2", "C3"],
+          "inputs_from": ["B1"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles against R1/R2 (GTK libraries are installed in this session)" },
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "ipc.ts keeps its TypeScript signatures" }
+          ],
+          "limits": "lib.rs under 450 lines; no new crates; no tauri-plugin-fs"
+        }
+      ]
+    },
+    {
+      "title": "Verify",
+      "units": [
+        {
+          "id": "V1",
+          "agentType": "thin-verifier",
+          "task": "Run the whole-project checks for phase 1 from the project root and record the results: npm run lint; npm test; npm run build; cd src-tauri && cargo test -p snipmd-core; cd src-tauri && cargo check. Also confirm: tauri.conf.json has no `**/*` asset scope and a non-null csp without 'unsafe-inline' in script-src; no file under src/ imports @tauri-apps/plugin-dialog; every #[tauri::command] in lib.rs that takes a path argument validates it.",
+          "output": "findings/phase1-V1.md with each command, its exit code and the confirmations.",
+          "owns": ["findings/phase1-V1.md"],
+          "inputs_from": ["B1", "B2", "B3"],
+          "checks": [
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check" },
+            { "cmd": "npm test", "expect_exit": 0, "proves": "frontend tests pass" },
+            { "cmd": "npm run build", "expect_exit": 0, "proves": "the frontend builds" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core tests pass" },
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Review",
+      "units": [
+        {
+          "id": "R1",
+          "agentType": "thin-review",
+          "task": "Adversarial review of the phase 1 diff (git diff HEAD) against SPEC.md §8 and the CLAUDE.md security guardrails 7-9. Hunt for: a path that reaches the file system without AllowedSet::check or resolve_image; a link form that escapes the note folder (encoded, mixed separators, Windows forms); prefix-match bugs in check; a sanitizer gap (attributes, SVG, MathML, URL schemes, the custom image renderer); CSP that would block the app (CodeMirror styles, asset images, IPC) or still allow inline script; anything that breaks the phase 0 behaviour (open, save, paste, session restore).",
+          "output": "review/phase1-R1.md; defects with severity, location, statement and evidence.",
+          "owns": ["review/phase1-R1.md"],
+          "inputs_from": ["B1", "B2", "B3", "V1"],
+          "checks": []
+        }
+      ]
+    }
+  ]
+}
