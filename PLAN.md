@@ -134,14 +134,14 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
 ## Status
 - [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
 - [x] 1 Security: PR #2 merged (reviews R1-R3 in `review/`, R2-M1 closed). **Windows test open** (does not block phase 2): open `fixtures/evil.md` in edit and read mode; nothing runs, no file outside the note folder loads, links open in the browser, the app does not navigate away.
-- [x] 2 Storage foundation: branch `claude/phase-2` (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
+- [x] 2 Storage foundation: PR #3 merged (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 - [ ] 3 Images and paste
 - [ ] 4 Saving flows
 - [ ] 5 Tabs and recovery
 - [ ] 6 Editor and measuring
 
 ## Handoff
-- Branches: `main` has phases 0 and 1: SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout and the security layer. Phase 2 runs on `claude/phase-2`.
+- Branches: `main` has phases 0-2: SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout, the security layer and the storage foundation. Phase 3 runs on `claude/phase-3`.
 - Phases 1-5 run as thin-standard (Workflow tool, name `thin-standard`). Args per phase live in `.claude/runs/`; `phase-1.args.json` is the template (its `root` is the cloud checkout; change it for a local run). Write `phase-<n>.args.json` from the phase table and show it for approval before the run.
 - Rust: a local Windows session compiles everything; in the cloud only `snipmd-core` compiles and CI checks the Tauri crate. Releases publish only from version tags.
 - Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
