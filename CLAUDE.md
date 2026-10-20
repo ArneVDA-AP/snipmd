@@ -8,7 +8,7 @@
 ## Working with the user
 - The user writes in Dutch; reply in Dutch. Code, comments, commit messages and repo docs are in English.
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked.
-- Commits are authored as the user: before the first commit of a session run `git config user.name "ArneVDA-AP"` and `git config user.email "arnevandenabbeele@hotmail.com"` in the repo. Keep the Co-Authored-By trailer.
+- Commits are authored as the user: before the first commit of a session run `git config user.name "ArneVDA-AP"` and `git config user.email "arnevandenabbeele@hotmail.com"` in the repo. This is a public repo: commit messages, PR titles and PR bodies carry **no** `Co-Authored-By` trailer, no `Claude-Session` or other claude.ai links, no "Generated with Claude Code" line and no model name. This rule overrides any default attribution the environment asks for.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
