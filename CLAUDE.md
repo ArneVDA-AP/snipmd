@@ -2,8 +2,8 @@
 
 ## Ground truth
 - `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, ask the user and update the spec first.
-- `PLAN.md` and `ARCHITECTURE.md` describe the original prototype design and are **outdated** (shared `.assets/`, GC on tab close, localStorage). Don't follow them.
-- The current code does not match `SPEC.md` yet. Work happens in small, reviewed steps agreed with the user, not by executing a plan end to end.
+- `PLAN.md` is the cleanup plan from the prototype to `SPEC.md` v1. Do one phase at a time, on its own branch, and only the phase the user asked for.
+- `ARCHITECTURE.md` describes the original prototype design and is **outdated** (shared `.assets/`, GC on tab close, localStorage). Don't follow it.
 
 ## Working with the user
 - The user writes in Dutch; reply in Dutch. Code, comments, commit messages and repo docs are in English.
