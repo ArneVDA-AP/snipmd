@@ -34,14 +34,8 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Clean cross-OS lockfiles & install Windows native bindings
-        shell: pwsh
-        run: |
-          if (Test-Path package-lock.json) { Remove-Item -Force package-lock.json }
-          if (Test-Path bun.lock) { Remove-Item -Force bun.lock }
-          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
-          npm install --include=optional --legacy-peer-deps
-          npm install --no-save --legacy-peer-deps @rolldown/binding-win32-x64-msvc @tauri-apps/cli@^2.5.0
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Build Tauri v2 Windows 11 Release (NSIS .exe + WiX .msi + Portable .exe)
         run: npx tauri build --bundles nsis,msi

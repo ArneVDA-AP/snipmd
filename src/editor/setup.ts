@@ -1,88 +1,43 @@
-import { EditorState, Extension } from '@codemirror/state';
-import {
-  EditorView,
-  keymap,
-  highlightActiveLine,
-  drawSelection,
-  dropCursor
-} from '@codemirror/view';
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  indentWithTab
-} from '@codemirror/commands';
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap, drawSelection, dropCursor, highlightActiveLine } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { imageWidgetField } from './imageWidget';
-import { createPasteInterceptor } from './pasteHandler';
+import { pasteExtension } from './paste';
+import { notifyChange, tabIdFacet } from './registry';
 
-const snipMdHighlightStyle = HighlightStyle.define([
-  {
-    tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4],
-    color: 'var(--syn-h)',
-    fontWeight: '700'
-  },
-  {
-    tag: [tags.monospace, tags.processingInstruction],
-    color: 'var(--syn-code)',
-    backgroundColor: 'var(--bg-code-inline)',
-    borderRadius: '3px'
-  },
-  {
-    tag: [tags.link, tags.url],
-    color: 'var(--syn-img)'
-  },
-  {
-    tag: tags.strong,
-    color: 'var(--text-heading)',
-    fontWeight: '700'
-  },
-  {
-    tag: tags.emphasis,
-    color: 'var(--text-main)',
-    fontStyle: 'italic'
-  },
-  {
-    tag: tags.quote,
-    color: 'var(--syn-quote)',
-    fontStyle: 'italic'
-  },
-  {
-    tag: [tags.meta, tags.comment, tags.punctuation],
-    color: 'var(--text-muted)'
-  }
+const highlight = HighlightStyle.define([
+  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '600', color: 'var(--text-strong)' },
+  { tag: tags.heading2, fontSize: '1.25em', fontWeight: '600', color: 'var(--text-strong)' },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: '600', color: 'var(--text-strong)' },
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.monospace, color: 'var(--code)' },
+  { tag: [tags.link, tags.url], color: 'var(--accent)' },
+  { tag: tags.quote, color: 'var(--text-dim)' },
+  { tag: [tags.processingInstruction, tags.meta, tags.punctuation], color: 'var(--text-dim)' }
 ]);
 
-export interface CreateEditorOptions {
-  initialContent: string;
-  getCurrentFilePath: () => string | null;
-  onContentChange: (newContent: string) => void;
-  onSnipInserted?: () => void;
-}
-
-export function createEditorState(options: CreateEditorOptions): EditorState {
-  const extensions: Extension[] = [
-    history(),
-    drawSelection(),
-    dropCursor(),
-    highlightActiveLine(),
-    EditorView.lineWrapping,
-    markdown(),
-    syntaxHighlighting(snipMdHighlightStyle),
-    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-    createPasteInterceptor(options.getCurrentFilePath, options.onSnipInserted),
-    imageWidgetField,
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        options.onContentChange(update.state.doc.toString());
-      }
-    })
-  ];
-
+export function createEditorState(tabId: string, doc: string): EditorState {
   return EditorState.create({
-    doc: options.initialContent,
-    extensions
+    doc,
+    extensions: [
+      tabIdFacet.of(tabId),
+      history(),
+      drawSelection(),
+      dropCursor(),
+      highlightActiveLine(),
+      EditorView.lineWrapping,
+      markdown(),
+      syntaxHighlighting(highlight),
+      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+      pasteExtension(),
+      imageWidgetField,
+      EditorView.updateListener.of((u) => {
+        if (u.docChanged) notifyChange(tabId, u.state.doc.toString());
+      })
+    ]
   });
 }
