@@ -1,0 +1,9 @@
+[package]
+name = "snipmd-core"
+version = "0.1.0"
+edition = "2021"
+description = "SnipMD logic without Tauri: paths, naming, links, text, assets, cleanup. Tested with `cargo test -p snipmd-core`."
+
+[dependencies]
+chrono = "0.4"
+rand = "0.8"

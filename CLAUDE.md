@@ -39,8 +39,10 @@
 14. Nothing outside the v1 scope (SPEC §12) without the user's agreement.
 
 ## Verification
-- Frontend: `npm run lint` (`tsc --noEmit`) and `npm run build`.
-- Rust: `cargo check` in `src-tauri/`. On a Linux cloud box this fails on missing GTK system libraries (`gdk-3.0`); that is the environment, not the code. Say so instead of claiming the Rust side compiles.
+- Frontend: `npm run lint` (`tsc --noEmit`), `npm test` (Vitest, jsdom) and `npm run build`.
+- Rust logic: `cargo test -p snipmd-core` in `src-tauri/`. Runs anywhere.
+- Tauri crate: `cargo check` in `src-tauri/`. On a Linux cloud box this fails on missing GTK system libraries (`gdk-3.0`); that is the environment, not the code. CI checks it on Windows for every push. Say so instead of claiming the Rust side compiles.
+- UI in a browser: `npx vite` plus a page with a mocked `window.__TAURI_INTERNALS__` (invoke, transformCallback, convertFileSrc, metadata) gives a quick smoke test; it does not replace the Windows test.
 - Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; give the user a concrete test to run.
 
 ## Delegation
