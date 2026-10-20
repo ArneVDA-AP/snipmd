@@ -1,8 +1,21 @@
 //! R5: Markdown link paths (SPEC §6.3, §6.4). Encode in phase 3, rewrite in phase 4.
 
-/// R5. Percent-encodes spaces and `( ) # %` in a relative link path.
+/// R5. Percent-encodes exactly space, `(`, `)`, `#`, `%` and `&` (an entity like `&amp;` would
+/// otherwise read differently in Markdown renderers); everything else stays.
 pub fn encode_link_path(p: &str) -> String {
-    todo!("phase 3")
+    let mut out = String::with_capacity(p.len());
+    for c in p.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            '#' => out.push_str("%23"),
+            '%' => out.push_str("%25"),
+            '&' => out.push_str("%26"),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// R5. Rewrites image link targets that start with exactly `old` to start with `new`.

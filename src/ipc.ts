@@ -2,24 +2,21 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import type { NoteFile, SavedImage } from './types';
+import type { DroppedFiles, NoteFile, SavedImage } from './types';
 
-interface SaveImageResult {
-  markdownRelPath: string;
-  absDiskPath: string;
+/** Headers that tell Rust which tab and note an image belongs to. The path is percent-encoded (headers are ASCII). */
+function imageHeaders(tabId: string, notePath: string | null): Record<string, string> {
+  return notePath ? { 'x-tab-id': tabId, 'x-note-path': encodeURIComponent(notePath) } : { 'x-tab-id': tabId };
 }
 
-/** T3. Saves image bytes for a tab. Phase 3 moves this to a raw binary body and per-note folders. */
-export async function saveImage(
-  _tabId: string,
-  notePath: string | null,
-  bytes: Uint8Array
-): Promise<SavedImage> {
-  const r = await invoke<SaveImageResult>('save_clipboard_image', {
-    bytes: Array.from(bytes),
-    currentFilePath: notePath
-  });
-  return { link: r.markdownRelPath, absPath: r.absDiskPath };
+/** T3. Saves pasted image bytes (raw IPC body) into the tab's image folder. */
+export function saveImage(tabId: string, notePath: string | null, bytes: Uint8Array): Promise<SavedImage> {
+  return invoke<SavedImage>('save_image', bytes, { headers: imageHeaders(tabId, notePath) });
+}
+
+/** T3b. Copies a dropped image file into the tab's image folder. Rust only accepts files that were dropped. */
+export function importImage(tabId: string, notePath: string | null, src: string): Promise<SavedImage> {
+  return invoke<SavedImage>('import_image', { tabId, notePath, src });
 }
 
 /** T4 */
@@ -33,8 +30,9 @@ export async function readNote(path: string): Promise<NoteFile> {
   return { text };
 }
 
-export function resolveAssetPath(relPath: string, notePath: string | null): Promise<string> {
-  return invoke<string>('resolve_asset_abs_path', { relPath, currentFilePath: notePath });
+/** Absolute path of an image link; for an untitled tab, `untitled.assets/` is its scratch folder. */
+export function resolveAssetPath(tabId: string, relPath: string, notePath: string | null): Promise<string> {
+  return invoke<string>('resolve_asset_abs_path', { tabId, relPath, currentFilePath: notePath });
 }
 
 export function toAssetUrl(absPath: string): string {
@@ -57,8 +55,9 @@ export function loadSessionRaw(): Promise<string | null> {
   return invoke<string | null>('load_session');
 }
 
+/** The session goes as a raw UTF-8 body, not as a JSON string inside JSON. */
 export function saveSessionRaw(json: string): Promise<void> {
-  return invoke<void>('save_session', { json });
+  return invoke<void>('save_session', new TextEncoder().encode(json));
 }
 
 export function getCliStartupFiles(): Promise<string[]> {
@@ -91,11 +90,9 @@ export async function onForwardedFiles(callback: (paths: string[]) => void): Pro
   });
 }
 
-/** Files dropped on the window. What to do with them is decided by the caller. */
-export async function onFilesDropped(callback: (paths: string[]) => void): Promise<void> {
-  await listen<string[]>('files-dropped', (e) => {
-    if (Array.isArray(e.payload) && e.payload.length > 0) callback(e.payload);
-  });
+/** Files dropped on the window, sorted by Rust into notes and images. What to do with them is decided by the caller. */
+export async function onFilesDropped(callback: (dropped: DroppedFiles) => void): Promise<void> {
+  await listen<DroppedFiles>('files-dropped', (e) => callback(e.payload));
 }
 
 /** Runs `beforeClose` on every close request (titlebar button, Alt+F4, taskbar, shutdown), then the window closes. */

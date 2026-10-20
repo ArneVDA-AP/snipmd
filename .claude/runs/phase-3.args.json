@@ -1,0 +1,133 @@
+{
+  "goal": "SnipMD phase 3: images and paste (SPEC §6.3): per-note <stem>.assets/ folders, per-tab scratch folders linked as untitled.assets/, raw-bytes IPC, the paste rules, inline images from the syntax tree, image drop",
+  "root": "/home/user/snipmd",
+  "contract": {
+    "shared": ["src/types.ts", "src/ipc.ts", "src/paths.ts", "src/dom.ts", "src-tauri/core/src/lib.rs"],
+    "signatures": [
+      { "id": "R3b", "owner": "B1", "signature": "pub fn create_unique(dir: &Path, name: impl FnMut() -> std::ffi::OsString) -> std::io::Result<(PathBuf, std::fs::File)>", "doc": "snipmd_core::atomic. Opens dir/<name()> with OpenOptions write+create_new; on AlreadyExists asks name() again, at most 64 attempts, then returns an AlreadyExists error. Any other error is returned at once. Never creates folders. atomic_write (R3, behaviour unchanged) takes its temp file from create_unique; create_snip (R4) takes the image file from it. No other create_new loop remains in the crate." },
+      { "id": "R4", "owner": "B1", "signature": "pub fn snip_name(now: chrono::NaiveDateTime, rand4: u16, ext: &str) -> String; pub fn create_snip(dir: &Path, ext: &str, bytes: &[u8]) -> std::io::Result<PathBuf>; pub fn image_ext(p: &Path) -> Option<&'static str>", "doc": "snipmd_core::naming. snip_name: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.<ext>`, XXXX = rand4 as 4 lowercase hex digits, mmm the milliseconds. create_snip: names from snip_name(chrono::Local::now().naive_local(), rand::random(), ext) through create_unique, writes all bytes (no fsync), returns the path; when the write fails the new file is removed and the error returned. Never overwrites, never creates dir. image_ext: the lower-case extension when it is one of png, jpg, jpeg, gif, webp (case-insensitive), else None." },
+      { "id": "R5", "owner": "B1", "signature": "pub fn encode_link_path(p: &str) -> String", "doc": "snipmd_core::links. Percent-encodes exactly space, (, ), # and % (as %20 %28 %29 %23 %25); every other character, `/` and non-ASCII included, stays. paths::resolve_image(dir, &encode_link_path(s)) == dir joined with s for any relative s without `..`. rewrite_prefix stays todo!() (phase 4)." },
+      { "id": "R1b", "owner": "B1", "signature": "pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError>; pub fn valid_tab_id(id: &str) -> bool; pub fn percent_decode(s: &str) -> Result<String, PathError>; impl AllowedSet { pub fn allow_file(&mut self, p: &Path) }", "doc": "snipmd_core::paths. resolve_untitled: the same checks as resolve_image (reuse it, one lexical walk); the first resolved component must be exactly `untitled.assets` and at least one component must follow; the rest is joined onto tab_dir; anything else is PathError::NotAllowed or the resolve_image error. valid_tab_id: 1 to 64 chars of [A-Za-z0-9_-] (crypto.randomUUID ids pass; `..`, `/`, `\\\\`, `:` and empty fail). percent_decode: the existing private decoder made public, unchanged. allow_file: allows exactly that file (normalized like allow_note), no folder." },
+      { "id": "C2", "owner": "B2", "signature": "#[tauri::command(async)] save_image(app, request: tauri::ipc::Request) -> Result<SavedImage, String>; #[tauri::command(async)] import_image(app, tab_id: String, note_path: Option<String>, src: String) -> Result<SavedImage, String>; #[tauri::command(async)] resolve_asset_abs_path(app, tab_id: String, rel_path: String, current_file_path: Option<String>) -> Result<String, String>; #[tauri::command(async)] save_session(app, request: tauri::ipc::Request) -> Result<(), String>; event files-dropped {notes, images, x, y}", "doc": "src-tauri/src/lib.rs. SavedImage serializes as {link, absPath} (camelCase), matching src/types.ts. Image folder of a tab: a disk note (checked with check_path) uses <note folder>/<stem>.assets/, created with fs::create_dir (AlreadyExists is fine; a missing note folder is an error, never recreated), link = encode_link_path(\"<stem>.assets/<file>\"); an untitled tab uses <app data>/scratch/<tab_id>/ (valid_tab_id or error; create_dir_all), link = \"untitled.assets/<file>\". save_image: body must be InvokeBody::Raw and non-empty; header x-tab-id required; header x-note-path optional, percent_decode'd (src/ipc.ts sends encodeURIComponent); create_snip(dir, \"png\", body). import_image: src must be in the dropped-images set (an AllowedSet filled with allow_file from drag-drop events, a second managed state) and have an image_ext; fs::read then create_snip with that extension. resolve_asset_abs_path: disk note as today; untitled tab: resolve_untitled(<app data>/scratch/<tab_id>, rel_path). save_session: body must be InvokeBody::Raw UTF-8; everything after that as today (allowed-set filter, atomic_write). files-dropped: emitted on every DragDrop::Drop with notes = .md/.markdown paths (allow_note as today), images = paths with image_ext (added to the dropped set), x/y = the drop position in physical pixels; other files are left out. Every returned path for display goes through displayable(). Errors name files with note_name." },
+      { "id": "T3", "owner": "main", "signature": "saveImage(tabId, notePath, bytes): Promise<SavedImage>; importImage(tabId, notePath, src): Promise<SavedImage>; resolveAssetPath(tabId, relPath, notePath): Promise<string>; saveSessionRaw(json): Promise<void>; onFilesDropped(cb: (d: DroppedFiles) => void)", "doc": "src/ipc.ts, already written by the main session; read it, do not edit it. DroppedFiles is in src/types.ts." },
+      { "id": "T5", "owner": "B3", "signature": "export function insertSnip(tabId: string, link: string, at?: number): void", "doc": "src/editor/paste.ts. Inserts `![snip](<link>)` on its own line below the line that holds `at` (default: the tab's cursor head), whether the tab is visible or not (getState + applyToTab). The text of that line is unchanged; no blank line is added; when the line is empty the link takes that line. The cursor moves to the start of the line after the link (a line break is added at the end of the document when needed). One transaction, scrolled into view." },
+      { "id": "T7", "owner": "B4", "signature": "export function cachedUrl(tabId: string, relPath: string): string | undefined; export function primeAssetCache(tabId: string, relPath: string, absPath: string): void; export async function ensureResolved(tabId: string, relPath: string): Promise<string>; export function redrawImages(tabId: string): void; export const imageWidgetField", "doc": "src/editor/imageWidget.ts, signatures already in place (cache key per note, or per tab for untitled tabs). Keep them; src/preview/render.ts and paste.ts call them." },
+      { "id": "T8", "owner": "B5", "signature": "export async function handleDrop(d: DroppedFiles): Promise<void>", "doc": "src/drop.ts. Notes open through openPaths(d.notes). Images go into the tab that was visible when the drop happened (its id read before anything else runs, since opening notes changes the visible tab): all importImage calls in parallel (allSettled), then the links are inserted in drop order with insertSnip, the first at the editor position under the drop point (getView().posAtCoords with x and y divided by window.devicePixelRatio; the tab's cursor when the tab is in read mode or the point is outside the text), each next one below the previous. Failed imports: one showError('add <names>', <first reason>). After any insert: scheduleSessionSave({ immediate: true }). Never resolves to an error." }
+    ]
+  },
+  "phases": [
+    {
+      "title": "Build core and editor",
+      "units": [
+        {
+          "id": "B1",
+          "agentType": "thin-builder",
+          "task": "Implement R3b, R4, R5 and R1b in snipmd-core exactly as the contract documents them. atomic.rs: add create_unique and make atomic_write use it for its temp file (temp name, cleanup and rename unchanged). naming.rs: replace the stubs with snip_name, create_snip and image_ext (the stub signatures change to the contract's: ext parameters added). links.rs: encode_link_path; leave rewrite_prefix as todo!(). paths.rs: add resolve_untitled (built on resolve_image), valid_tab_id, AllowedSet::allow_file, and make percent_decode public; change nothing else in paths.rs. Do not edit core/src/lib.rs. Tests: core/tests/naming.rs: snip_name pads and formats exactly (2026-10-20 14:22:11.087 with 0x3fa9 gives snip-20261020-142211-087-3fa9.png; rand4 0x000a gives 000a); create_snip into a temp folder never overwrites (pre-create the files a scripted name sequence would hit via create_unique and check the existing bytes are unchanged); create_snip into a missing folder errs and creates nothing; image_ext accepts PNG, jpeg, webp and refuses md, svg and no extension. create_unique: a taken first name is skipped; 64 taken names give AlreadyExists. core/tests/links.rs: `a b(1)#%.png` encodes to `a%20b%281%29%23%25.png`, `/` and `é` stay, and resolve_image of the encoded form gives the plain path back. core/tests/paths.rs (extend): resolve_untitled maps untitled.assets/x.png into the tab folder, refuses ../, a link without the prefix, `untitled.assets/` alone and `untitled.assets/../x`; valid_tab_id accepts a UUID and refuses `..`, `a/b`, `a:b`, empty and 65 chars; allow_file allows that file but not its siblings or folder. Existing atomic tests stay green.",
+          "output": "atomic.rs, naming.rs, links.rs and paths.rs changed; tests in core/tests/naming.rs, core/tests/links.rs, core/tests/paths.rs; checks passing.",
+          "owns": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/naming.rs", "src-tauri/core/src/links.rs", "src-tauri/core/src/paths.rs", "src-tauri/core/tests/naming.rs", "src-tauri/core/tests/links.rs", "src-tauri/core/tests/paths.rs", "src-tauri/core/tests/atomic.rs"],
+          "reads": ["src-tauri/core/src/lib.rs", "src-tauri/core/Cargo.toml", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3b", "R4", "R5", "R1b"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "no snip overwrites a file; links encode the five characters and decode back; untitled.assets/ resolves only into its tab folder; atomic writes unchanged" }
+          ],
+          "limits": "no new crates; no unsafe; naming.rs under 60 lines, links.rs encode part under 25 lines, paths.rs grows by under 50 lines"
+        },
+        {
+          "id": "B3",
+          "agentType": "thin-builder",
+          "task": "Paste rules (SPEC §6.3) in src/editor/paste.ts. (1) T5 insertSnip exactly as the contract says. (2) The paste handler: when the clipboard has non-empty text/plain, return false so CodeMirror pastes the text (Excel, Word and browsers also put an image there; text wins). When Ctrl+Shift+V (Cmd on mac too) started this paste, never save an image: a keydown handler in the same extension notes it for the next paste event, any other keydown clears it. Otherwise take the first image/* item: read its bytes, saveImage(tabId, filePathFor(tabId), bytes), primeAssetCache(tabId, link, absPath), insertSnip(tabId, link) and scheduleSessionSave({ immediate: true }); on error showError('save the image', err). The tab id is read from the view's state when the paste starts, so a tab switch during the save inserts into the original tab. Tests in src/editor/paste.test.ts (jsdom; vi.mock '../ipc', '../session', '../infobar' and './imageWidget'; real registry and a real EditorView from createEditorState in './setup'; a paste event is a plain Event with a clipboardData object defined on it): text plus image pastes the text and never calls saveImage; image only saves once and inserts the link on its own line, the cursor on the line after; Ctrl+Shift+V with only an image saves nothing; a tab switch while saveImage is pending inserts into the original tab's state and leaves the visible tab unchanged; insertSnip cases: cursor mid-line (line text unchanged, link below), empty line, last line without a line break, `at` on another line.",
+          "output": "paste.ts changed; paste.test.ts; checks passing.",
+          "owns": ["src/editor/paste.ts", "src/editor/paste.test.ts"],
+          "reads": ["src/ipc.ts", "src/types.ts", "src/editor/registry.ts", "src/editor/setup.ts", "src/editor/imageWidget.ts", "src/session.ts", "src/infobar.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T3", "T5", "T7"],
+          "checks": [
+            { "cmd": "npx vitest run src/editor/paste", "expect_exit": 0, "proves": "text wins over an image; Ctrl+Shift+V never saves an image; a paste lands in the tab it started in; the link sits on its own line" }
+          ],
+          "limits": "do not edit src/ipc.ts, src/types.ts, src/editor/registry.ts, src/editor/setup.ts or src/editor/imageWidget.ts; paste.ts under 100 lines"
+        },
+        {
+          "id": "B4",
+          "agentType": "thin-builder",
+          "task": "Inline images from the Markdown syntax tree in src/editor/imageWidget.ts, keeping every T7 signature. (1) build(): walk syntaxTree(state) and take every Image node (lang-markdown); the link target is its URL child (strip <...> brackets), the alt is the text inside ![...]; several images on one line give several block widgets at that line's end, in order; images inside fenced or inline code have no Image node and get no widget. No regex over lines. (2) The StateField rebuilds when the document changed, a redraw effect arrived, or syntaxTree(tr.state) !== syntaxTree(tr.startState) (the parser caught up); otherwise it maps. (3) Missing images: a failed resolveAssetPath is remembered per cache key (a set next to urlCache); the waiting tabs are redrawn once so the widget shows the placeholder `Image not found: <link>`, and build() never starts a lookup for a key that failed (no retry loop); primeAssetCache clears a failure for its key. An <img> error event shows the same placeholder. All text goes in with textContent. Keep the expand-on-click behaviour. Tests in src/editor/imageWidget.test.ts (jsdom; vi.mock '../ipc' with resolveAssetPath and toAssetUrl; real registry; states from createEditorState in './setup'; bindFilePathLookup for the note path): two images on one line give two widgets; an image in a fenced block and in inline code gives none; a failing lookup is called once, the widget becomes the not-found placeholder, and further document changes do not call resolveAssetPath again; two untitled tabs with the same link are looked up separately with their own tab ids; primeAssetCache makes a widget show the image without a lookup.",
+          "output": "imageWidget.ts changed; imageWidget.test.ts; checks passing.",
+          "owns": ["src/editor/imageWidget.ts", "src/editor/imageWidget.test.ts"],
+          "reads": ["src/ipc.ts", "src/types.ts", "src/editor/registry.ts", "src/editor/setup.ts", "src/preview/render.ts", "src/paths.ts", "src/styles", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T3", "T7"],
+          "checks": [
+            { "cmd": "npx vitest run src/editor/imageWidget", "expect_exit": 0, "proves": "images come from the syntax tree (none in code); a missing image shows a placeholder and is looked up only once; untitled tabs do not share cache entries" }
+          ],
+          "limits": "do not edit src/ipc.ts, src/editor/registry.ts, src/editor/setup.ts or src/preview/render.ts; imageWidget.ts under 180 lines"
+        }
+      ]
+    },
+    {
+      "title": "Build Tauri and drop",
+      "units": [
+        {
+          "id": "B2",
+          "agentType": "thin-builder",
+          "task": "Implement C2 in src-tauri/src/lib.rs exactly as the contract documents it, on top of R3b, R4, R5 and R1b from snipmd-core (built by B1). Replace save_clipboard_image and SaveImageResult with save_image and import_image sharing one helper for the image folder and link; change resolve_asset_abs_path and save_session as documented; extend the DragDrop handler to emit {notes, images, x, y} and fill the dropped-images set; register the new commands in generate_handler. Raw bodies: take `request: tauri::ipc::Request<'_>`, match `request.body()` on `tauri::ipc::InvokeBody::Raw`, read headers from `request.headers()`. Use note_name in the error strings of every command you touch. Leave promote_scratch_assets and gc_scratch_assets as they are (phases 4 and 5), and keep every other command, the allowed-set checks and the navigation guard unchanged.",
+          "output": "lib.rs changed; cargo check passing.",
+          "owns": ["src-tauri/src/lib.rs"],
+          "reads": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/naming.rs", "src-tauri/core/src/links.rs", "src-tauri/core/src/paths.rs", "src-tauri/core/src/lib.rs", "src-tauri/Cargo.toml", "src/ipc.ts", "src/types.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3b", "R4", "R5", "R1b", "C2"],
+          "inputs_from": ["B1"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles against the phase 3 core (GTK libraries are installed in this session)" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core still green" }
+          ],
+          "limits": "lib.rs stays under 540 lines; no new crates; no fs::write or create_new loop for images left in lib.rs; no create_dir_all on a note's folder"
+        },
+        {
+          "id": "B5",
+          "agentType": "thin-builder",
+          "task": "Image drop (SPEC §6.3 drag and drop). (1) src/drop.ts: T8 handleDrop exactly as the contract says, using importImage (src/ipc.ts), insertSnip (src/editor/paste.ts, T5), visibleTabId and getView (src/editor/registry.ts), getTab and openPaths (src/tabs.ts), filePathFor, showError and scheduleSessionSave. (2) src/app.ts: wire onFilesDropped to handleDrop instead of the inline openPaths call; change nothing else. Tests in src/drop.test.ts (vi.mock '../ipc' style mocks for './ipc', './tabs', './editor/paste', './editor/registry', './session', './infobar'): notes go to openPaths; images go to the tab visible at drop time even when openPaths switches the visible tab; the first link goes to posAtCoords of the point divided by devicePixelRatio (stub devicePixelRatio = 1.5), the next ones without a position; a tab in read mode or posAtCoords null inserts at the cursor; one failing import out of three inserts the other two in order and shows one error naming the failed file; no images means no insert and no session save.",
+          "output": "src/drop.ts; src/drop.test.ts; app.ts wired; checks passing.",
+          "owns": ["src/drop.ts", "src/drop.test.ts", "src/app.ts"],
+          "reads": ["src/ipc.ts", "src/types.ts", "src/tabs.ts", "src/editor/paste.ts", "src/editor/registry.ts", "src/session.ts", "src/infobar.ts", "src/paths.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T3", "T5", "T8"],
+          "inputs_from": ["B3"],
+          "checks": [
+            { "cmd": "npx vitest run src/drop", "expect_exit": 0, "proves": "dropped images land in the tab under the drop, at the drop point, in order; one failure does not stop the others" },
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check across the whole frontend" }
+          ],
+          "limits": "do not edit src/ipc.ts, src/types.ts, src/tabs.ts or src/editor/*; drop.ts under 70 lines"
+        }
+      ]
+    },
+    {
+      "title": "Verify",
+      "units": [
+        {
+          "id": "V1",
+          "agentType": "thin-verifier",
+          "task": "Run the whole-project checks for phase 3 from the project root and record the results: npm run lint; npm test; npm run build; cd src-tauri && cargo test -p snipmd-core; cd src-tauri && cargo check. Also confirm by reading the code: no Array.from(bytes) or number-array image payload remains in src/; save_image and save_session read InvokeBody::Raw; no `.assets/` path is built in lib.rs except <stem>.assets and the legacy scratchpad code in promote_scratch_assets/gc_scratch_assets; every tab id that reaches a path passes valid_tab_id; import_image refuses a path that was not dropped; src/editor/imageWidget.ts has no line regex for images.",
+          "output": "findings/phase3-V1.md with each command, its exit code and the confirmations.",
+          "owns": ["findings/phase3-V1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4", "B5"],
+          "checks": [
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check" },
+            { "cmd": "npm test", "expect_exit": 0, "proves": "frontend tests pass" },
+            { "cmd": "npm run build", "expect_exit": 0, "proves": "the frontend builds" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core tests pass" },
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Review",
+      "units": [
+        {
+          "id": "R1",
+          "agentType": "thin-review",
+          "task": "Adversarial review of the phase 3 diff (git diff main) against SPEC.md §6.3 and §8 and the CLAUDE.md guardrails 2, 7, 8, 9, 10, 11, 12 and the code conventions. Hunt for: a path where an image overwrites a file or a half-written image stays; a tab id, header or dropped path that lets Rust write or read outside <stem>.assets/, scratch/<tab-id>/ or the dropped files (traversal, `..`, a drive letter, a percent-encoded separator, a non-ASCII note path in the header); import_image reading a file that was not dropped; a link that GitHub or Obsidian would read differently (unencoded space or parenthesis); text losing to an image on paste, or Ctrl+Shift+V saving one; a paste or drop landing in the wrong tab or the wrong line; an image widget in a code block, a missing image that is looked up again and again, a block widget from a ViewPlugin; two untitled tabs sharing an image cache entry; the asset scope widened beyond single files; anything that breaks phase 0-2 behaviour (open, save, session restore and its raw body, the allowed-set checks, the close flush).",
+          "output": "review/phase3-R1.md; defects with severity, location, statement and evidence.",
+          "owns": ["review/phase3-R1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4", "B5", "V1"],
+          "checks": []
+        }
+      ]
+    }
+  ]
+}

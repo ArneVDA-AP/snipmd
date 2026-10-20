@@ -1,9 +1,9 @@
-//! R7: a note's image folder (SPEC §6.3, §6.4). Phase 4.
+//! R7: a note's image folder (SPEC §6.3, §6.4). assets_dir_for in phase 3, the moves in phase 4.
 use std::path::{Path, PathBuf};
 
 /// R7. `C:/n/labo-04.md` -> `C:/n/labo-04.assets`.
 pub fn assets_dir_for(note: &Path) -> PathBuf {
-    todo!("phase 4")
+    note.with_extension("assets")
 }
 
 /// R7. Moves a folder: rename, else copy then remove (across drives). Removes only after the copy succeeded.

@@ -54,3 +54,18 @@ fn two_writes_keep_the_second() {
     assert_eq!(fs::read(d.join("a.md")).unwrap(), b"2nd");
     assert_eq!(fs::read_dir(&d).unwrap().count(), 1);
 }
+
+#[test]
+fn create_unique_skips_taken_and_gives_up_after_64() {
+    use snipmd_core::atomic::create_unique;
+    let d = dir("unique");
+    fs::write(d.join("a"), b"old").unwrap();
+    let mut n = vec!["a", "b"].into_iter();
+    let (p, _) = create_unique(&d, || n.next().unwrap().into()).unwrap();
+    assert_eq!(p, d.join("b"));
+    assert_eq!(fs::read(d.join("a")).unwrap(), b"old");
+    let mut calls = 0;
+    let e = create_unique(&d, || { calls += 1; "a".into() }).unwrap_err();
+    assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(calls, 64);
+}

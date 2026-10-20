@@ -128,20 +128,30 @@ Windows test: untitled note with screenshots, Ctrl+S, Enter: file and folder sid
 
 Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab and images are back.
 
+Comparison run: phase 5 is also built solo (one session, same args as the brief, no workflow) in a separate worktree from the same base commit. Only the better of the two is merged; both get the same R1 review brief and are recorded in the run log below.
+
 ## Phase 6. Editor and measuring (solo)
 Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
+
+## Run log
+One row per phase, filled when its PR merges. "Later" counts defects found after the merge (Windows test, a later phase); it is the quality measure and is updated when one turns up.
+
+| Phase | Mode | Workflow agents / tokens / minutes | Main session | Review (blocker / major / minor) | Later |
+|---|---|---|---|---|---|
+| 2 | thin-standard | not recorded | contract, fixes, /simplify | 1 / 3 / 9 | open (Windows test) |
+| 3 | thin-standard | 12 / 317k / 10 | foundation (ipc signatures), contract, fixes, /simplify; not measured | 0 / 3 / 12 | open (Windows test) |
 
 ## Status
 - [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
 - [x] 1 Security: PR #2 merged (reviews R1-R3 in `review/`, R2-M1 closed). **Windows test open** (does not block phase 2): open `fixtures/evil.md` in edit and read mode; nothing runs, no file outside the note folder loads, links open in the browser, the app does not navigate away.
-- [x] 2 Storage foundation: branch `claude/phase-2` (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
-- [ ] 3 Images and paste
+- [x] 2 Storage foundation: PR #3 merged (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
+- [x] 3 Images and paste: PR open (review `review/phase3-R1.md`: M1-M3 fixed, m4 m7 m8 m9 m10 fixed). **Windows test open**: 4K screenshot visible in under 150 ms; Excel cells paste as text; Ctrl+Shift+V with only an image does nothing; a jpg dropped mid-text lands on the drop line; two dropped images sit together. Until phase 4: do not first-save an untitled tab with images (its links stay `untitled.assets/`).
 - [ ] 4 Saving flows
 - [ ] 5 Tabs and recovery
 - [ ] 6 Editor and measuring
 
 ## Handoff
-- Branches: `main` has phases 0 and 1: SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout and the security layer. Phase 2 runs on `claude/phase-2`.
+- Branches: `main` has phases 0-2: SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout, the security layer and the storage foundation. Phase 3 runs on `claude/phase-3`.
 - Phases 1-5 run as thin-standard (Workflow tool, name `thin-standard`). Args per phase live in `.claude/runs/`; `phase-1.args.json` is the template (its `root` is the cloud checkout; change it for a local run). Write `phase-<n>.args.json` from the phase table and show it for approval before the run.
 - Rust: a local Windows session compiles everything; in the cloud only `snipmd-core` compiles and CI checks the Tauri crate. Releases publish only from version tags.
 - Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
@@ -150,9 +160,9 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
   - README, CHANGELOG, RELEASE-WIN11.md, ARCHITECTURE.md and the build scripts still partly describe the prototype.
 - Deferred review findings, by phase:
   - Phase 1: `escapeAttr` in `src/preview/render.ts` becomes part of the sanitizer work.
-  - Phase 3 (B4 imageWidget): find images through the Markdown syntax tree (`syntaxTree`, `Image` nodes) instead of a per-line regex; that also skips code blocks and handles several images per line.
-  - Phase 3: send the session and images to Rust as raw bytes, not JSON strings / number arrays.
-  - Phase 3: one core helper for "unique name + `create_new` + retry" shared by `atomic_write` temp files and `create_snip`; name files with `note_name` in the older command errors too.
+  - Phase 4 (from phase 3): first save of an untitled tab moves `scratch/<tab-id>/` to `<stem>.assets/` and rewrites `untitled.assets/`; then delete `promote_scratch_assets`, `resolve_scratchpad_dir` and the `scratchpad/.assets` regex code. Phase 5 replaces `gc_scratch_assets` (still called on close in `tabs.ts`, on a folder nothing writes to now) with R8, then removes `#![allow(dead_code)]` from core.
+  - Phase 5 (from phase 3): a tab closed while its paste saves loses the link silently (R1 m3); the closed-tabs list should take it. Make "a dirty disk tab is written on close" part of `closeTab` (a bound hook) instead of the `closeAndSave` wrapper in `app.ts`.
+  - Phase 6 (from phase 3): a paste or drop lands at the cursor/drop line as it is when the save ends, not mapped through edits made meanwhile (R1 m1, m2). Failed image lookups are final for the session: an image that appears later shows after a restart (m5). Batch the redraws after lookups and skip rebuilds on parser progress outside the viewport, with the incremental decorations. If the 150 ms paste budget fails: show the pasted image from a blob URL before the save ends. Stream dropped images (`io::copy`) and cap their size (m12); a drop with no visible tab is ignored silently. `save_session` parses the whole JSON to check paths: a typed struct that skips `content`. `read_markdown_file` copies the bytes in `decode`.
   - Phase 4: carry the note's format from `read_markdown_file` with the tab and send it on write, instead of sniffing the file before every save; mixed line endings are rewritten to the first one (R1 D5), lone-CR files get CRLF (D6).
   - Phase 4: atomic writes replace a symlinked note with a file (D7) and drop ACLs/attributes (D8); a crash between write and rename leaves a `.tmp` next to the note (D9; set the hidden attribute on Windows).
   - Phase 4/5: compare dirty tabs with disk on restore (SPEC §7, D11); a clean tab whose drive is briefly missing at start is dropped for good, and restore waits for the slowest read before the first paint.

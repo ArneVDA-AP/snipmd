@@ -3,8 +3,8 @@ import { Titlebar } from './titlebar';
 import { mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveTab } from './saving';
+import { handleDrop } from './drop';
 import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen } from './ipc';
-import { isMarkdownPath } from './paths';
 import {
   activate,
   closeTab,
@@ -85,7 +85,6 @@ export async function startApp(root: HTMLElement): Promise<void> {
     // A hung note write (drive removed) must not keep the window open; the session was written first.
     onCloseRequested(() => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))])),
     onForwardedFiles((paths) => void openPaths(paths)),
-    // Phase 3 adds dropped images here.
-    onFilesDropped((paths) => void openPaths(paths.filter(isMarkdownPath)))
+    onFilesDropped((d) => void handleDrop(d))
   ]);
 }

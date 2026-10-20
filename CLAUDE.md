@@ -43,7 +43,7 @@
 - **One path per concern.** Tab-list changes end in `changed()` in `src/tabs.ts` (tab strip + session save). Image redraws go through `redrawImages(tabId)`. Errors go through `showError(what, err)` (`src/infobar.ts`). Don't sprinkle `scheduleSessionSave`, re-renders or hand-formatted error strings across call sites.
 - **Async work is bound to a tab id**, applied through `applyToTab` (`src/editor/registry.ts`), never to "the active tab" at completion time.
 - **Normalize at the edge.** Paths are normalized once where they enter (open, save target, session restore) with `src/paths.ts`; compare with `samePath`. No ad-hoc `replace(/\\/g, '/')`.
-- **Reuse the shared helpers**: `src/paths.ts` (paths, `MD_EXTENSIONS`), `src/dom.ts` (`button`), `showError`. One constant for any list used twice. Prefer what the library already does (CodeMirror facets/effects, marked `walkTokens`, `crypto.randomUUID`).
+- **Reuse the shared helpers**: `src/paths.ts` (paths, web URLs), `src/dom.ts` (`button`), `showError`. One constant for any list used twice. Prefer what the library already does (CodeMirror facets/effects, marked `walkTokens`, `crypto.randomUUID`).
 - **Thin layers stay thin.** `src/ipc.ts` only wraps commands and raw events; policy (which dropped files open, what happens on close) lives in `src/app.ts` or the feature module.
 - **No magic payloads, no dead exports.** Effects carry data only when someone reads it. Export only what another module imports. Delete code instead of leaving it for later.
 - **Independent I/O runs in parallel** (`Promise.all` / `allSettled`); one failure never blocks the rest.
@@ -54,6 +54,10 @@
 - **Lasting messages are keyed.** An error that holds until its cause is fixed uses `showError(what, err, key)` and `clearInfo(key)` (`src/infobar.ts`); the info bar keeps it under newer messages. No module-level map of dismiss handles.
 - **Closed tabs keep their text.** `closeTab` stores the latest text in `TabState.content` before dropping the editor state, so work still queued for that tab reads it through `textOf`. Don't capture text at call time to work around it.
 - **Repeated work merges.** Saves of one tab run one at a time and a save asked for during a write joins the one queued behind it; it reads the newest text when it starts.
+- **One landing point per effect.** Saved images enter a tab only through `placeImages` (`src/editor/paste.ts`): it primes the cache, inserts all links in one transaction and asks for the immediate session write. Paste and drop call it; neither repeats those steps.
+- **One state per key.** A cache keeps one tagged entry per key (`ok` / `pending` / `failed`), not parallel maps and sets that each need clearing.
+- **Decide once per command.** A Rust command resolves its target once into a type (`ImageHome`: note or untitled tab) and asks that type for folder, link prefix, name and resolver; no repeated `Option` checks down the call chain.
+- **Capabilities are as narrow as the event.** A grant from a user action (dropped files) covers that action only: each drop replaces the set, and the asset scope only ever gets single image files.
 - **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
 - Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
 
