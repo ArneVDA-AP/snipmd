@@ -1,7 +1,7 @@
 // Saving notes. Phase 4 adds autosave, the first-save info bar and Save As.
 import type { TabState } from './types';
-import { pickSavePath, promoteScratchAssets, writeNote } from './ipc';
-import { getTab, getTabs, markSaved, setLastFolder, textOf, untitledContentsExcept } from './tabs';
+import { pickSavePath, promoteUntitled, writeNote } from './ipc';
+import { getTab, getTabs, markSaved, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { dirname, normPath } from './paths';
@@ -25,8 +25,8 @@ function writeTab(tab: TabState): Promise<boolean> {
     // Read when the write starts, so it carries the newest text. A closed tab keeps its text in content.
     const text = textOf(tab);
     try {
-      await writeNote(tab.filePath!, text);
-      markSaved(tab.id, text);
+      const stamp = await writeNote(tab.filePath!, text, tab.format);
+      markSaved(tab.id, { text, stamp });
       clearInfo(errorKey(tab.id));
       return true;
     } catch (err) {
@@ -47,9 +47,9 @@ async function firstSave(tab: TabState): Promise<boolean> {
     if (!picked) return false;
     const target = normPath(picked);
     const text = textOf(tab);
-    await promoteScratchAssets(text, target, untitledContentsExcept(tab.id));
-    await writeNote(target, text);
-    markSaved(tab.id, text, target);
+    await promoteUntitled(tab.id, target); // phase 4 B3: rewrite the links it returns
+    const stamp = await writeNote(target, text, null);
+    markSaved(tab.id, { text, stamp, path: target });
     setLastFolder(dirname(target));
     clearInfo(errorKey(tab.id));
     return true;

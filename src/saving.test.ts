@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; title: string; filePath: string | null; dirty: boolean; text: string }>
 }));
 
-vi.mock('./ipc', () => ({ pickSavePath: vi.fn(), promoteScratchAssets: vi.fn(), writeNote: vi.fn() }));
+vi.mock('./ipc', () => ({ pickSavePath: vi.fn(), promoteUntitled: vi.fn(), writeNote: vi.fn() }));
 vi.mock('./tabs', () => ({
   getTab: (id: string) => h.tabs.find((t) => t.id === id),
   getTabs: () => h.tabs,
@@ -13,8 +13,7 @@ vi.mock('./tabs', () => ({
     const t = h.tabs.find((x) => x.id === id);
     if (t) t.dirty = false;
   }),
-  setLastFolder: vi.fn(),
-  untitledContentsExcept: vi.fn(() => [])
+  setLastFolder: vi.fn()
 }));
 vi.mock('./session', () => ({ flushSession: vi.fn(() => Promise.resolve()), scheduleSessionSave: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
@@ -25,13 +24,14 @@ import { flushSession } from './session';
 import { clearInfo, showError } from './infobar';
 
 const mk = (id: string) => ({ id, title: id, filePath: `/n/${id}.md`, dirty: true, text: `text ${id}` });
+const STAMP = { mtimeMs: 1, size: 1 };
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
   vi.clearAllMocks();
   h.tabs = [];
   vi.mocked(flushSession).mockImplementation(() => Promise.resolve());
-  vi.mocked(writeNote).mockResolvedValue(undefined as never);
+  vi.mocked(writeNote).mockResolvedValue(STAMP);
   vi.mocked(showError).mockReturnValue(() => {});
 });
 
@@ -40,6 +40,7 @@ describe('flushDirty', () => {
     h.tabs = [mk('a'), mk('b'), mk('c')];
     vi.mocked(writeNote).mockImplementation(async (p: string) => {
       if (p.includes('/b.')) throw 'disk full';
+      return STAMP;
     });
     await expect(flushDirty()).resolves.toBeUndefined();
     expect(h.tabs.map((t) => t.dirty)).toEqual([false, true, false]);
@@ -69,6 +70,7 @@ describe('saveTab', () => {
       log.push(`start ${text}`);
       if (log.length === 1) await new Promise<void>((r) => (release = r));
       log.push(`end ${text}`);
+      return STAMP;
     });
     const p1 = saveTab('s1');
     await tick();
@@ -99,6 +101,7 @@ describe('saveTab', () => {
     vi.mocked(writeNote).mockImplementation(async (_p: string, text: string) => {
       writes.push(text);
       if (writes.length === 1) await new Promise<void>((r) => (release = r));
+      return STAMP;
     });
     tab.text = 'v1';
     const first = saveTab('m1');
@@ -116,7 +119,7 @@ describe('write failures', () => {
     vi.mocked(writeNote).mockRejectedValue('drive removed');
     await flushDirty();
     expect(vi.mocked(showError).mock.calls.map((c) => c[2])).toEqual(['save:f1', 'save:f2']);
-    vi.mocked(writeNote).mockResolvedValue(undefined as never);
+    vi.mocked(writeNote).mockResolvedValue(STAMP);
     await saveTab('f1');
     expect(clearInfo).toHaveBeenCalledWith('save:f1');
     expect(clearInfo).not.toHaveBeenCalledWith('save:f2');

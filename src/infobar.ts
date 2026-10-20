@@ -51,6 +51,7 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
   text.className = 'infobar-text';
   text.textContent = msg.text;
   bar.appendChild(text);
+  if (msg.body) bar.appendChild(msg.body);
   for (const action of msg.actions ?? []) {
     bar.appendChild(
       button(action.primary ? 'primary' : '', action.label, action.label, () => {
@@ -63,9 +64,9 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
   return bar;
 }
 
-/** A message without actions that reads the same can keep its bar (no flicker). */
+/** A message without actions or controls that reads the same can keep its bar (no flicker). */
 const same = (a: InfoMessage, b: InfoMessage): boolean =>
-  a.kind === b.kind && a.text === b.text && !a.actions?.length && !b.actions?.length;
+  a.kind === b.kind && a.text === b.text && !a.actions?.length && !b.actions?.length && !a.body && !b.body;
 
 /**
  * T1. Shows a message. An unkeyed message replaces the previous unkeyed one in its position;
