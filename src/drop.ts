@@ -3,9 +3,8 @@ import type { DroppedFiles } from './types';
 import { importImage } from './ipc';
 import { basename } from './paths';
 import { showError } from './infobar';
-import { scheduleSessionSave } from './session';
 import { getTab, openPaths } from './tabs';
-import { insertSnip } from './editor/paste';
+import { placeImages } from './editor/paste';
 import { filePathFor, getView, visibleTabId } from './editor/registry';
 
 /** Editor position under the drop point (physical pixels), or undefined to use the cursor. */
@@ -25,15 +24,11 @@ export async function handleDrop(d: DroppedFiles): Promise<void> {
 
     const notePath = filePathFor(tabId);
     const results = await Promise.allSettled(d.images.map((src) => importImage(tabId, notePath, src)));
-    // Each link goes right below the previous one, so no user text ends up between them.
-    let next = at;
-    const failed: { name: string; reason: unknown }[] = [];
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') return void failed.push({ name: basename(d.images[i]), reason: r.reason });
-      next = insertSnip(tabId, r.value.link, next) ?? next;
-    });
-    if (failed.length < results.length) scheduleSessionSave({ immediate: true });
-    if (failed.length > 0) showError(`add ${failed.map((f) => f.name).join(', ')}`, failed[0].reason);
+    const saved = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+    placeImages(tabId, saved, at);
+    const failed = d.images.filter((_, i) => results[i].status === 'rejected');
+    const reason = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')?.reason;
+    if (failed.length > 0) showError(`add ${failed.map(basename).join(', ')}`, reason);
   } catch (err) {
     showError('handle the dropped files', err);
   }

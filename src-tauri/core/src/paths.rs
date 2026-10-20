@@ -96,16 +96,10 @@ pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError> 
 /// R1b. Resolves `untitled.assets/<file>` against the tab's scratch folder.
 pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError> {
     let p = resolve_image(Path::new(""), link)?;
-    let mut it = p.components();
-    match it.next() {
-        Some(c) if c.as_os_str() == "untitled.assets" => {}
-        _ => return Err(PathError::NotAllowed(PathBuf::from(link))),
+    match p.strip_prefix("untitled.assets") {
+        Ok(rest) if !rest.as_os_str().is_empty() => Ok(tab_dir.join(rest)),
+        _ => Err(PathError::NotAllowed(PathBuf::from(link))),
     }
-    let rest = it.as_path();
-    if rest.as_os_str().is_empty() {
-        return Err(PathError::NotAllowed(PathBuf::from(link)));
-    }
-    Ok(tab_dir.join(rest))
 }
 
 /// R1b. 1 to 64 chars of `[A-Za-z0-9_-]`.

@@ -1,40 +1,41 @@
 // Screenshot paste (SPEC §6.3): text wins over an image, Ctrl+Shift+V never saves an image.
 import { EditorView } from '@codemirror/view';
 import { saveImage } from '../ipc';
+import type { SavedImage } from '../types';
 import { scheduleSessionSave } from '../session';
 import { showError } from '../infobar';
 import { applyToTab, filePathFor, getState, tabIdFacet } from './registry';
 import { primeAssetCache } from './imageWidget';
 
-/**
- * T5. Puts `![snip](link)` on its own line below the line holding `at` (default: the cursor), in any tab.
- * Returns the end of the link's line, so a next link can go right below it; null when the tab is gone.
- */
-export function insertSnip(tabId: string, link: string, at?: number): number | null {
+/** One `![snip](link)` line per link, as one block below the line holding `at` (default: the cursor), in one transaction. */
+function insertLinks(tabId: string, links: string[], at?: number): void {
   const state = getState(tabId);
-  if (!state) return null;
+  if (!state) return;
   const doc = state.doc;
   const line = doc.lineAt(Math.min(at ?? state.selection.main.head, doc.length));
-  const snip = `![snip](${link})`;
-  const empty = line.length === 0;
-  const from = empty ? line.from : line.to;
-  let insert = empty ? snip : `\n${snip}`;
-  let anchor = from + insert.length + 1;
-  if (line.to >= doc.length) {
-    insert += '\n';
-    anchor = from + insert.length;
-  }
-  applyToTab(tabId, { changes: { from, to: line.to, insert }, selection: { anchor }, scrollIntoView: true });
-  return from + (empty ? snip.length : snip.length + 1);
+  const block = links.map((l) => `![snip](${l})`).join('\n');
+  const from = line.length === 0 ? line.from : line.to;
+  let insert = line.length === 0 ? block : `\n${block}`;
+  const end = from + insert.length;
+  if (line.to >= doc.length) insert += '\n';
+  applyToTab(tabId, { changes: { from, to: line.to, insert }, selection: { anchor: end + 1 }, scrollIntoView: true });
+}
+
+/**
+ * T5. The one way saved images land in a tab (paste and drop): shown from the cache at once, linked on
+ * their own lines below `at` or the cursor, and the session written immediately (SPEC §7).
+ */
+export function placeImages(tabId: string, images: SavedImage[], at?: number): void {
+  if (images.length === 0) return;
+  for (const i of images) primeAssetCache(tabId, i.link, i.absPath);
+  insertLinks(tabId, images.map((i) => i.link), at);
+  scheduleSessionSave({ immediate: true });
 }
 
 async function pasteImage(tabId: string, file: File): Promise<void> {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const saved = await saveImage(tabId, filePathFor(tabId), bytes);
-    primeAssetCache(tabId, saved.link, saved.absPath);
-    insertSnip(tabId, saved.link);
-    scheduleSessionSave({ immediate: true });
+    placeImages(tabId, [await saveImage(tabId, filePathFor(tabId), bytes)]);
   } catch (err) {
     showError('save the image', err);
   }

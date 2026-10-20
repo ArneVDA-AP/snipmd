@@ -28,18 +28,20 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
         ));
         n
     };
-    let (tmp, mut file) = create_unique(target.parent().unwrap_or(Path::new("")), tmp_name)?;
-    let result = file
-        .write_all(bytes)
-        .and_then(|_| file.sync_all())
-        .and_then(|_| {
-            drop(file);
-            fs::rename(&tmp, target)
-        });
-    if result.is_err() {
+    let tmp = write_new(target.parent().unwrap_or(Path::new("")), tmp_name, bytes)?;
+    fs::rename(&tmp, target).inspect_err(|_| {
         let _ = fs::remove_file(&tmp);
-    }
-    result
+    })
+}
+
+/// A new file from `create_unique` with all of `bytes`, synced and closed. On error it is removed,
+/// so no partly written file stays behind.
+pub fn write_new(dir: &Path, name: impl FnMut() -> std::ffi::OsString, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    let (path, mut file) = create_unique(dir, name)?;
+    file.write_all(bytes).and_then(|_| file.sync_all()).map(|_| path.clone()).inspect_err(|_| {
+        drop(file);
+        let _ = fs::remove_file(&path);
+    })
 }
 
 /// R3b. Creates `dir/<name()>` with create_new; on AlreadyExists asks `name` again (64 attempts at most).

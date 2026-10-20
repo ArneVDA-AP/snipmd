@@ -10,12 +10,12 @@ import { resolveAssetPath, toAssetUrl } from '../ipc';
 import { applyToTab, filePathFor, tabIdFacet } from './registry';
 import { isWebUrl } from '../paths';
 
-/** cacheKey -> displayable URL */
-const urlCache = new Map<string, string>();
-/** Cache keys whose lookup failed. build() never looks these up again. */
-const failed = new Set<string>();
-/** Cache key -> tabs waiting for it. */
-const pending = new Map<string, Set<string>>();
+/**
+ * One entry per cache key: the URL, a lookup in flight (with the tabs to redraw when it ends), or a failure.
+ * A failure is final for the session, so nothing looks it up again (no retry loop); primeAssetCache replaces it.
+ */
+type Entry = { kind: 'ok'; url: string } | { kind: 'pending'; tabs: Set<string> } | { kind: 'failed' };
+const images = new Map<string, Entry>();
 /** Cache keys of images the user expanded to full height. */
 const expanded = new Set<string>();
 
@@ -32,44 +32,47 @@ function cacheKey(tabId: string, relPath: string): string {
   return filePath ? `${filePath}::${relPath}` : `untitled:${tabId}::${relPath}`;
 }
 
+function urlOf(entry: Entry | undefined): string | undefined {
+  return entry?.kind === 'ok' ? entry.url : undefined;
+}
+
 export function cachedUrl(tabId: string, relPath: string): string | undefined {
-  if (isWebUrl(relPath)) return relPath;
-  return urlCache.get(cacheKey(tabId, relPath));
+  return isWebUrl(relPath) ? relPath : urlOf(images.get(cacheKey(tabId, relPath)));
 }
 
 export function primeAssetCache(tabId: string, relPath: string, absPath: string): void {
-  const key = cacheKey(tabId, relPath);
-  failed.delete(key);
-  urlCache.set(key, toAssetUrl(absPath));
+  images.set(cacheKey(tabId, relPath), { kind: 'ok', url: toAssetUrl(absPath) });
 }
 
-/** Resolves a link for a tab. Concurrent callers share one lookup; every waiting tab is redrawn when it is done. */
+/**
+ * Resolves a link for a tab; '' while a shared lookup runs or after it failed. When a lookup ends,
+ * every tab that waited is redrawn once, so the image or the placeholder shows.
+ */
 export async function ensureResolved(tabId: string, relPath: string): Promise<string> {
-  const filePath = filePathFor(tabId);
-  const hit = cachedUrl(tabId, relPath);
-  if (hit) return hit;
-  const key = cacheKey(tabId, relPath);
-  const waiting = pending.get(key);
-  if (waiting) {
-    waiting.add(tabId);
+  if (isWebUrl(relPath)) return relPath;
+  return resolveKey(tabId, relPath, cacheKey(tabId, relPath));
+}
+
+async function resolveKey(tabId: string, relPath: string, key: string): Promise<string> {
+  const entry = images.get(key);
+  if (entry?.kind === 'ok') return entry.url;
+  if (entry?.kind === 'failed') return '';
+  if (entry?.kind === 'pending') {
+    entry.tabs.add(tabId);
     return '';
   }
   const tabs = new Set([tabId]);
-  pending.set(key, tabs);
+  images.set(key, { kind: 'pending', tabs });
+  let next: Entry = { kind: 'failed' };
   try {
-    const url = toAssetUrl(await resolveAssetPath(tabId, relPath, filePath));
-    urlCache.set(key, url);
-    failed.delete(key);
-    pending.delete(key);
-    for (const id of tabs) redrawImages(id);
-    return url;
-  } catch (err) {
-    // Remember the failure before the one redraw, so build() shows the placeholder and does not retry.
-    failed.add(key);
-    pending.delete(key);
-    for (const id of tabs) redrawImages(id);
-    throw err;
+    next = { kind: 'ok', url: toAssetUrl(await resolveAssetPath(tabId, relPath, filePathFor(tabId))) };
+  } catch {
+    // The placeholder shows the failure; there is nothing else to report.
   }
+  // A prime during the lookup wins over its result.
+  if (images.get(key)?.kind === 'pending') images.set(key, next);
+  for (const id of tabs) redrawImages(id);
+  return urlOf(images.get(key)) ?? '';
 }
 
 class ImageWidget extends WidgetType {
@@ -148,9 +151,10 @@ function build(state: EditorState): DecorationSet {
       const rel = imageLink(state, ref.node);
       if (!rel) return false;
       const key = cacheKey(tabId, rel);
-      const url = cachedUrl(tabId, rel) ?? '';
-      const missing = !url && failed.has(key);
-      if (!url && !missing && tabId) ensureResolved(tabId, rel).catch(() => {});
+      const entry = images.get(key);
+      const url = isWebUrl(rel) ? rel : (urlOf(entry) ?? '');
+      const missing = entry?.kind === 'failed';
+      if (!url && !entry && tabId) void resolveKey(tabId, rel, key);
       widgets.push(
         Decoration.widget({
           widget: new ImageWidget(imageAlt(state, ref.node), rel, url, key, missing),

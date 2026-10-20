@@ -1,6 +1,5 @@
 //! R4: screenshot file names (SPEC §6.3). Phase 3.
-use crate::atomic::create_unique;
-use std::io::Write;
+use crate::atomic::write_new;
 use std::path::{Path, PathBuf};
 
 /// R4. `snip-YYYYMMDD-HHMMSS-mmm-XXXX.<ext>`, XXXX = `rand4` as 4 lowercase hex digits.
@@ -11,14 +10,8 @@ pub fn snip_name(now: chrono::NaiveDateTime, rand4: u16, ext: &str) -> String {
 /// R4. Creates a new snip file in `dir`, writes and syncs `bytes`. Never overwrites, never creates `dir`.
 pub fn create_snip(dir: &Path, ext: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
     let name = || snip_name(chrono::Local::now().naive_local(), rand::random(), ext).into();
-    let (path, mut file) = create_unique(dir, name)?;
     // Synced like notes: a link must never point to a truncated image after a power loss.
-    if let Err(e) = file.write_all(bytes).and_then(|_| file.sync_all()) {
-        drop(file);
-        let _ = std::fs::remove_file(&path);
-        return Err(e);
-    }
-    Ok(path)
+    write_new(dir, name, bytes)
 }
 
 /// R4. The lower-case extension when it is an image type we accept.

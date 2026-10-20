@@ -9,8 +9,9 @@ vi.mock('./imageWidget', () => ({ primeAssetCache: vi.fn(), imageWidgetField: []
 
 import { saveImage } from '../ipc';
 import { showError } from '../infobar';
+import { scheduleSessionSave } from '../session';
 import { createEditorState } from './setup';
-import { insertSnip } from './paste';
+import { placeImages } from './paste';
 import { getState, setState, setView } from './registry';
 
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -38,6 +39,7 @@ function paste(text: string, withImage: boolean): void {
   view.contentDOM.dispatchEvent(ev);
 }
 
+const img = (link: string) => ({ link, absPath: `/abs/${link}` });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
@@ -97,45 +99,45 @@ describe('paste rules', () => {
   });
 });
 
-describe('insertSnip', () => {
+describe('placeImages', () => {
   it('mid-line keeps the line text and puts the link below', () => {
     mount('hello\nworld', 2);
-    insertSnip('a', 'l.png');
+    placeImages('a', [img('l.png')]);
     expect(view.state.doc.toString()).toBe('hello\n![snip](l.png)\nworld');
     expect(view.state.selection.main.head).toBe('hello\n![snip](l.png)\n'.length);
   });
 
   it('an empty line takes the link', () => {
     mount('a\n\nb', 2);
-    insertSnip('a', 'l.png');
+    placeImages('a', [img('l.png')]);
     expect(view.state.doc.toString()).toBe('a\n![snip](l.png)\nb');
     expect(view.state.selection.main.head).toBe('a\n![snip](l.png)\n'.length);
   });
 
   it('last line without a line break gets one', () => {
     mount('end');
-    insertSnip('a', 'l.png');
+    placeImages('a', [img('l.png')]);
     expect(view.state.doc.toString()).toBe('end\n![snip](l.png)\n');
     expect(view.state.selection.main.head).toBe(view.state.doc.length);
   });
 
   it('at on another line wins over the cursor', () => {
     mount('one\ntwo\nthree', 0);
-    insertSnip('a', 'l.png', 5);
+    placeImages('a', [img('l.png')], 5);
     expect(view.state.doc.toString()).toBe('one\ntwo\n![snip](l.png)\nthree');
   });
 
-  it('the returned position puts the next link right below the previous one', () => {
+  it('several images go in one block, in order, with no user text between them', () => {
     mount('A\nB\nC', 0);
-    const next = insertSnip('a', 'one.png', 0);
-    insertSnip('a', 'two.png', next ?? undefined);
+    placeImages('a', [img('one.png'), img('two.png')], 0);
     expect(view.state.doc.toString()).toBe('A\n![snip](one.png)\n![snip](two.png)\nB\nC');
+    expect(view.state.selection.main.head).toBe('A\n![snip](one.png)\n![snip](two.png)\n'.length);
   });
 
-  it('chains from an empty line too', () => {
-    mount('\nB', 0);
-    const next = insertSnip('a', 'one.png', 0);
-    insertSnip('a', 'two.png', next ?? undefined);
-    expect(view.state.doc.toString()).toBe('![snip](one.png)\n![snip](two.png)\nB');
+  it('nothing to place changes nothing and saves nothing', () => {
+    mount('A');
+    placeImages('a', []);
+    expect(view.state.doc.toString()).toBe('A');
+    expect(scheduleSessionSave).not.toHaveBeenCalled();
   });
 });

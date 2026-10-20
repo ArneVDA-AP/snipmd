@@ -42,7 +42,7 @@ export async function renderRead(container: HTMLElement, tabId: string, content:
     async: true,
     // Resolve exactly the images marked will render (not ones inside code blocks).
     walkTokens: async (token) => {
-      if (token.type === 'image') await ensureResolved(tabId, token.href.trim()).catch(() => '');
+      if (token.type === 'image') await ensureResolved(tabId, token.href.trim());
     },
     renderer: {
       // Own renderer: marked's default would encodeURI the asset URL a second time.
