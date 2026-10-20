@@ -2,7 +2,7 @@
 
 Goal: get the prototype to `SPEC.md` v1. One phase = one branch + PR + one run.
 Phase 0 is solo: the main session builds the shared foundation and the contract stubs.
-Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` JSON for a phase only after the previous phase is merged, and shows it to the user before the run.
+Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` JSON for a phase only after the previous phase is merged, and shows it for approval before the run.
 
 ## Why this shape
 - Today `src/state/TabManager.ts` (924 lines) touches everything. Parallel units need disjoint files, so phase 0 splits the code into modules and freezes the seams as stubs. Without that, phases 1-5 cannot run in parallel.
@@ -15,7 +15,7 @@ Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` 
 |---|---|---|---|---|---|
 | 0 | solo | Opus, medium | cloud or local | no | Foundation and contract must be one coherent hand; CI on `windows-latest` checks the Tauri crate |
 | 1-5 | thin-standard | Opus, medium | local (Windows) | yes | thin-* agents are installed there; `cargo check` and a real app run need Windows |
-| 6 | solo | Opus, medium | local (Windows) | no | Measuring the budgets needs the user's machine |
+| 6 | solo | Opus, medium | local (Windows) | no | Measuring the budgets needs a Windows machine |
 
 ## Phase 0. Strip and foundation (solo)
 Remove:
@@ -75,7 +75,7 @@ Each phase runs Build (the table), then:
 - **Integrate** `I1` thin-builder, `inputs_from` all builders: wires the new modules into `src/app.ts` (its only owned file). In phase 5, B4 owns `src/app.ts` and does this.
 - **Verify** `V1` thin-verifier: runs `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core`, `cargo check` (src-tauri) and the phase fixtures; owns `findings/<phase>-V1.md`.
 - **Review** `R1` thin-review (findings): adversarial review of the phase diff against `SPEC.md`; owns `review/<phase>-R1.md`. A blocker or major returns to the main session.
-- **Windows test** by the user, listed per phase.
+- **Windows test**, listed per phase.
 
 ### Phase 1. Security (SPEC §8)
 | Unit | Agent | Owns | Task | Check |
@@ -133,18 +133,17 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
 
 ## Status
 - [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
-- [x] 1 Security: PR #2 merged (reviews R1-R3 in `review/`, R2-M1 closed). **Windows test still open** (user tests later; it does not block phase 2): open `fixtures/evil.md` in edit and read mode; nothing runs, no file outside the note folder loads, links open in the browser, the app does not navigate away.
-- [ ] 2 Storage foundation
+- [x] 1 Security: PR #2 merged (reviews R1-R3 in `review/`, R2-M1 closed). **Windows test open** (does not block phase 2): open `fixtures/evil.md` in edit and read mode; nothing runs, no file outside the note folder loads, links open in the browser, the app does not navigate away.
+- [x] 2 Storage foundation: branch `claude/phase-2` (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 - [ ] 3 Images and paste
 - [ ] 4 Saving flows
 - [ ] 5 Tabs and recovery
 - [ ] 6 Editor and measuring
 
-## Handoff (read this after a context reset)
-- Branches: `main` has phases 0 and 1 (PRs #1 and #2 merged): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow, self-test 59/59), the module layout and the security layer. Phase 2 starts on a new branch `claude/phase-2` from `main`. The approved phase 1 args are in `.claude/runs/phase-1.args.json`; write `phase-2.args.json` the same way and show it to the user before the run.
-- **Cloud sessions: use `/compact`, never `/clear`.** After a clear, a worker restart resumed the pre-clear conversation (seen 2026-10-20: two restarts answered from stale context). Compact keeps one conversation, so a restart resumes the right one. Example: `/compact Keep: phase status from PLAN.md, open review items, current branch and PR, user decisions.`
-- Phase 1 args are approved by the user and saved in `.claude/runs/phase-1.args.json` (root `/home/user/snipmd`, the cloud checkout; change `root` for a local run). The first run on 2026-10-20 stopped at the first agent call, before any build: the thin-* agents were added to `.claude/agents/` mid-session and only load at session start. In a fresh session they are loaded; rerun with the Workflow tool, name `thin-standard`, args from that file. No shim needed. Releases publish only from version tags.
-- The thin-* agents load at session start from `.claude/agents/`. Phases 1-5 run as thin-standard: write the `args` JSON from the phase table, show it to the user, then run. Recommended: local Windows session (Rust compiles there); in the cloud only `snipmd-core` compiles, CI checks the Tauri crate.
+## Handoff
+- Branches: `main` has phases 0 and 1: SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout and the security layer. Phase 2 runs on `claude/phase-2`.
+- Phases 1-5 run as thin-standard (Workflow tool, name `thin-standard`). Args per phase live in `.claude/runs/`; `phase-1.args.json` is the template (its `root` is the cloud checkout; change it for a local run). Write `phase-<n>.args.json` from the phase table and show it for approval before the run.
+- Rust: a local Windows session compiles everything; in the cloud only `snipmd-core` compiles and CI checks the Tauri crate. Releases publish only from version tags.
 - Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
 - Open items outside the phases:
   - Bundle 583 KB: `@codemirror/lang-markdown` pulls in lang-html/javascript and autocomplete. Phase 6.
@@ -153,5 +152,10 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
   - Phase 1: `escapeAttr` in `src/preview/render.ts` becomes part of the sanitizer work.
   - Phase 3 (B4 imageWidget): find images through the Markdown syntax tree (`syntaxTree`, `Image` nodes) instead of a per-line regex; that also skips code blocks and handles several images per line.
   - Phase 3: send the session and images to Rust as raw bytes, not JSON strings / number arrays.
+  - Phase 3: one core helper for "unique name + `create_new` + retry" shared by `atomic_write` temp files and `create_snip`; name files with `note_name` in the older command errors too.
+  - Phase 4: carry the note's format from `read_markdown_file` with the tab and send it on write, instead of sniffing the file before every save; mixed line endings are rewritten to the first one (R1 D5), lone-CR files get CRLF (D6).
+  - Phase 4: atomic writes replace a symlinked note with a file (D7) and drop ACLs/attributes (D8); a crash between write and rename leaves a `.tmp` next to the note (D9; set the hidden attribute on Windows).
+  - Phase 4/5: compare dirty tabs with disk on restore (SPEC §7, D11); a clean tab whose drive is briefly missing at start is dropped for good, and restore waits for the slowest read before the first paint.
+  - Phase 6: session.json is fsynced on every debounced write; measure. Test mocks and fixtures are written per file; share them once a third test needs them.
   - Phase 4: consider keeping the note path in the EditorState (StateField + effect) once Save As and rename add more path changes.
   - Phase 6: incremental image decorations (only changed lines); titlebar updates in place instead of a full rebuild; bundle size.

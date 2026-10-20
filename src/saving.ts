@@ -1,47 +1,76 @@
 // Saving notes. Phase 4 adds autosave, the first-save info bar and Save As.
+import type { TabState } from './types';
 import { pickSavePath, promoteScratchAssets, writeNote } from './ipc';
 import { getTab, getTabs, markSaved, setLastFolder, textOf, untitledContentsExcept } from './tabs';
-import { scheduleSessionSave } from './session';
-import { showError } from './infobar';
+import { flushSession, scheduleSessionSave } from './session';
+import { clearInfo, showError } from './infobar';
 import { dirname, normPath } from './paths';
 
-/** Ctrl+S. Disk tab: write. Untitled tab: ask for a path, move its images, write. */
+/** Per tab: the write in progress, and the one write queued behind it that later saves join. */
+const running = new Map<string, Promise<boolean>>();
+const queued = new Map<string, Promise<boolean>>();
+
+const errorKey = (id: string): string => `save:${id}`;
+
+/**
+ * Writes a disk tab's newest text. Writes of one tab never overlap, and saves asked for while
+ * one runs merge into a single follow-up write. Reports its own failure; never rejects.
+ */
+function writeTab(tab: TabState): Promise<boolean> {
+  const waiting = queued.get(tab.id);
+  if (waiting) return waiting;
+  const next: Promise<boolean> = (running.get(tab.id) ?? Promise.resolve(true)).then(async () => {
+    queued.delete(tab.id);
+    running.set(tab.id, next);
+    // Read when the write starts, so it carries the newest text. A closed tab keeps its text in content.
+    const text = textOf(tab);
+    try {
+      await writeNote(tab.filePath!, text);
+      markSaved(tab.id, text);
+      clearInfo(errorKey(tab.id));
+      return true;
+    } catch (err) {
+      showError(`save ${tab.title}`, err, errorKey(tab.id));
+      return false;
+    } finally {
+      if (running.get(tab.id) === next) running.delete(tab.id);
+    }
+  });
+  queued.set(tab.id, next);
+  return next;
+}
+
+/** Untitled tab: ask for a path, move its images, write. */
+async function firstSave(tab: TabState): Promise<boolean> {
+  try {
+    const picked = await pickSavePath(tab.title);
+    if (!picked) return false;
+    const target = normPath(picked);
+    const text = textOf(tab);
+    await promoteScratchAssets(text, target, untitledContentsExcept(tab.id));
+    await writeNote(target, text);
+    markSaved(tab.id, text, target);
+    setLastFolder(dirname(target));
+    clearInfo(errorKey(tab.id));
+    return true;
+  } catch (err) {
+    showError(`save ${tab.title}`, err, errorKey(tab.id));
+    return false;
+  }
+}
+
+/** Ctrl+S. */
 export async function saveTab(id: string): Promise<boolean> {
   const tab = getTab(id);
   if (!tab) return false;
-  const text = textOf(tab);
-  try {
-    if (tab.filePath) {
-      await writeNote(tab.filePath, text);
-      markSaved(id, text);
-    } else {
-      const picked = await pickSavePath(tab.title);
-      if (!picked) return false;
-      const target = normPath(picked);
-      await promoteScratchAssets(text, target, untitledContentsExcept(id));
-      await writeNote(target, text);
-      markSaved(id, text, target);
-      setLastFolder(dirname(target));
-    }
-  } catch (err) {
-    showError(`save ${tab.title}`, err);
-    return false;
-  }
-  scheduleSessionSave({ immediate: true });
-  return true;
+  const ok = await (tab.filePath ? writeTab(tab) : firstSave(tab));
+  if (ok) scheduleSessionSave({ immediate: true });
+  return ok;
 }
 
 /** Window blur and close: write every dirty disk tab. One failure never stops the others or the session save. */
 export async function flushDirty(): Promise<void> {
-  const dirty = getTabs().filter((t) => t.dirty && t.filePath);
-  const results = await Promise.allSettled(
-    dirty.map(async (tab) => {
-      const text = textOf(tab);
-      await writeNote(tab.filePath!, text);
-      markSaved(tab.id, text);
-    })
-  );
-  scheduleSessionSave({ immediate: true });
-  const failed = dirty.filter((_, i) => results[i].status === 'rejected').map((t) => t.title);
-  if (failed.length) showError(`save ${failed.join(', ')}`, 'the changes are kept in the session');
+  void flushSession(); // the session never waits for a note write
+  await Promise.all(getTabs().filter((t) => t.dirty && t.filePath).map(writeTab));
+  await flushSession(); // the saved flags land in the session
 }

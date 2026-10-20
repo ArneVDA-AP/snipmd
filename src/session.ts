@@ -1,10 +1,11 @@
 // Session persistence: %APPDATA%/snip-md/session.json is the only store (SPEC §7).
 import type { ClosedTab, SessionFile, TabState } from './types';
 import { loadSessionRaw, saveSessionRaw } from './ipc';
-import { showError } from './infobar';
+import { clearInfo, showError } from './infobar';
 import { normPath } from './paths';
 
 const DEBOUNCE_MS = 500;
+const SESSION_ERROR = 'session';
 
 let source: (() => SessionFile) | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -20,9 +21,7 @@ export function bindSessionSource(fn: () => SessionFile): void {
 /** T2. Debounced to at most one write per 500 ms; `immediate` writes now. Writes never overlap. */
 export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
   if (opts?.immediate) {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    enqueueWrite();
+    void flushSession();
     return;
   }
   if (timer) return;
@@ -30,6 +29,14 @@ export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
     timer = null;
     enqueueWrite();
   }, DEBOUNCE_MS);
+}
+
+/** T2b. Cancels a pending debounce, writes the current snapshot now and resolves when every queued write is done. Never rejects. */
+export function flushSession(): Promise<void> {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  enqueueWrite();
+  return queue;
 }
 
 function enqueueWrite(): void {
@@ -40,10 +47,12 @@ function enqueueWrite(): void {
   queue = queue.then(async () => {
     try {
       await saveSessionRaw(json);
+      if (failing) clearInfo(SESSION_ERROR);
       failing = false;
     } catch (err) {
       if (lastQueued === json) lastQueued = ''; // retry on the next save
-      if (!failing) showError('save the session', err);
+      // Keyed: it stays under newer messages until a session write succeeds.
+      if (!failing) showError('save the session', err, SESSION_ERROR);
       failing = true;
     }
   });

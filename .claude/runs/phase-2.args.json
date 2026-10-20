@@ -1,0 +1,116 @@
+{
+  "goal": "SnipMD phase 2: storage foundation (SPEC §6.1 atomic writes and encoding, §6.1 write failure, §7 session writes and restore)",
+  "root": "/home/user/snipmd",
+  "contract": {
+    "shared": ["src/types.ts", "src/paths.ts", "src/dom.ts", "src-tauri/core/src/lib.rs"],
+    "signatures": [
+      { "id": "R3", "owner": "B1", "signature": "pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()>", "doc": "snipmd_core::atomic. Creates a temp file next to the target (same folder, name `.<file name>.<unique>.tmp`, opened with create_new; unique part from process id, an atomic counter and the time, no new crates), writes all bytes, sync_all, closes it, then fs::rename over the target. On any error the temp file is removed and the error returned; the target is never truncated or partly written. Never creates missing folders: a missing parent is an error (SPEC §6.1 write failure)." },
+      { "id": "R6", "owner": "B1", "signature": "pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), TextError>; pub fn encode(text: &str, fmt: TextFormat) -> Vec<u8>", "doc": "snipmd_core::text. decode: format from sniff; strips a UTF-8 BOM; converts every \\r\\n to \\n (a lone \\r stays); invalid UTF-8 is TextError::NotUtf8. encode: normalizes \\r\\n to \\n first, then writes \\r\\n line breaks when fmt.crlf, and a BOM when fmt.bom. encode(decode(b)) == b for any file whose line breaks are all of one kind." },
+      { "id": "R6b", "owner": "B1", "signature": "pub fn sniff(bytes: &[u8]) -> TextFormat", "doc": "snipmd_core::text. Never fails, also for non-UTF-8 bytes. bom = starts with EF BB BF. crlf = the first line break is \\r\\n; a file without any line break counts as crlf (new and one-line files get the Windows default, SPEC §6.1). TextFormat::default() stays {crlf:false,bom:false}; add `pub const NEW_FILE: TextFormat = TextFormat { crlf: true, bom: false };` for new notes." },
+      { "id": "C1", "owner": "B2", "signature": "#[tauri::command] read_markdown_file(path) -> Result<String, String>; #[tauri::command] write_markdown_file(path, content) -> Result<(), String>; #[tauri::command] save_session(json) -> Result<(), String>", "doc": "Unchanged names and payloads. read: fs::read, then text::decode; NotUtf8 becomes \"<name> is not UTF-8 text\". write: the format of the file on disk now (text::sniff of its bytes) or text::NEW_FILE when it does not exist; any other read error is returned; then text::encode and atomic::atomic_write. No create_dir_all for notes. save_session: atomic_write of session.json (creating the app data folder stays)." },
+      { "id": "T2b", "owner": "B3", "signature": "export function flushSession(): Promise<void>", "doc": "src/session.ts. Cancels a pending debounce, queues a write of the current snapshot now and resolves when that write (and every write queued before it) has finished, also when it failed (the failure is reported through showError as today). Never rejects." },
+      { "id": "T6", "owner": "B4", "signature": "export async function saveTab(id: string): Promise<boolean>; export async function flushDirty(): Promise<void>", "doc": "src/saving.ts, same signatures as today. Writes of one tab never overlap: a per-tab chain runs them in order, so the last write carries the newest text. flushDirty starts flushSession() at once (the session never waits for a note write), writes every dirty disk tab in parallel, then awaits flushSession() again so the saved flags land in the session; resolves when all of that settled and never rejects. A failed write leaves only that tab dirty and shows `showError('save <title>', err)`; a later successful write of that tab dismisses its error bar." }
+    ]
+  },
+  "phases": [
+    {
+      "title": "Build",
+      "units": [
+        {
+          "id": "B1",
+          "agentType": "thin-builder",
+          "task": "Implement R3 in src-tauri/core/src/atomic.rs and R6 + R6b (decode, encode, sniff, TextFormat::NEW_FILE) in src-tauri/core/src/text.rs exactly as the contract documents them; replace the todo!() stubs and keep the public signatures and TextError from src-tauri/core/src/lib.rs, which you may not edit. Tests in src-tauri/core/tests/atomic.rs and src-tauri/core/tests/text.rs. atomic: a new target is created; an existing target is replaced completely (shorter content leaves no tail); when the rename fails (make the target an existing non-empty directory) the call errs, the directory is untouched and no `.tmp` file is left in the folder; a missing parent folder errs and creates nothing; two writes in a row leave exactly the second content. text: LF, CRLF, BOM+CRLF, BOM+LF and empty files round-trip byte for byte through decode/encode; a file without line breaks sniffs as crlf; non-UTF-8 bytes are NotUtf8 for decode while sniff still answers; encode with crlf of text that already contains \\r\\n does not double it; a lone \\r survives decode.",
+          "output": "atomic.rs and text.rs implemented, tests in core/tests/atomic.rs and core/tests/text.rs, the checks passing.",
+          "owns": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/text.rs", "src-tauri/core/tests/atomic.rs", "src-tauri/core/tests/text.rs"],
+          "reads": ["src-tauri/core/src/lib.rs", "src-tauri/core/Cargo.toml", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3", "R6", "R6b"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core --test atomic", "expect_exit": 0, "proves": "a failed write never touches the target and leaves no temp file; a successful one replaces it whole" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core --test text", "expect_exit": 0, "proves": "CRLF, LF and BOM round-trip byte for byte; non-UTF-8 is refused by decode" }
+          ],
+          "limits": "atomic.rs under 80 lines, text.rs under 80 lines; no unsafe; no new crates"
+        },
+        {
+          "id": "B3",
+          "agentType": "thin-builder",
+          "task": "Session writes and restore (SPEC §7). (1) src/session.ts: add T2b flushSession exactly as the contract says; keep scheduleSessionSave, the 500 ms debounce, the serial write queue and the identical-snapshot skip. (2) src/tabs.ts, only snapshot() and restore(): snapshot() returns copies of the tabs and never changes a tab's in-memory content (a restored tab that was never shown has no EditorState and lives on tab.content); in the copies, a clean disk-backed tab (filePath set, dirty false) gets content '' because the disk is its source, while untitled and dirty tabs carry their text. restore() reads every clean disk-backed tab from disk with readNote in parallel (Promise.allSettled) before any editor is created and puts the text in tab.content; a tab whose read fails is dropped and one showError('reopen <names>', <first reason>) names all of them; when no tab is left it opens a new untitled tab; the active tab falls back to the first remaining one. Dirty disk tabs keep their session text (the conflict check is phase 4). Do not change anything else in tabs.ts. Tests: extend src/session.test.ts (vi.mock './ipc' and './infobar'; fake timers): an immediate save calls saveSessionRaw without waiting 500 ms (the paste path), several debounced calls inside 500 ms write once, flushSession resolves only after saveSessionRaw resolved, resolves (does not reject) when it rejected, and a failed write of a snapshot is retried by the next save of the same snapshot. Write src/tabs.test.ts (vi.mock './ipc', './infobar', './preview/render' and the titlebar; jsdom): snapshot gives '' for a clean disk tab, the text for dirty and untitled tabs, and leaves tab.content of the live tabs unchanged; restore takes a clean tab's text from readNote, not from the session; a failing read drops that tab, keeps the others and shows one error.",
+          "output": "session.ts with flushSession; tabs.ts snapshot/restore; session.test.ts extended; tabs.test.ts; checks passing.",
+          "owns": ["src/session.ts", "src/session.test.ts", "src/tabs.ts", "src/tabs.test.ts"],
+          "reads": ["src/types.ts", "src/ipc.ts", "src/infobar.ts", "src/editor/registry.ts", "src/editor/setup.ts", "src/titlebar.ts", "src/app.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T2b"],
+          "checks": [
+            { "cmd": "npx vitest run src/session src/tabs", "expect_exit": 0, "proves": "a paste saves the session at once; flushSession waits for the write; clean disk tabs restore from disk, not from the session copy" }
+          ],
+          "limits": "do not edit src/types.ts, src/ipc.ts or src/app.ts; tabs.ts stays under 250 lines"
+        }
+      ]
+    },
+    {
+      "title": "Build Tauri and saving",
+      "units": [
+        {
+          "id": "B2",
+          "agentType": "thin-builder",
+          "task": "Route notes and session.json through R3 and R6 in src-tauri/src/lib.rs, exactly as C1 documents: read_markdown_file decodes with snipmd_core::text::decode; write_markdown_file keeps the on-disk format (text::sniff of the current bytes, text::NEW_FILE when the file does not exist, any other read error returned) and writes with text::encode + snipmd_core::atomic::atomic_write, without create_dir_all; save_session writes with atomic_write. Error strings name the file. Keep every command name, payload and the allowed-set checks unchanged; images, promotion and scratch cleanup are later phases, do not touch them.",
+          "output": "lib.rs changed; cargo check passing.",
+          "owns": ["src-tauri/src/lib.rs"],
+          "reads": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/text.rs", "src-tauri/core/src/lib.rs", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3", "R6", "R6b", "C1"],
+          "inputs_from": ["B1"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles against R3/R6 (GTK libraries are installed in this session)" }
+          ],
+          "limits": "lib.rs stays under 480 lines; no new crates; no fs::write left for notes or session.json"
+        },
+        {
+          "id": "B4",
+          "agentType": "thin-builder",
+          "task": "Write failures (SPEC §6.1, CLAUDE.md guardrail 5) and the info bar (SPEC §4). (1) src/saving.ts: implement T6 exactly as the contract says, using flushSession from src/session.ts (T2b, built by B3); keep saveTab's untitled branch as it is (the first-save bar is phase 4) but run its write through the same per-tab chain. (2) src/infobar.ts, T1 keeps its signatures: the newest message replaces the bar in the same position; dismissing or replacing a bar clears its timeout; showing a message whose kind and text equal the visible bar in that position keeps that bar (no flicker, no restarted animation) and returns a dismiss for it; a dismiss for a bar that was already replaced does nothing. Tests: src/saving.test.ts (vi.mock './ipc', './tabs', './session', './infobar'): one rejected write leaves the other tabs saved and the session still flushed; flushSession is called before any note write settles (a never-resolving write does not hold the session); two saves of one tab run one after the other and the second carries the newer text; a success after a failure dismisses that tab's error. src/infobar.test.ts (jsdom, fake timers): replace, dedupe, timeout cleared on dismiss, stale dismiss is a no-op, top and bottom are independent.",
+          "output": "saving.ts and infobar.ts changed; saving.test.ts and infobar.test.ts; checks passing.",
+          "owns": ["src/saving.ts", "src/saving.test.ts", "src/infobar.ts", "src/infobar.test.ts"],
+          "reads": ["src/session.ts", "src/tabs.ts", "src/ipc.ts", "src/types.ts", "src/dom.ts", "src/app.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T2b", "T6"],
+          "inputs_from": ["B3"],
+          "checks": [
+            { "cmd": "npx vitest run src/saving src/infobar", "expect_exit": 0, "proves": "one failing write stops neither other tabs nor the session; writes of one tab never overlap; the info bar replaces and dedupes" }
+          ],
+          "limits": "do not edit src/types.ts, src/session.ts, src/tabs.ts or src/app.ts"
+        }
+      ]
+    },
+    {
+      "title": "Verify",
+      "units": [
+        {
+          "id": "V1",
+          "agentType": "thin-verifier",
+          "task": "Run the whole-project checks for phase 2 from the project root and record the results: npm run lint; npm test; npm run build; cd src-tauri && cargo test -p snipmd-core; cd src-tauri && cargo check. Also confirm by reading the code: no fs::write onto a note or session.json remains in src-tauri/src/lib.rs; write_markdown_file has no create_dir_all; no file under src/ uses localStorage or sessionStorage; src/app.ts's close handler awaits flushDirty and flushDirty awaits flushSession.",
+          "output": "findings/phase2-V1.md with each command, its exit code and the confirmations.",
+          "owns": ["findings/phase2-V1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4"],
+          "checks": [
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check" },
+            { "cmd": "npm test", "expect_exit": 0, "proves": "frontend tests pass" },
+            { "cmd": "npm run build", "expect_exit": 0, "proves": "the frontend builds" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core tests pass" },
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Review",
+      "units": [
+        {
+          "id": "R1",
+          "agentType": "thin-review",
+          "task": "Adversarial review of the phase 2 diff (git diff HEAD) against SPEC.md §6.1 and §7 and the CLAUDE.md data-safety guardrails 1, 5 and 6 and the code conventions. Hunt for: a path where a note or session.json can end truncated or half-written; a temp file left behind or created in another folder (cross-drive rename); a line-ending or BOM change on save of an existing note; a write that creates a deleted folder again; a note write that can delay or block the session write or another tab; overlapping writes of one tab that let older text win while the tab shows clean; snapshot() losing the text of a tab that was never shown; restore() trusting the session copy of a clean tab; a close (Alt+F4) that ends before the session write; the info bar hiding or duplicating errors; anything that breaks phase 0/1 behaviour (open, save, paste, session restore, the allowed-set checks).",
+          "output": "review/phase2-R1.md; defects with severity, location, statement and evidence.",
+          "owns": ["review/phase2-R1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4", "V1"],
+          "checks": []
+        }
+      ]
+    }
+  ]
+}

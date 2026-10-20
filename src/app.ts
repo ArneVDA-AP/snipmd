@@ -10,6 +10,7 @@ import {
   closeTab,
   cycle,
   getActiveTab,
+  getTab,
   initTabs,
   newUntitled,
   openPath,
@@ -29,6 +30,16 @@ const SKELETON = `
   <div class="infobar-host" id="infoBottom"></div>
 `;
 
+/** Longest a close waits for note writes. */
+const CLOSE_WAIT_MS = 3000;
+
+/** Closing a tab never loses its edits: a dirty disk tab is written once more (the closed-tabs list is phase 5). */
+function closeAndSave(id: string): Promise<void> {
+  const tab = getTab(id);
+  if (tab?.dirty && tab.filePath) void saveTab(id);
+  return closeTab(id);
+}
+
 function registerKeys(): void {
   window.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -40,7 +51,7 @@ function registerKeys(): void {
     else if (key === 't' || key === 'n') void newUntitled();
     else if (key === 'o') void pickFileToOpen().then((p) => (p ? openPath(p) : undefined));
     else if (key === 's') void (active && saveTab(active.id));
-    else if (key === 'w') void (active && closeTab(active.id));
+    else if (key === 'w') void (active && closeAndSave(active.id));
     else if (key === 'e') void toggleMode();
     else handled = false;
     if (handled) e.preventDefault();
@@ -54,7 +65,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   mountInfobar(byId('infoTop'), byId('infoBottom'));
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),
-    close: (id) => void closeTab(id),
+    close: (id) => void closeAndSave(id),
     newTab: () => void newUntitled()
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar);
@@ -71,7 +82,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   await openPaths(cliFiles);
 
   await Promise.all([
-    onCloseRequested(flushDirty),
+    // A hung note write (drive removed) must not keep the window open; the session was written first.
+    onCloseRequested(() => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))])),
     onForwardedFiles((paths) => void openPaths(paths)),
     // Phase 3 adds dropped images here.
     onFilesDropped((paths) => void openPaths(paths.filter(isMarkdownPath)))
