@@ -8,6 +8,7 @@
 ## Working with the user
 - The user writes in Dutch; reply in Dutch. Code, comments, commit messages and repo docs are in English.
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked.
+- Commits are authored as the user: before the first commit of a session run `git config user.name "ArneVDA-AP"` and `git config user.email "arnevandenabbeele@hotmail.com"` in the repo. Keep the Co-Authored-By trailer.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
@@ -49,6 +50,8 @@
 - **No magic payloads, no dead exports.** Effects carry data only when someone reads it. Export only what another module imports. Delete code instead of leaving it for later.
 - **Independent I/O runs in parallel** (`Promise.all` / `allSettled`); one failure never blocks the rest.
 - **No retry loops by accident.** A failure path must not trigger the same work again (e.g. no redraw after a failed image lookup).
+- **Security checks parse like the consumer.** Decide on URLs and paths with the same parser the webview or OS uses (`new URL`, `Url::parse`, one lexical walk in `snipmd_core::paths`), never with a prefix match; `:80`, `\\`, a newline or a trailing dot/space disguises a prefix.
+- **Trust is applied after sanitizing.** Content the app vouches for (resolved image URLs) is set on the clean DOM, never recognized from a string or attribute the note could have written.
 - **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
 - Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
 

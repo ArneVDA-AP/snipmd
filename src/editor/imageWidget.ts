@@ -6,9 +6,9 @@ import { StateField, StateEffect, type EditorState, type Range } from '@codemirr
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { resolveAssetPath, toAssetUrl } from '../ipc';
 import { applyToTab, filePathFor, tabIdFacet } from './registry';
+import { isWebUrl } from '../paths';
 
 const IMAGE_LINK = /!\[([^\]]*)\]\(([^)]+)\)/;
-const REMOTE_OR_INLINE = /^(data:|blob:|https?:)/i;
 
 /** `${filePath ?? '__scratch__'}::${relPath}` -> displayable URL */
 const urlCache = new Map<string, string>();
@@ -29,7 +29,7 @@ function cacheKey(filePath: string | null, relPath: string): string {
 }
 
 export function cachedUrl(filePath: string | null, relPath: string): string | undefined {
-  if (REMOTE_OR_INLINE.test(relPath)) return relPath;
+  if (isWebUrl(relPath)) return relPath;
   return urlCache.get(cacheKey(filePath, relPath));
 }
 
