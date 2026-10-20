@@ -1,65 +1,141 @@
-# SnipMD — Cleanup Plan
+# SnipMD — Cleanup Plan (thin-standard)
 
-Goal: get the prototype to `SPEC.md` v1. One phase = one branch + PR. Each phase ends with `npm run lint`, `npm run build`, `cargo check` (on Windows or CI), and a short Windows test the user runs. Update the checkbox when a phase is merged.
+Goal: get the prototype to `SPEC.md` v1. One phase = one branch + PR + one run.
+Phase 0 is solo: the main session builds the shared foundation and the contract stubs.
+Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` JSON for a phase only after the previous phase is merged, and shows it to the user before the run.
 
-Order: remove first, so later phases touch less code. Then security and storage, because every later feature depends on them.
+## Why this shape
+- Today `src/state/TabManager.ts` (924 lines) touches everything. Parallel units need disjoint files, so phase 0 splits the code into modules and freezes the seams as stubs. Without that, phases 1-5 cannot run in parallel.
+- `cargo check` of the Tauri crate fails on a Linux cloud box (no GTK). Pure logic therefore lives in a separate crate `snipmd-core` without Tauri. `cargo test -p snipmd-core` runs everywhere; that is what unit checks use.
+- Parallel units cannot use whole-project checks (`npm run lint`, `npm run build`, `cargo check`): a half-finished file of another unit breaks them. Builder checks are scoped to the unit's own tests. Whole-project checks run in the Verify phase, after all builders.
+- A unit that adds a dependency also owns the lockfile (`package-lock.json` or `Cargo.lock`); otherwise the disk check stops the run.
 
-## [ ] 0. Strip
-Remove what is outside v1 scope or only exists for the browser demo.
-- Delete: browser fake filesystem and demo content in `src/ipc/bridge.ts` (bridge keeps only `invoke` wrappers), `src/utils/snipSimulator.ts`, `src/ui/inspector.ts`, `src/ui/modal.ts`, `src/styles/themes.ts`, export, split view, status bar, demo tabs in `TabManager`.
-- Delete: `.aistudio/`, `metadata.json`, `.env.example`, `public/releases/`, `scripts/test-connected-files.ps1`.
-- Dependencies: drop React, Tailwind, Express, `@google/genai`, `motion`, `lucide-react`, `dotenv`, `tsx`, their Vite plugins and the `jsx` tsconfig setting. Drop `tauri-plugin-fs` and its `fs:default` permission.
-- CSS: one light and one dark palette following `prefers-color-scheme`, system fonts, no Google Fonts.
-- Commit `package-lock.json` and `src-tauri/Cargo.lock`; CI uses `npm ci` instead of deleting the lockfile.
+## Run card per phase
+| Phase | Mode | Main session | Where | Worktree | Reason |
+|---|---|---|---|---|---|
+| 0 | solo | Opus, medium | cloud or local | no | Foundation and contract must be one coherent hand; CI on `windows-latest` checks the Tauri crate |
+| 1-5 | thin-standard | Opus, medium | local (Windows) | yes | thin-* agents are installed there; `cargo check` and a real app run need Windows |
+| 6 | solo | Opus, medium | local (Windows) | no | Measuring the budgets needs the user's machine |
 
-Done when: the app starts on one empty untitled tab; bundle and dependency list contain nothing from the list above.
+## Phase 0. Strip and foundation (solo)
+Remove:
+- `src/ipc/bridge.ts` browser fallback and demo content; `src/utils/snipSimulator.ts`, `src/ui/inspector.ts`, `src/ui/modal.ts`, `src/styles/themes.ts`; export, split view, status bar, demo tabs.
+- `.aistudio/`, `metadata.json`, `.env.example`, `public/releases/`, `scripts/test-connected-files.ps1`.
+- React, Tailwind, Express, `@google/genai`, `motion`, `lucide-react`, `dotenv`, `tsx`, their Vite plugins and the `jsx` tsconfig setting; `tauri-plugin-fs` and `fs:default`; Google Fonts.
 
-## [ ] 1. Security (SPEC §8)
-- Rust: an allowed-paths registry (opened files, their `<stem>.assets/`, `%APPDATA%/snip-md/`). Every command validates its path arguments against it; relative image paths may not escape the note folder.
-- Asset protocol: scope empty in config, granted per folder at runtime.
-- Read mode: sanitize `marked` output (DOMPurify); escape file names and paths in all `innerHTML`.
-- Strict CSP in `tauri.conf.json`.
-- Pure logic (path checks, file naming, link rewriting, cleanup selection) lives in a Rust module without Tauri imports, with `cargo test` unit tests, so it runs on any machine.
+Build:
+- Module layout (existing behaviour moved, not rewritten):
+  ```
+  src/types.ts            shared types (contract.shared)
+  src/ipc.ts              typed invoke wrappers
+  src/app.ts              wiring, keyboard
+  src/tabs.ts             tab list state
+  src/session.ts          session load/save
+  src/saving.ts           save, autosave, first save
+  src/infobar.ts          info bar (stub)
+  src/titlebar.ts
+  src/editor/{setup,imageWidget,paste}.ts
+  src/preview/render.ts
+  src/styles/main.css     light + dark via prefers-color-scheme, system fonts
+  src-tauri/core/         crate snipmd-core, no Tauri
+  src-tauri/src/lib.rs    Tauri commands only
+  ```
+- `snipmd-core` with every signature from the contract below as a stub (`todo!()`), so all later units compile against it.
+- Test runners: `cargo test -p snipmd-core`; Vitest with jsdom (`npm test`).
+- `package-lock.json` and `Cargo.lock` committed; CI uses `npm ci` and adds `cargo test -p snipmd-core` and `npm test`.
 
-Done when: a test note with `<img onerror>`, `javascript:` links and `../../` image paths opens harmlessly in both modes.
+Done when: `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core` pass here; CI `cargo check` passes on Windows; the app starts on one empty untitled tab.
 
-## [ ] 2. Storage foundation (SPEC §6.1, §7)
-- Atomic writes for notes and `session.json`.
-- `session.json` is the only session store; remove localStorage. Write rules per §7 (debounced 500 ms, immediate after paste, tab change, save, blur, close).
-- Info bar component (SPEC §4). Write failures show there and never block other tabs or the session save.
-- Startup restores clean disk tabs from disk, not from the cache.
+## Contract (frozen in phase 0)
+`contract.shared`: `src/types.ts`, `src-tauri/core/src/lib.rs` (module declarations and shared error types only).
 
-Done when: paste, Alt+F4 immediately, restart → image and text are there. Pull a USB stick with an open note → error bar, other tabs keep saving.
+Rust, crate `snipmd_core`:
+| Id | Module | Signature |
+|---|---|---|
+| R1 | `paths` | `pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError>`: percent-decodes; rejects absolute, drive, UNC, `..` escape and `:` streams |
+| R2 | `paths` | `pub struct AllowedSet`; `pub fn allow_note(&mut self, note: &Path)` (also allows its `<stem>.assets/`); `pub fn allow_dir(&mut self, dir: &Path)`; `pub fn check(&self, p: &Path) -> Result<PathBuf, PathError>` |
+| R3 | `atomic` | `pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()>` |
+| R4 | `naming` | `pub fn snip_name(now: chrono::NaiveDateTime, rand4: u16) -> String`; `pub fn create_snip(dir: &Path, bytes: &[u8]) -> std::io::Result<PathBuf>` |
+| R5 | `links` | `pub fn encode_link_path(p: &str) -> String`; `pub fn rewrite_prefix(text: &str, old: &str, new: &str) -> (String, usize)` |
+| R6 | `text` | `pub struct TextFormat { pub crlf: bool, pub bom: bool }`; `pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), TextError>`; `pub fn encode(text: &str, fmt: TextFormat) -> Vec<u8>` |
+| R7 | `assets` | `pub fn assets_dir_for(note: &Path) -> PathBuf`; `pub fn move_dir(from: &Path, to: &Path) -> std::io::Result<()>` (rename, else copy then remove) ; `pub fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()>` |
+| R8 | `cleanup` | `pub fn select_for_cleanup(entries: &[ScratchEntry], live_tabs: &HashSet<String>, live_refs: &HashSet<String>, now: SystemTime, grace: Duration) -> Vec<PathBuf>` |
 
-## [ ] 3. Images and paste (SPEC §6.3)
-- Per-note `<stem>.assets/`; untitled tabs use `scratch/<tab-id>/` linked as `untitled.assets/`.
-- Raw binary IPC for image bytes.
-- Paste rules: text wins, image only when the clipboard has no text, `Ctrl+Shift+V` plain.
-- Paste bound to its tab; link encoding for spaces and `( ) # %`.
-- Image drop through Tauri's drag-drop event, inserted at the drop position.
-- Missing-image placeholder; no images rendered inside code blocks.
+TypeScript:
+| Id | File | Signature |
+|---|---|---|
+| T1 | `src/infobar.ts` | `export function showInfo(msg: InfoMessage): () => void` |
+| T2 | `src/session.ts` | `export function scheduleSessionSave(opts?: { immediate?: boolean }): void` |
+| T3 | `src/ipc.ts` | `export function saveImage(tabId: string, notePath: string \| null, bytes: Uint8Array): Promise<SavedImage>` |
+| T4 | `src/ipc.ts` | `export function writeNote(path: string, text: string): Promise<void>`; `export function readNote(path: string): Promise<NoteFile>` |
+| T5 | `src/editor/paste.ts` | `export function insertSnip(tabId: string, link: string): void` (inserts into that tab's state, also when it is not visible) |
 
-Done when: a 4K screenshot appears in under 150 ms; copying Excel cells pastes text; a tab switch mid-paste puts the link in the right tab.
+## Phases 1-5 (thin-standard)
+Each phase runs Build (the table), then:
+- **Integrate** `I1` thin-builder, `inputs_from` all builders: wires the new modules into `src/app.ts` (its only owned file). In phase 5, B4 owns `src/app.ts` and does this.
+- **Verify** `V1` thin-verifier: runs `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core`, `cargo check` (src-tauri) and the phase fixtures; owns `findings/<phase>-V1.md`.
+- **Review** `R1` thin-review (findings): adversarial review of the phase diff against `SPEC.md`; owns `review/<phase>-R1.md`. A blocker or major returns to the main session.
+- **Windows test** by the user, listed per phase.
 
-## [ ] 4. Saving flows (SPEC §6.1, §6.2, §6.4)
-- Autosave 1 s after typing, plus on blur and close.
-- First-save info bar (name from first heading, last-used folder), `Ctrl+Shift+S` Save As.
-- Moving the scratch folder to `<stem>.assets/` and rewriting links as one undoable transaction; Save As copies the folder.
-- Preserve line endings and BOM.
-- External change detection: silent reload when clean, conflict bar when dirty.
-- Undo history survives the first save.
+### Phase 1. Security (SPEC §8)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `src-tauri/core/src/paths.rs`, `src-tauri/core/tests/paths.rs` | R1, R2 | `cargo test -p snipmd-core paths`: `../`, absolute, UNC, `C:` and `:stream` are rejected |
+| B2 | thin-builder | `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/` | every command validates through R2; asset scope granted per folder at runtime; strict CSP | none in parallel (Verify runs `cargo check`) |
+| B3 | thin-builder | `src/preview/`, `src/titlebar.ts`, `package.json`, `package-lock.json`, `fixtures/evil.md` | sanitize with DOMPurify; escape names in `innerHTML` | `npx vitest run src/preview`: `<img onerror>`, `<script>`, `javascript:` links are removed |
 
-Done when: untitled note with screenshots → Ctrl+S → Enter → file and folder sit side by side and open correctly in VS Code and on GitHub.
+Windows test: open `fixtures/evil.md` in both modes; nothing runs, no file outside the note folder loads.
 
-## [ ] 5. Tabs and recovery (SPEC §7, §10, §11)
-- Closed-tabs list in the session, restore bar, `Ctrl+Shift+T` after restart too.
-- Startup cleanup with the 14-day rule (§6.5).
-- Full keyboard table; single instance resolves relative paths against the caller's working directory.
+### Phase 2. Storage foundation (SPEC §6.1, §7)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/atomic.rs`, `core/src/text.rs`, tests | R3, R6 | `cargo test -p snipmd-core atomic text`: target never truncated on a failed write; CRLF and BOM round-trip |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | notes and `session.json` through R3 and R6 | none in parallel |
+| B3 | thin-builder | `src/session.ts`, `src/session.test.ts` | T2; `session.json` only, no localStorage; §7 write triggers | `npx vitest run src/session`: a paste triggers an immediate save |
+| B4 | thin-builder | `src/infobar.ts`, `src/styles/infobar.css`, `src/infobar.test.ts` | T1 | `npx vitest run src/infobar` |
+| B5 | thin-builder | `src/saving.ts`, `src/saving.test.ts` | a failing write marks only that tab and calls T1; session save still runs | `npx vitest run src/saving`: one rejected write does not stop the others |
 
-Done when: Ctrl+W on an untitled tab with images, restart the app, Ctrl+Shift+T → tab and images are back.
+Windows test: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 
-## [ ] 6. Editor and measuring (SPEC §5, §9)
-- Light Markdown styling, find and replace, read mode via `Ctrl+E`.
-- Measure the §9 budgets on Windows and record them in this file. Anything over budget gets fixed before v1.
+### Phase 3. Images and paste (SPEC §6.3)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/naming.rs`, `core/src/links.rs`, tests | R4, R5 (encode) | `cargo test -p snipmd-core naming links`: no overwrite on collision; spaces and `( ) # %` encoded |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | save image from a raw IPC body; per-note `<stem>.assets/`; `scratch/<tab-id>/` as `untitled.assets/` | none in parallel |
+| B3 | thin-builder | `src/editor/paste.ts`, `src/editor/paste.test.ts`, `src/ipc.ts` | T3, T5; text wins; `Ctrl+Shift+V`; paste bound to its tab | `npx vitest run src/editor/paste`: text+image pastes text; a tab switch mid-paste inserts into the original tab |
+| B4 | thin-builder | `src/editor/imageWidget.ts`, `src/editor/imageWidget.test.ts` | missing-image placeholder; no images in code blocks | `npx vitest run src/editor/imageWidget` |
+| B5 | thin-builder | `src/drop.ts` | image drop via Tauri drag-drop, insert at drop position | none in parallel |
 
-Done when: every row in SPEC §9 has a measured value under its target.
+Windows test: 4K screenshot visible in under 150 ms; Excel cells paste as text.
+
+### Phase 4. Saving flows (SPEC §6.1, §6.2, §6.4)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/links.rs` (rewrite part), `core/src/assets.rs`, tests | R5 (rewrite), R7 | `cargo test -p snipmd-core links assets`: only the exact prefix is rewritten; cross-drive move falls back to copy |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | promote, Save As, rename commands; mtime/size check command | none in parallel |
+| B3 | thin-builder | `src/saving.ts`, tests | autosave 1 s, blur, close; first-save bar; `Ctrl+Shift+S`; undo survives first save | `npx vitest run src/saving` |
+| B4 | thin-builder | `src/external.ts`, tests | silent reload when clean, conflict bar when dirty | `npx vitest run src/external` |
+
+Windows test: untitled note with screenshots, Ctrl+S, Enter: file and folder side by side; opens correctly in VS Code and on GitHub.
+
+### Phase 5. Tabs and recovery (SPEC §6.5, §7, §10, §11)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/cleanup.rs`, tests | R8 | `cargo test -p snipmd-core cleanup`: nothing younger than 14 days or referenced is selected; nothing outside scratch |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | startup cleanup; single instance resolves relative paths against the caller's cwd | none in parallel |
+| B3 | thin-builder | `src/closedTabs.ts`, tests | closed-tabs list in the session; restore bar; `Ctrl+Shift+T` | `npx vitest run src/closedTabs` |
+| B4 | thin-mech | `src/app.ts` | the keyboard table of SPEC §10, exactly as listed | `npx vitest run src/app` |
+
+Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab and images are back.
+
+## Phase 6. Editor and measuring (solo)
+Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
+
+## Status
+- [ ] 0 Strip and foundation
+- [ ] 1 Security
+- [ ] 2 Storage foundation
+- [ ] 3 Images and paste
+- [ ] 4 Saving flows
+- [ ] 5 Tabs and recovery
+- [ ] 6 Editor and measuring
