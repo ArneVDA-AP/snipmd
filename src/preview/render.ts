@@ -16,7 +16,9 @@ const purify = DOMPurify(window);
 purify.addHook('afterSanitizeAttributes', (node) => {
   // Only web images survive here; the note's own images get their src after sanitizing.
   if (node.tagName === 'IMG') {
-    if (!isWebUrl(node.getAttribute('src') ?? '') && !node.hasAttribute('data-own')) node.remove();
+    // A data-own image never keeps a src from the note: it gets one only from own[] after sanitizing.
+    if (node.hasAttribute('data-own')) node.removeAttribute('src');
+    else if (!isWebUrl(node.getAttribute('src') ?? '')) node.remove();
     return;
   }
   node.removeAttribute('src');

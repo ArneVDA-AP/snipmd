@@ -16,6 +16,11 @@ describe('isWebUrl', () => {
       'https://tauri.localhost/',
       'http://ipc.localhost/cmd',
       'asset://localhost/%2Fetc%2Fpasswd',
+      'http://x@asset.localhost/x',
+      'http://asset%2Elocalhost/x',
+      'http:asset.localhost/x',
+      'http:/asset.localhost/x',
+      ' \u0001http://asset.localhost/x',
       'javascript:alert(1)',
       'not a url'
     ]) {
