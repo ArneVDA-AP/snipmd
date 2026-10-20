@@ -1,34 +1,19 @@
 {
   "name": "snip-md",
-  "private": false,
+  "private": true,
   "version": "0.1.0",
-  "description": "Ultra-lightweight frameless Windows 11 Markdown & screenshot note-taking workspace built with Tauri v2 (Rust) and CodeMirror 6.",
+  "description": "Frameless Windows 11 Markdown note-taking app with instant screenshot paste. Tauri v2 + CodeMirror 6.",
   "license": "MIT",
-  "keywords": [
-    "markdown",
-    "tauri",
-    "tauri-v2",
-    "rust",
-    "codemirror-6",
-    "windows-11",
-    "screenshot",
-    "note-taking",
-    "scratchpad"
-  ],
+  "type": "module",
   "engines": {
     "node": ">=20.19.0"
   },
-  "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "release:win11": "tauri build --bundles nsis,msi"
+    "test": "vitest run",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -36,32 +21,16 @@
     "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
-    "@google/genai": "^2.4.0",
     "@lezer/highlight": "^1.2.5",
-    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.3",
-    "@tauri-apps/plugin-fs": "^2.7.1",
-    "@vitejs/plugin-react": "^6.1.1",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "lucide-react": "^0.546.0",
-    "marked": "^18.1.1",
-    "motion": "^12.23.24",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
-    "vite": "^8.3.0"
+    "marked": "^18.1.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.27.0",
-    "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
+    "jsdom": "^30.0.0",
     "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   }
 }

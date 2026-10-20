@@ -1,81 +1,155 @@
-# SnipMD — Plan-Mode Execution Blueprint (Shared Substrate)
+# SnipMD — Cleanup Plan (thin-standard)
 
-## 1. Authoritative Technical Constraints
-- **Stack**: Tauri v2 (Rust) + Vanilla TypeScript + Vite + CodeMirror 6 (`@codemirror/state`, `@codemirror/view`, `@codemirror/lang-markdown`, `@codemirror/commands`, `@codemirror/language`) + `marked`.
-- **Zero UI Frameworks**: Do NOT install React, Vue, Svelte, or Tailwind. Use clean modular TypeScript and vanilla CSS variables (`src/styles/main.css`).
-- **Tauri v2 Asset Protocol**: `src-tauri/tauri.conf.json` MUST enable `assetProtocol` with `"allow": ["**/*"]` and `"requireLiteralLeadingDot": false` so `.assets/` folders on any drive letter (`C:\`, `D:\`, etc.) render inside WebView2.
+Goal: get the prototype to `SPEC.md` v1. One phase = one branch + PR + one run.
+Phase 0 is solo: the main session builds the shared foundation and the contract stubs.
+Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` JSON for a phase only after the previous phase is merged, and shows it to the user before the run.
 
----
+## Why this shape
+- Today `src/state/TabManager.ts` (924 lines) touches everything. Parallel units need disjoint files, so phase 0 splits the code into modules and freezes the seams as stubs. Without that, phases 1-5 cannot run in parallel.
+- `cargo check` of the Tauri crate fails on a Linux cloud box (no GTK). Pure logic therefore lives in a separate crate `snipmd-core` without Tauri. `cargo test -p snipmd-core` runs everywhere; that is what unit checks use.
+- Parallel units cannot use whole-project checks (`npm run lint`, `npm run build`, `cargo check`): a half-finished file of another unit breaks them. Builder checks are scoped to the unit's own tests. Whole-project checks run in the Verify phase, after all builders.
+- A unit that adds a dependency also owns the lockfile (`package-lock.json` or `Cargo.lock`); otherwise the disk check stops the run.
 
-## 2. Rust Backend IPC Signatures (`src-tauri/src/lib.rs`)
+## Run card per phase
+| Phase | Mode | Main session | Where | Worktree | Reason |
+|---|---|---|---|---|---|
+| 0 | solo | Opus, medium | cloud or local | no | Foundation and contract must be one coherent hand; CI on `windows-latest` checks the Tauri crate |
+| 1-5 | thin-standard | Opus, medium | local (Windows) | yes | thin-* agents are installed there; `cargo check` and a real app run need Windows |
+| 6 | solo | Opus, medium | local (Windows) | no | Measuring the budgets needs the user's machine |
 
-All commands must be registered in `tauri::generate_handler![]`:
+## Phase 0. Strip and foundation (solo)
+Remove:
+- `src/ipc/bridge.ts` browser fallback and demo content; `src/utils/snipSimulator.ts`, `src/ui/inspector.ts`, `src/ui/modal.ts`, `src/styles/themes.ts`; export, split view, status bar, demo tabs.
+- `.aistudio/`, `metadata.json`, `.env.example`, `public/releases/`, `scripts/test-connected-files.ps1`.
+- React, Tailwind, Express, `@google/genai`, `motion`, `lucide-react`, `dotenv`, `tsx`, their Vite plugins and the `jsx` tsconfig setting; `tauri-plugin-fs` and `fs:default`; Google Fonts.
 
-1. `save_clipboard_image(app: tauri::AppHandle, bytes: Vec<u8>, current_file_path: Option<String>) -> Result<SaveImageResult, String>`
-   - Struct `SaveImageResult { markdown_rel_path: String, abs_disk_path: String }` (`#[derive(Serialize)]`, `#[serde(rename_all = "camelCase")]`).
-   - Resolve target `.assets` directory:
-     - If `current_file_path` is `Some(p)`, use `<parent_of_p>/.assets`.
-     - If `None`, use `<app_data_dir>/scratchpad/.assets`.
-   - Generate filename: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` using `chrono::Local::now().format("%Y%m%d-%H%M%S-%3f")` and a 4-char lowercase hex suffix generated from `rand` (or atomic counter + subsec nanos).
-   - Write file using `std::fs::OpenOptions::new().write(true).create_new(true)`. Loop with a fresh suffix if `ErrorKind::AlreadyExists`.
-   - Return `markdown_rel_path: format!(".assets/{filename}")` and `abs_disk_path`.
+Build:
+- Module layout (existing behaviour moved, not rewritten):
+  ```
+  src/types.ts            shared types (contract.shared)
+  src/ipc.ts              typed invoke wrappers
+  src/app.ts              wiring, keyboard
+  src/tabs.ts             tab list state
+  src/session.ts          session load/save
+  src/saving.ts           save, autosave, first save
+  src/infobar.ts          info bar (stub)
+  src/titlebar.ts
+  src/editor/{setup,imageWidget,paste}.ts
+  src/preview/render.ts
+  src/styles/main.css     light + dark via prefers-color-scheme, system fonts
+  src-tauri/core/         crate snipmd-core, no Tauri
+  src-tauri/src/lib.rs    Tauri commands only
+  ```
+- `snipmd-core` with every signature from the contract below as a stub (`todo!()`), so all later units compile against it.
+- Test runners: `cargo test -p snipmd-core`; Vitest with jsdom (`npm test`).
+- `package-lock.json` and `Cargo.lock` committed; CI uses `npm ci` and adds `cargo test -p snipmd-core` and `npm test`.
 
-2. `resolve_asset_abs_path(app: tauri::AppHandle, rel_path: String, current_file_path: Option<String>) -> Result<String, String>`
-   - Resolves `.assets/...` against `current_file_path` parent dir (or `<app_data_dir>/scratchpad` when `None`) and returns the canonical/normalized absolute path string for `convertFileSrc()`.
+Done when: `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core` pass here; CI `cargo check` passes on Windows; the app starts on one empty untitled tab.
 
-3. `promote_scratch_assets(app: tauri::AppHandle, content: String, target_md_path: String, remaining_unsaved_contents: Vec<String>) -> Result<(), String>`
-   - Regex-scan `content` for `\.assets/(snip-[A-Za-z0-9_-]+\.png)`.
-   - Create `<parent_of_target_md_path>/.assets` if any matches exist.
-   - For each matched filename present in `<app_data_dir>/scratchpad/.assets/`, move (`std::fs::rename`, falling back to `copy` + `remove_file` across volume boundaries) to `<parent_of_target_md_path>/.assets/<filename>`.
-   - Call `gc_scratch_assets(app, remaining_unsaved_contents)` to purge any unreferenced scratchpad snips left over from deleted lines in the promoted tab.
+## Contract (frozen in phase 0)
+`contract.shared`: `src/types.ts`, `src/paths.ts` (path helpers), `src/dom.ts` (DOM helpers), `src-tauri/core/src/lib.rs` (module declarations and shared error types only).
 
-4. `gc_scratch_assets(app: tauri::AppHandle, live_unsaved_contents: Vec<String>) -> Result<usize, String>`
-   - Scan all strings in `live_unsaved_contents` for `\.assets/(snip-[A-Za-z0-9_-]+\.png)` and collect into a `HashSet<String>`.
-   - Read `<app_data_dir>/scratchpad/.assets/`. For each `snip-*.png` entry whose file name is NOT in the `HashSet`, remove it via `std::fs::remove_file`. Return count of deleted orphan files.
+Rust, crate `snipmd_core`:
+| Id | Module | Signature |
+|---|---|---|
+| R1 | `paths` | `pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError>`: percent-decodes; rejects absolute, drive, UNC, `..` escape and `:` streams |
+| R2 | `paths` | `pub struct AllowedSet`; `pub fn allow_note(&mut self, note: &Path)` (also allows its `<stem>.assets/`); `pub fn allow_dir(&mut self, dir: &Path)`; `pub fn check(&self, p: &Path) -> Result<PathBuf, PathError>` |
+| R3 | `atomic` | `pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()>` |
+| R4 | `naming` | `pub fn snip_name(now: chrono::NaiveDateTime, rand4: u16) -> String`; `pub fn create_snip(dir: &Path, bytes: &[u8]) -> std::io::Result<PathBuf>` |
+| R5 | `links` | `pub fn encode_link_path(p: &str) -> String`; `pub fn rewrite_prefix(text: &str, old: &str, new: &str) -> (String, usize)` |
+| R6 | `text` | `pub struct TextFormat { pub crlf: bool, pub bom: bool }`; `pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), TextError>`; `pub fn encode(text: &str, fmt: TextFormat) -> Vec<u8>` |
+| R7 | `assets` | `pub fn assets_dir_for(note: &Path) -> PathBuf`; `pub fn move_dir(from: &Path, to: &Path) -> std::io::Result<()>` (rename, else copy then remove) ; `pub fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()>` |
+| R8 | `cleanup` | `pub fn select_for_cleanup(entries: &[ScratchEntry], live_tabs: &HashSet<String>, live_refs: &HashSet<String>, now: SystemTime, grace: Duration) -> Vec<PathBuf>` |
 
-5. `read_markdown_file(path: String) -> Result<String, String>` & `write_markdown_file(path: String, content: String) -> Result<(), String>`
+TypeScript:
+| Id | File | Signature |
+|---|---|---|
+| T1 | `src/infobar.ts` | `export function showInfo(msg: InfoMessage): () => void`; `export function showError(what: string, err: unknown): () => void` |
+| T2 | `src/session.ts` | `export function scheduleSessionSave(opts?: { immediate?: boolean }): void` |
+| T3 | `src/ipc.ts` | `export function saveImage(tabId: string, notePath: string \| null, bytes: Uint8Array): Promise<SavedImage>` |
+| T4 | `src/ipc.ts` | `export function writeNote(path: string, text: string): Promise<void>`; `export function readNote(path: string): Promise<NoteFile>` |
+| T5 | `src/editor/paste.ts` | `export function insertSnip(tabId: string, link: string): void` (inserts into that tab's state, also when it is not visible) |
 
-6. `load_session(app: tauri::AppHandle) -> Result<Option<String>, String>` & `save_session(app: tauri::AppHandle, json: String) -> Result<(), String>`
-   - Reads/writes `<app_data_dir>/session.json`.
-   - Inside `load_session`, if `session.json` exists, deserialize the unsaved tab contents (`filePath == null`) and execute `gc_scratch_assets` automatically so any orphan files from prior crashes are cleaned up on launch.
+## Phases 1-5 (thin-standard)
+Each phase runs Build (the table), then:
+- **Integrate** `I1` thin-builder, `inputs_from` all builders: wires the new modules into `src/app.ts` (its only owned file). In phase 5, B4 owns `src/app.ts` and does this.
+- **Verify** `V1` thin-verifier: runs `npm run lint`, `npm run build`, `npm test`, `cargo test -p snipmd-core`, `cargo check` (src-tauri) and the phase fixtures; owns `findings/<phase>-V1.md`.
+- **Review** `R1` thin-review (findings): adversarial review of the phase diff against `SPEC.md`; owns `review/<phase>-R1.md`. A blocker or major returns to the main session.
+- **Windows test** by the user, listed per phase.
 
-7. `get_cli_startup_files() -> Vec<String>`
-   - Collects existing `.md` file paths from `std::env::args().skip(1)`.
+### Phase 1. Security (SPEC §8)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `src-tauri/core/src/paths.rs`, `src-tauri/core/tests/paths.rs` | R1, R2 | `cargo test -p snipmd-core paths`: `../`, absolute, UNC, `C:` and `:stream` are rejected |
+| B2 | thin-builder | `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/` | every command validates through R2; asset scope granted per folder at runtime; strict CSP | none in parallel (Verify runs `cargo check`) |
+| B3 | thin-builder | `src/preview/`, `src/titlebar.ts`, `package.json`, `package-lock.json`, `fixtures/evil.md` | sanitize with DOMPurify; escape names in `innerHTML` | `npx vitest run src/preview`: `<img onerror>`, `<script>`, `javascript:` links are removed |
 
----
+Windows test: open `fixtures/evil.md` in both modes; nothing runs, no file outside the note folder loads.
 
-## 3. Phased Execution Plan
+### Phase 2. Storage foundation (SPEC §6.1, §7)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/atomic.rs`, `core/src/text.rs`, tests | R3, R6 | `cargo test -p snipmd-core atomic text`: target never truncated on a failed write; CRLF and BOM round-trip |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | notes and `session.json` through R3 and R6 | none in parallel |
+| B3 | thin-builder | `src/session.ts`, `src/session.test.ts` | T2; `session.json` only, no localStorage; §7 write triggers | `npx vitest run src/session`: a paste triggers an immediate save |
+| B4 | thin-builder | `src/infobar.ts`, `src/styles/infobar.css`, `src/infobar.test.ts` | T1 | `npx vitest run src/infobar` |
+| B5 | thin-builder | `src/saving.ts`, `src/saving.test.ts` | a failing write marks only that tab and calls T1; session save still runs | `npx vitest run src/saving`: one rejected write does not stop the others |
 
-### [x] Phase 1: Project Scaffold & Rust Backend
-- Initialize Tauri v2 + Vanilla TS Vite structure (`package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src-tauri/`).
-- Add Rust crates in `src-tauri/Cargo.toml`: `tauri`, `tauri-plugin-dialog`, `tauri-plugin-fs`, `tauri-plugin-single-instance`, `serde`, `serde_json`, `chrono`, `regex`, `rand`.
-- Configure `src-tauri/tauri.conf.json` (`decorations: false`, `assetProtocol` enabled with `requireLiteralLeadingDot: false`).
-- Configure capabilities in `src-tauri/capabilities/default.json` (`core:default`, `core:window:allow-minimize`, `core:window:allow-toggle-maximize`, `core:window:allow-close`, `core:window:allow-start-dragging`, `dialog:default`).
-- Implement all 7 IPC commands in `src-tauri/src/lib.rs`, including `OpenOptions::create_new(true)` collision protection and `gc_scratch_assets`.
-- **Verification Gate 1**: Run `cargo check` inside `src-tauri/` and fix all warnings/errors.
+Windows test: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 
-### [x] Phase 2: Frameless UI Shell, TabManager & Hot-Exit Lifecycle
-- Build `src/styles/main.css` with minimalist dark styling, 34px frameless header, dirty tab indicator, and `.inline-img-widget` rules (`max-height: 360px`, `.expanded { max-height: none }`).
-- Build `src/ui/titlebar.ts` wiring window controls (`getCurrentWindow().minimize()`, `toggleMaximize()`, `close()`), tab switching, middle-click close, and mode badge toggle.
-- Build `src/state/TabManager.ts`:
-  - Maintain array of tabs (`id`, `title`, `filePath: string | null`, `content`, `dirty`, `mode: 'edit' | 'preview'`, `scrollTop`, `cursorPos`, `editorState`).
-  - Wire `Ctrl+T` (new scratch tab), `Ctrl+O` (open file via `@tauri-apps/plugin-dialog`), `Ctrl+S` (save file; if `filePath == null`, open save dialog, call `promote_scratch_assets` with remaining unsaved tab contents, then write file), `Ctrl+W` (close tab; if closing an unsaved tab, invoke `gc_scratch_assets` with remaining unsaved tab contents), `Ctrl+Tab` (cycle tabs).
-  - Wire `window.addEventListener('blur')` to write dirty disk-backed tabs and invoke `save_session`.
-- **Verification Gate 2**: Run `npm run build` (`tsc && vite build`) with zero errors.
+### Phase 3. Images and paste (SPEC §6.3)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/naming.rs`, `core/src/links.rs`, tests | R4, R5 (encode) | `cargo test -p snipmd-core naming links`: no overwrite on collision; spaces and `( ) # %` encoded |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | save image from a raw IPC body; per-note `<stem>.assets/`; `scratch/<tab-id>/` as `untitled.assets/` | none in parallel |
+| B3 | thin-builder | `src/editor/paste.ts`, `src/editor/paste.test.ts`, `src/ipc.ts` | T3, T5; text wins; `Ctrl+Shift+V`; paste bound to its tab | `npx vitest run src/editor/paste`: text+image pastes text; a tab switch mid-paste inserts into the original tab |
+| B4 | thin-builder | `src/editor/imageWidget.ts`, `src/editor/imageWidget.test.ts` | missing-image placeholder; no images in code blocks | `npx vitest run src/editor/imageWidget` |
+| B5 | thin-builder | `src/drop.ts` | image drop via Tauri drag-drop, insert at drop position | none in parallel |
 
-### [x] Phase 3: CodeMirror 6 Editor, Snipping Tool Paste & Block Image Widget
-- Implement `src/editor/pasteHandler.ts`:
-  - Use `EditorView.domEventHandlers({ paste(event, view) })`.
-  - Detect `image/png` in `event.clipboardData.items`, read `arrayBuffer()`, invoke `save_clipboard_image`, and dispatch transaction inserting `![snip](.assets/snip-...)` at selection.
-- Implement `src/editor/imageWidget.ts`:
-  - Define a CodeMirror 6 `StateField<DecorationSet>` (NOT `ViewPlugin`, as CM6 requires `StateField` for `block: true` decorations).
-  - Pre-resolve or cache `.assets/...` paths via `resolve_asset_abs_path` + `convertFileSrc()` and render `<div class="inline-img-widget"><img src="..." /></div>` directly below each `![...](...)` line.
-  - Wire click handler on the `<img>` to toggle `.expanded`.
-- Assemble CM6 instance in `src/editor/setup.ts` with `@codemirror/lang-markdown`, dark syntax theme, Sublime keymap, paste handler, and image widget field.
-- **Verification Gate 3**: Run `npm run build` and `cargo check` with zero errors.
+Windows test: 4K screenshot visible in under 150 ms; Excel cells paste as text.
 
-### [x] Phase 4: `Ctrl+E` Rendered View & Drag-and-Drop Polish
-- Implement `src/preview/renderer.ts` using `marked` with custom image renderer that rewrites `.assets/...` paths to resolved `convertFileSrc()` URLs and attaches the `360px` click-to-expand handler.
-- Bind `Ctrl+E` and the topbar pill to toggle active tab between CM6 Edit view and Rendered HTML view while preserving scroll percentage.
-- Register `getCurrentWindow().onDragDropEvent` to open dropped `.md` files in new tabs, plus `listen('open-files')` from `tauri-plugin-single-instance`.
-- **Verification Gate 4**: Run `npm run build` and `cargo check` in `src-tauri/`. Mark all phases `[x]` in `PLAN.md`.
+### Phase 4. Saving flows (SPEC §6.1, §6.2, §6.4)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/links.rs` (rewrite part), `core/src/assets.rs`, tests | R5 (rewrite), R7 | `cargo test -p snipmd-core links assets`: only the exact prefix is rewritten; cross-drive move falls back to copy |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | promote, Save As, rename commands; mtime/size check command | none in parallel |
+| B3 | thin-builder | `src/saving.ts`, tests | autosave 1 s, blur, close; first-save bar; `Ctrl+Shift+S`; undo survives first save | `npx vitest run src/saving` |
+| B4 | thin-builder | `src/external.ts`, tests | silent reload when clean, conflict bar when dirty | `npx vitest run src/external` |
+
+Windows test: untitled note with screenshots, Ctrl+S, Enter: file and folder side by side; opens correctly in VS Code and on GitHub.
+
+### Phase 5. Tabs and recovery (SPEC §6.5, §7, §10, §11)
+| Unit | Agent | Owns | Task | Check |
+|---|---|---|---|---|
+| B1 | thin-builder | `core/src/cleanup.rs`, tests | R8 | `cargo test -p snipmd-core cleanup`: nothing younger than 14 days or referenced is selected; nothing outside scratch |
+| B2 | thin-builder | `src-tauri/src/lib.rs` | startup cleanup; single instance resolves relative paths against the caller's cwd | none in parallel |
+| B3 | thin-builder | `src/closedTabs.ts`, tests | closed-tabs list in the session; restore bar; `Ctrl+Shift+T` | `npx vitest run src/closedTabs` |
+| B4 | thin-mech | `src/app.ts` | the keyboard table of SPEC §10, exactly as listed | `npx vitest run src/app` |
+
+Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab and images are back.
+
+## Phase 6. Editor and measuring (solo)
+Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
+
+## Status
+- [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.
+- [ ] 1 Security
+- [ ] 2 Storage foundation
+- [ ] 3 Images and paste
+- [ ] 4 Saving flows
+- [ ] 5 Tabs and recovery
+- [ ] 6 Editor and measuring
+
+## Handoff (read this after a context reset)
+- Branches: `claude/north-star` holds SPEC.md, CLAUDE.md, PLAN.md and `.claude/` (thin-* agents, thin-standard workflow, self-test 59/59). `claude/phase-0` is built on top of it. `main` still has the prototype.
+- The thin-* agents load at session start from `.claude/agents/`. Phases 1-5 run as thin-standard: write the `args` JSON from the phase table, show it to the user, then run. Recommended: local Windows session (Rust compiles there); in the cloud only `snipmd-core` compiles, CI checks the Tauri crate.
+- Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
+- Open items outside the phases:
+  - Bundle 583 KB: `@codemirror/lang-markdown` pulls in lang-html/javascript and autocomplete. Phase 6.
+  - README, CHANGELOG, RELEASE-WIN11.md, ARCHITECTURE.md and the build scripts still partly describe the prototype.
+- Deferred review findings, by phase:
+  - Phase 1: `escapeAttr` in `src/preview/render.ts` becomes part of the sanitizer work.
+  - Phase 3 (B4 imageWidget): find images through the Markdown syntax tree (`syntaxTree`, `Image` nodes) instead of a per-line regex; that also skips code blocks and handles several images per line.
+  - Phase 3: send the session and images to Rust as raw bytes, not JSON strings / number arrays.
+  - Phase 4: consider keeping the note path in the EditorState (StateField + effect) once Save As and rename add more path changes.
+  - Phase 6: incremental image decorations (only changed lines); titlebar updates in place instead of a full rebuild; bundle size.

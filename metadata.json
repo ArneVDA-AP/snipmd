@@ -1,6 +1,0 @@
-{
-  "name": "SnipMD",
-  "description": "Ultra-lightweight frameless Markdown & screenshot note-taking workspace with instant Win+Shift+S clipboard paste, inline CodeMirror 6 image widgets, and scratchpad garbage collection.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
