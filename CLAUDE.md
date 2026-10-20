@@ -42,3 +42,15 @@
 - Frontend: `npm run lint` (`tsc --noEmit`) and `npm run build`.
 - Rust: `cargo check` in `src-tauri/`. On a Linux cloud box this fails on missing GTK system libraries (`gdk-3.0`); that is the environment, not the code. Say so instead of claiming the Rust side compiles.
 - Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; give the user a concrete test to run.
+
+## Delegation
+- The `thin-*` agents and the `thin-standard` workflow live in this repo: `.claude/agents/`, `.claude/workflows/thin-standard.js`. They load at session start, also in cloud sessions. Self-test (no tokens):
+  `THIN_SCRIPT=.claude/workflows/thin-standard.js node .claude/workflows-tests/thin-standard/thin-standard.test.cjs` → `59/59 as expected`.
+- Before a large task (audit, analysis, build, plan), state in one or two lines the deliverable ("done is when I see ...") and the scale, and match the process weight to the stakes.
+- The main session owns design and integration. Subagents get a narrow brief: named files, a stated output, nothing open-ended. Prefer the `thin-*` agents when one fits; the built-in read-only agents (Explore, Plan) are fine for search.
+- Contract first (file-ownership map plus exact interface signatures) before parallel writers; build the shared foundation yourself; one integrator makes it cohere.
+- Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the user the `args` before each run. A bespoke script only when the standard cannot express the task; show it first.
+- Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and let the user pick; then write the contract.
+- Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); see `.claude/workflows-tests/thin-standard/CONCLUSION.md`.
+- Every session or task card you propose states: recommended model, effort, worktree yes/no, local or cloud, with a one-line reason.
+- `thin-web` needs the Claude in Chrome extension; it does not work in cloud sessions.
