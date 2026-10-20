@@ -2,7 +2,6 @@
 import { Marked } from 'marked';
 import DOMPurify, { type Config } from 'dompurify';
 import { cachedUrl, ensureResolved } from '../editor/imageWidget';
-import { filePathFor } from '../editor/registry';
 import { isWebUrl } from '../paths';
 import { openLink } from '../ipc';
 import { showError } from '../infobar';
@@ -38,7 +37,6 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
  * src and filled in after sanitizing, so no URL a note wrote itself can pass as one of them.
  */
 export async function renderRead(container: HTMLElement, tabId: string, content: string): Promise<void> {
-  const filePath = filePathFor(tabId);
   const own: string[] = [];
   const marked = new Marked({
     async: true,
@@ -49,7 +47,7 @@ export async function renderRead(container: HTMLElement, tabId: string, content:
     renderer: {
       // Own renderer: marked's default would encodeURI the asset URL a second time.
       image({ href, text }) {
-        const url = cachedUrl(filePath, (href || '').trim());
+        const url = cachedUrl(tabId, (href || '').trim());
         const alt = escapeAttr(text || '');
         if (!url) return '';
         if (isWebUrl(url)) return `<img class="read-img" src="${escapeAttr(url)}" alt="${alt}">`;

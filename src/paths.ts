@@ -1,8 +1,6 @@
 // Path helpers. Paths are normalized once where they enter the app (open, save, session restore);
 // everything after that compares with samePath.
 
-const MD_EXTENSIONS = ['md', 'markdown'];
-
 /** Forward slashes, no duplicate or trailing slash. A leading `//` (UNC share) stays. */
 export function normPath(p: string): string {
   return p.replace(/\\/g, '/').replace(/(?!^)\/{2,}/g, '/').replace(/(.)\/$/, '$1');
@@ -45,9 +43,4 @@ export function isWebUrl(u: string): boolean {
   if (!/^\s*https?:/i.test(u)) return false;
   const url = parse(u);
   return !!url && (url.protocol === 'http:' || url.protocol === 'https:') && !APP_HOSTS.includes(hostOf(url));
-}
-
-export function isMarkdownPath(p: string): boolean {
-  const ext = p.slice(p.lastIndexOf('.') + 1).toLowerCase();
-  return MD_EXTENSIONS.includes(ext);
 }

@@ -10,7 +10,7 @@ import { isWebUrl } from '../paths';
 
 const IMAGE_LINK = /!\[([^\]]*)\]\(([^)]+)\)/;
 
-/** `${filePath ?? '__scratch__'}::${relPath}` -> displayable URL */
+/** cacheKey -> displayable URL */
 const urlCache = new Map<string, string>();
 /** Cache key -> tabs waiting for it. */
 const pending = new Map<string, Set<string>>();
@@ -24,25 +24,27 @@ export function redrawImages(tabId: string): void {
   applyToTab(tabId, { effects: redraw.of(null) });
 }
 
-function cacheKey(filePath: string | null, relPath: string): string {
-  return `${filePath ?? '__scratch__'}::${relPath}`;
+/** A link resolves against the note's folder, or for an untitled tab against that tab's scratch folder. */
+function cacheKey(tabId: string, relPath: string): string {
+  const filePath = filePathFor(tabId);
+  return filePath ? `${filePath}::${relPath}` : `untitled:${tabId}::${relPath}`;
 }
 
-export function cachedUrl(filePath: string | null, relPath: string): string | undefined {
+export function cachedUrl(tabId: string, relPath: string): string | undefined {
   if (isWebUrl(relPath)) return relPath;
-  return urlCache.get(cacheKey(filePath, relPath));
+  return urlCache.get(cacheKey(tabId, relPath));
 }
 
-export function primeAssetCache(filePath: string | null, relPath: string, absPath: string): void {
-  urlCache.set(cacheKey(filePath, relPath), toAssetUrl(absPath));
+export function primeAssetCache(tabId: string, relPath: string, absPath: string): void {
+  urlCache.set(cacheKey(tabId, relPath), toAssetUrl(absPath));
 }
 
 /** Resolves a link for a tab. Concurrent callers share one lookup; every waiting tab is redrawn when it is done. */
 export async function ensureResolved(tabId: string, relPath: string): Promise<string> {
   const filePath = filePathFor(tabId);
-  const hit = cachedUrl(filePath, relPath);
+  const hit = cachedUrl(tabId, relPath);
   if (hit) return hit;
-  const key = cacheKey(filePath, relPath);
+  const key = cacheKey(tabId, relPath);
   const waiting = pending.get(key);
   if (waiting) {
     waiting.add(tabId);
@@ -51,7 +53,7 @@ export async function ensureResolved(tabId: string, relPath: string): Promise<st
   const tabs = new Set([tabId]);
   pending.set(key, tabs);
   try {
-    const url = toAssetUrl(await resolveAssetPath(relPath, filePath));
+    const url = toAssetUrl(await resolveAssetPath(tabId, relPath, filePath));
     urlCache.set(key, url);
     pending.delete(key);
     for (const id of tabs) redrawImages(id);
@@ -115,18 +117,17 @@ function placeholder(text: string): HTMLElement {
 
 function build(state: EditorState): DecorationSet {
   const tabId = state.facet(tabIdFacet);
-  const filePath = filePathFor(tabId);
   const widgets: Range<Decoration>[] = [];
   for (let i = 1; i <= state.doc.lines; i++) {
     const line = state.doc.line(i);
     const m = line.text.match(IMAGE_LINK);
     const rel = m?.[2].trim();
     if (!m || !rel) continue;
-    const url = cachedUrl(filePath, rel) ?? '';
+    const url = cachedUrl(tabId, rel) ?? '';
     if (!url && tabId) ensureResolved(tabId, rel).catch(() => {});
     widgets.push(
       Decoration.widget({
-        widget: new ImageWidget(m[1].trim(), rel, url, cacheKey(filePath, rel)),
+        widget: new ImageWidget(m[1].trim(), rel, url, cacheKey(tabId, rel)),
         block: true,
         side: 1
       }).range(line.to)

@@ -24,7 +24,7 @@ async function pasteImageBytes(tabId: string, bytes: Uint8Array): Promise<void> 
   const notePath = filePathFor(tabId);
   try {
     const saved = await saveImage(tabId, notePath, bytes);
-    primeAssetCache(notePath, saved.link, saved.absPath);
+    primeAssetCache(tabId, saved.link, saved.absPath);
     insertSnip(tabId, saved.link);
     scheduleSessionSave({ immediate: true });
   } catch (err) {

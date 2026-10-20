@@ -56,6 +56,14 @@ export interface SavedImage {
   absPath: string;
 }
 
+/** Payload of the `files-dropped` event. x, y: drop point in physical pixels of the window's client area. */
+export interface DroppedFiles {
+  notes: string[];
+  images: string[];
+  x: number;
+  y: number;
+}
+
 export interface NoteFile {
   text: string;
 }
