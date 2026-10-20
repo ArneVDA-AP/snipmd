@@ -1,51 +1,164 @@
-# SnipMD — System & Design Specification
+# SnipMD — Product Specification
 
-## 1. Overview & Goals
-SnipMD is an ultra-lightweight, frameless Windows 11 Markdown note-taking application built with **Tauri v2 (Rust)** and **Vanilla TypeScript + CodeMirror 6**. It replicates Sublime Text's instant cold-start, multi-tab ergonomics, and hot-exit session persistence while adding native `Win+Shift+S` clipboard screenshot pasting and always-on inline image rendering.
+Status: v0.3, agreed 2026-10-20. This file is the single source of truth for what SnipMD is and does.
+The visual version with mockups: https://claude.ai/artifact/DJjxungzG44buWyom97bdo
 
-## 2. Core Functional Requirements
+## 1. North star
 
-### 2.1 Snipping Tool (`Win+Shift+S` -> `Ctrl+V`) Pipeline
-- **Clipboard Interception**: When `paste` occurs inside CodeMirror 6, inspect `event.clipboardData.items`. If an `image/png` (or `image/*`) item exists, intercept default paste behavior, extract the raw bytes as `Uint8Array`, and call the Rust IPC command `save_clipboard_image`.
-- **Collision-Free Naming**:
-  - Format: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` (UTC or local time to milliseconds + 4-character lowercase hex random suffix, e.g., `snip-20261016-223804-419-7f2a.png`).
-  - File creation MUST use `std::fs::OpenOptions::new().write(true).create_new(true)` inside a retry loop so existing files are never silently overwritten.
-- **Storage Routing**:
-  - **Disk-Backed Tab** (`filePath != null`, e.g., `D:\work\notes.md`): Write image to `<parent_dir>/.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png`. Insert `![snip](.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png)` at the current cursor selection.
-  - **Unsaved Scratchpad Tab** (`filePath == null`): Write image to `%APPDATA%/snip-md/scratchpad/.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png`. Insert `![snip](.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png)`.
+**Paste, type, keep going.** A Windows note-taking app where a screenshot is as easy as a sentence. It never asks you anything while you write, it never loses anything, and your notes stay plain files.
 
-### 2.2 Scratchpad Promotion & Orphan Garbage Collection
-- **Scratch Promotion (`promote_scratch_assets`)**:
-  - When an unsaved tab (`filePath == null`) is saved to disk via `Ctrl+S`, scan its Markdown content for `.assets/(snip-[A-Za-z0-9_-]+\.png)`.
-  - Move every referenced file from `%APPDATA%/snip-md/scratchpad/.assets/` to `<target_md_parent_dir>/.assets/`.
-  - Immediately run `gc_scratch_assets` passing the content of all *remaining* open unsaved tabs so any screenshot pasted and subsequently deleted during the scratch session is purged from `%APPDATA%`.
-- **Mark-and-Sweep GC (`gc_scratch_assets`)**:
-  - Accepts `live_unsaved_contents: Vec<String>` (the raw text of all currently open unsaved tabs).
-  - Extracts the union of all referenced `snip-*.png` filenames across those buffers.
-  - Iterates over `%APPDATA%/snip-md/scratchpad/.assets/` and deletes any `snip-*.png` file not present in the live reference set.
-  - **Execution Triggers**:
-    1. Automatically inside `promote_scratch_assets` (`Ctrl+S` on an unsaved tab).
-    2. Whenever an unsaved tab is closed (`Ctrl+W` or middle-click).
-    3. Automatically inside `load_session` on application startup (preserving `Ctrl+Z` undo history during active editing while preventing orphan accumulation across sessions).
+**For whom:** people who document what happens on their screen while they work: running a lab, reproducing a bug, following a meeting. Short text with many screenshots in between.
 
-### 2.3 Always-On Inline Image Rendering & Sizing
-- **Edit Mode (CodeMirror 6)**:
-  - A CM6 `StateField` parses lines matching `![alt](path)` and injects a block `WidgetType` (`Decoration.widget({ widget, block: true, side: 1 })`) directly below the line.
-  - Relative `.assets/...` paths are resolved against the active tab's parent folder (or `%APPDATA%/snip-md/scratchpad` if unsaved) and converted to `asset://` URLs via `@tauri-apps/api/core`'s `convertFileSrc()`.
-- **Rendered Mode (`Ctrl+E`)**:
-  - Converts the buffer via `marked` into clean HTML typography with resolved `convertFileSrc()` image URLs.
-- **Image Sizing Contract**:
-  - Both Edit Mode widgets and Rendered Mode images enforce `max-height: 360px; max-width: 100%; width: auto; border-radius: 6px; cursor: zoom-in;`.
-  - Clicking an image toggles the `.expanded` CSS class (`max-height: none; cursor: zoom-out;`).
+**Why not existing tools:** OneNote uses a proprietary format and feels slow. Obsidian needs a vault, plugins and settings first. Notepad has no images. Word is too heavy for a quick note.
 
-### 2.4 Frameless Shell, Tabs & Auto-Save Lifecycle
-- **Frameless Window**: `decorations: false` in `tauri.conf.json`. Single 34px top bar containing:
-  - Horizontal scrollable tab strip (`filename.md` or `Untitled-N`, purple dirty dot indicator, middle-click or `Ctrl+W` to close).
-  - `+` new tab button (`Ctrl+T`).
-  - Drag region (`data-tauri-drag-region`).
-  - Mode toggle pill (`RAW` / `MD`, bound to `Ctrl+E`).
-  - Window controls (`─`, `□`, `✕`).
-- **Auto-Save on Focus Loss & Hot-Exit**:
-  - On `window.addEventListener('blur')`:
-    1. All dirty disk-backed tabs (`filePath != null`) write silently to their `filePath` via `write_markdown_file`.
-    2. All open tabs (including unsaved buffers, active tab ID, cursor offset, and scroll top) serialize to `%APPDATA%/snip-md/session.json` via `save_session`.
+## 2. The core loop
+
+Everything in this spec serves these three steps. If they don't feel instant, nothing else matters.
+
+1. `Win+Shift+S`: the user snips part of the screen with the Windows tool.
+2. `Ctrl+V`: the image appears in the note below the cursor, already saved to disk.
+3. The user keeps typing. The cursor is already on the next line. No dialog, no toast.
+
+## 3. Principles
+
+1. **Never ask while writing.** No dialogs on the writing path. The only question the app ever asks is where a new note goes the first time, and that one has a prefilled answer.
+2. **Undo over confirm.** Closing a tab asks nothing, but it can always be restored. Confirmation dialogs are friction and get clicked away blindly.
+3. **Never lose anything.** After a crash, Alt+F4, power loss or a pulled USB stick, everything is back on restart, including untitled tabs and their images.
+4. **Plain files.** A note is a `.md` file with its own image folder next to it (`labo-04.md` + `labo-04.assets/`). It opens without loss in VS Code, Obsidian and GitHub. No database, no custom format.
+5. **Invisible chrome.** One 34px bar with tabs. No sidebar, no theme picker, no status bar with word counts. The text is the interface.
+6. **Fast, or it doesn't go in.** Every feature fits the budgets in §9. A feature that costs startup time does not ship.
+
+## 4. Window and UI
+
+- Frameless window (`decorations: false`). One 34px top bar containing, left to right:
+  - Tab strip: `filename.md` or `Untitled-N`. A dot marks unsaved changes. Middle-click closes. Tabs shrink and truncate; the strip scrolls horizontally when full.
+  - `+` button (new tab).
+  - Drag region (`data-tauri-drag-region`) filling the remaining space.
+  - Window controls: minimize, maximize/restore, close.
+- **Info bar**: a single thin bar directly below the top bar (or at the bottom for undo notices). It is the only way the app shows information or choices. No modals, no toasts, no `alert()`. Used for: first save, closed-tab restore, external-change conflict, errors (e.g. a file could not be written).
+- Follows the Windows light/dark setting. No other theming in v1.
+- System fonts (Segoe UI, Cascadia Mono / Consolas). No web fonts, no network access at runtime.
+
+## 5. Editor
+
+- CodeMirror 6, raw Markdown with light styling: headings larger, Markdown syntax characters dimmed, bold/italic rendered. No live preview (hiding syntax) in v1.
+- **Inline images:** every image link `![alt](path)` that points to a local image gets a block widget directly below its line. Max height 360px, max width 100%, `border-radius: 6px`. Clicking toggles full height. Missing files show a clear "image not found: <path>" placeholder, never a perpetual "loading".
+- Images inside fenced code blocks are not rendered.
+- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search).
+- Undo history survives tab switches and the first save of an untitled tab.
+- **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). No split view.
+
+## 6. Files, images and saving
+
+### 6.1 Note on disk
+- **Autosave**: a dirty disk-backed tab is written 1 second after the last keystroke, and immediately on window blur and app close. `Ctrl+S` works but is never required.
+- **Atomic writes**: write to a temp file in the same directory, flush, then rename over the target. Never truncate-then-write.
+- **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM.
+- **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
+  - Tab clean → reload silently, keep cursor and scroll position.
+  - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Show diff · Reload · Keep mine. Autosave pauses for that tab until the user chooses.
+- **Write failure** (folder deleted, drive removed, read-only): info bar with the error. The tab stays dirty, its content stays in the session, and other tabs and session saving keep working.
+
+### 6.2 Untitled tabs
+- Live in the session (§7) until saved or closed. They are never lost and never prompt on app close.
+- **First save** (`Ctrl+S` on an untitled tab): info bar "Save as [folder ›] [name.md] [Save] [Other folder…]".
+  - Name is prefilled from the first heading, slugified (`# DHCP-probleem lokaal B` → `dhcp-probleem-lokaal-b.md`); fallback `note-YYYYMMDD.md`.
+  - Folder is the last folder used; the first time `Documents\Notes` (created if missing).
+  - `Enter` saves, `Esc` cancels, "Other folder…" opens the native save dialog.
+  - If the name exists, the field turns red and Save is disabled; no overwrite prompt.
+
+### 6.3 Images
+- **Location**: each note has its own folder `<note-stem>.assets/` next to it. `labo-04.md` → `labo-04.assets/`.
+  - Tested on Windows 11: Explorer only moves a companion folder for `.htm` files, not `.md`, whatever the suffix. SnipMD itself must keep note and folder together (§6.4).
+- **Untitled tabs** store images in `%APPDATA%/snip-md/scratch/<tab-id>/` and link them as `untitled.assets/<file>`. That prefix resolves to the tab's scratch folder.
+- **Filename**: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` (local time to the millisecond + 4 random lowercase hex chars). Created with `OpenOptions::new().write(true).create_new(true)`, retrying with a new suffix on `AlreadyExists`. Never overwrites.
+- **Link format**: relative, `![snip](labo-04.assets/snip-20261020-142211-087-3fa9.png)`. Percent-encode spaces and `( ) # %` in the path so GitHub and Obsidian read it.
+- **Paste rules**:
+  - Clipboard has text (any `text/plain`) → paste text. Copying from Excel, Word or a browser pastes text, even though those apps also put an image on the clipboard.
+  - Clipboard has only an image → save it and insert the link on its own line below the cursor; cursor moves to the line after.
+  - `Ctrl+Shift+V` → always plain text.
+- **Drag and drop**: an image file dropped on the editor is copied into the note's image folder and inserted at the drop position. A dropped `.md` file opens in a tab.
+- **Transfer**: image bytes go to Rust as a raw binary IPC body, never as a JSON number array.
+- **Race safety**: a paste is bound to the tab it started in. If the user switches tabs before saving finishes, the link is inserted into the original tab's document, not the visible one.
+
+### 6.4 Rename, Save As, promotion
+- **First save of an untitled tab**: move `scratch/<tab-id>/` to `<new-stem>.assets/` (rename; fall back to copy + delete across drives) and rewrite links `untitled.assets/` → `<new-stem>.assets/` in the buffer. The rewrite is one undoable transaction.
+- **Rename** (v1: via Save As to the same folder, then delete the old file) and **Save As** of a disk note: copy the image folder to `<new-stem>.assets/` and rewrite links. Save As keeps the original note and folder intact.
+- Only links that start with the exact old prefix are rewritten.
+
+### 6.5 Cleanup
+- Only at startup. Only inside `%APPDATA%/snip-md/scratch/`. Never touches image folders next to disk notes.
+- A scratch folder is deleted when its tab is neither in the session nor in the closed-tabs list, **and** it is older than 14 days.
+- Inside a live scratch folder, an image is deleted when no tab buffer and no closed-tab entry references it **and** its mtime is older than 14 days.
+
+## 7. Session and recovery
+
+- **One store**: `%APPDATA%/snip-md/session.json`. No localStorage.
+- Contents: open tabs (id, file path or null, content for untitled and dirty tabs, cursor, scroll, mode), active tab, last-used folder, closed-tabs list.
+- Written atomically, debounced to at most every 500 ms while typing, and immediately after: a paste, opening/closing a tab, a save, window blur, app close.
+- On startup: restore all tabs. For disk-backed tabs that were clean, read the file from disk (never trust the cached copy). For dirty ones, compare with disk and show the conflict bar if the file changed meanwhile.
+- **Closed tabs**: `Ctrl+W` (or middle-click) closes immediately. A bottom info bar shows "<name> closed, with N screenshots. [Restore] Ctrl+Shift+T" for 8 seconds. `Ctrl+Shift+T` restores the most recent closed tab, including after restart. The list keeps the last 20 closed tabs or 14 days, whichever is shorter.
+
+## 8. Security
+
+Opening a Markdown file from someone else must never run code or touch files.
+
+- Read mode HTML is sanitized (DOMPurify or equivalent): no scripts, no event handlers, no iframes, no `javascript:` URLs. Images only from the note's own folders or `http(s)`.
+- Strict CSP in `tauri.conf.json` (no `unsafe-inline` scripts, `connect-src` none beyond IPC).
+- Rust commands only read or write paths inside an **allowed set**: files the user opened (dialog, CLI, drag-drop, single-instance forward, session restore), their `<stem>.assets/` folders, and `%APPDATA%/snip-md/`. Relative image paths are resolved and checked to stay inside the note's folder (no `..`, no absolute paths).
+- Asset protocol scope is extended at runtime per allowed folder, not `**/*`.
+- No `tauri-plugin-fs`; all file access goes through the scoped commands.
+
+## 9. Quality bar
+
+Measured on an ordinary Windows 11 laptop. Every release is checked against this.
+
+| Measure | Target |
+|---|---|
+| Double-click to typing | < 300 ms |
+| `Ctrl+V` to a 4K screenshot visible | < 150 ms |
+| Memory with 5 tabs and 20 images | < 120 MB |
+| Installer size | < 10 MB |
+| Data loss on crash, Alt+F4, power loss, pulled drive, accidental Ctrl+W | 0 |
+| Opening an unknown `.md` can run code or touch files | never |
+
+## 10. Keyboard
+
+| Keys | Action |
+|---|---|
+| `Ctrl+T` / `Ctrl+N` | New untitled tab |
+| `Ctrl+O` | Open file |
+| `Ctrl+S` | Save (first save: info bar) |
+| `Ctrl+Shift+S` | Save As |
+| `Ctrl+W` | Close tab |
+| `Ctrl+Shift+T` | Restore closed tab |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
+| `Ctrl+1`…`Ctrl+9` | Go to tab N |
+| `Ctrl+E` | Toggle read mode |
+| `Ctrl+F` / `Ctrl+H` | Find / replace |
+| `Ctrl+V` / `Ctrl+Shift+V` | Paste (rules in §6.3) / paste plain text |
+
+## 11. Opening files
+
+- Double-click a `.md` / `.markdown` file (file association), drag it onto the window, `snipmd <path>` on the command line, or `Ctrl+O`.
+- Single instance: a second launch forwards its paths to the running window and focuses it. Relative paths resolve against the second launch's working directory.
+- Opening a file that is already open activates its tab.
+
+## 12. Scope
+
+**v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
+
+**v1 — deliberately out:** theme gallery, font choice, settings screen; folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; macOS and Linux builds.
+
+**v1.1:** `Ctrl+P` quick open over recent files. Share as one file: export to TextPack (zip of note + images) and import `.textpack` / `.textbundle`. The working format stays plain Markdown.
+
+## 13. Decisions log
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Autosave disk notes | Always, 1 s after the last keystroke, plus on blur and close |
+| 2 | Writing view | Raw Markdown with light styling; live preview later, maybe |
+| 3 | Default folder for new notes | Last used; first time `Documents\Notes` |
+| 4 | Image location | One folder per note, `<stem>.assets/` |
+| 5 | Finding notes | `Ctrl+P` recent files in v1.1; no sidebar |
+| — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import in v1.1 |

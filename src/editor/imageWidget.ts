@@ -1,309 +1,104 @@
-import {
-  StateField,
-  StateEffect,
-  EditorState,
-  Range
-} from '@codemirror/state';
-import {
-  EditorView,
-  Decoration,
-  DecorationSet,
-  WidgetType
-} from '@codemirror/view';
-import { resolveAssetAbsPath, toDisplayableAssetSrc } from '../ipc/bridge';
-import { openSnipLightboxModal } from '../ui/modal';
+// Inline images below their Markdown line.
+// Block widgets must come from a StateField (CM6 throws for block widgets from a ViewPlugin).
+// StateField.update is synchronous, so resolved URLs live in a cache; resolution is async and
+// redraws every tab that waited for it.
+import { StateField, StateEffect, type EditorState, type Range } from '@codemirror/state';
+import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
+import { resolveAssetPath, toAssetUrl } from '../ipc';
+import { applyToTab, filePathFor, tabIdFacet } from './registry';
 
-// Module-level synchronous cache: `${currentFilePath ?? '__scratch__'}::${relPath}` -> displayable URL
-export const assetUrlCache = new Map<string, string>();
-// Persist expanded state across CM6 StateField updates so typing never collapses expanded snips
-export const expandedSnipSet = new Set<string>();
-const pendingResolutions = new Set<string>();
+const IMAGE_LINK = /!\[([^\]]*)\]\(([^)]+)\)/;
+const REMOTE_OR_INLINE = /^(data:|blob:|https?:)/i;
 
-export const assetResolvedEffect = StateEffect.define<string>();
+/** `${filePath ?? '__scratch__'}::${relPath}` -> displayable URL */
+const urlCache = new Map<string, string>();
+/** Cache key -> tabs waiting for it. */
+const pending = new Map<string, Set<string>>();
+/** Cache keys of images the user expanded to full height. */
+const expanded = new Set<string>();
 
-let activeFilePathGetter: () => string | null = () => null;
-let activeEditorViewGetter: () => EditorView | null = () => null;
+const redraw = StateEffect.define<null>();
 
-export function bindImageWidgetContext(
-  getFilePath: () => string | null,
-  getView: () => EditorView | null
-): void {
-  activeFilePathGetter = getFilePath;
-  activeEditorViewGetter = getView;
+/** Rebuilds a tab's image widgets, visible or not. Use after the note path changed. */
+export function redrawImages(tabId: string): void {
+  applyToTab(tabId, { effects: redraw.of(null) });
 }
 
-export function getCacheKey(filePath: string | null, relPath: string): string {
+function cacheKey(filePath: string | null, relPath: string): string {
   return `${filePath ?? '__scratch__'}::${relPath}`;
 }
 
-export function primeAssetCache(
-  filePath: string | null,
-  relPath: string,
-  absDiskPath: string
-): string {
-  const url = toDisplayableAssetSrc(absDiskPath);
-  assetUrlCache.set(getCacheKey(filePath, relPath), url);
-  return url;
+export function cachedUrl(filePath: string | null, relPath: string): string | undefined {
+  if (REMOTE_OR_INLINE.test(relPath)) return relPath;
+  return urlCache.get(cacheKey(filePath, relPath));
 }
 
-export function migrateScratchCacheToFile(
-  content: string,
-  newFilePath: string
-): void {
-  const regex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(content)) !== null) {
-    const relPath = match[2].trim();
-    const oldKey = getCacheKey(null, relPath);
-    const existingUrl = assetUrlCache.get(oldKey);
-    if (existingUrl) {
-      assetUrlCache.set(getCacheKey(newFilePath, relPath), existingUrl);
-    }
+export function primeAssetCache(filePath: string | null, relPath: string, absPath: string): void {
+  urlCache.set(cacheKey(filePath, relPath), toAssetUrl(absPath));
+}
+
+/** Resolves a link for a tab. Concurrent callers share one lookup; every waiting tab is redrawn when it is done. */
+export async function ensureResolved(tabId: string, relPath: string): Promise<string> {
+  const filePath = filePathFor(tabId);
+  const hit = cachedUrl(filePath, relPath);
+  if (hit) return hit;
+  const key = cacheKey(filePath, relPath);
+  const waiting = pending.get(key);
+  if (waiting) {
+    waiting.add(tabId);
+    return '';
+  }
+  const tabs = new Set([tabId]);
+  pending.set(key, tabs);
+  try {
+    const url = toAssetUrl(await resolveAssetPath(relPath, filePath));
+    urlCache.set(key, url);
+    pending.delete(key);
+    for (const id of tabs) redrawImages(id);
+    return url;
+  } catch (err) {
+    // No redraw on failure: a redraw would retry at once. The placeholder stays.
+    pending.delete(key);
+    throw err;
   }
 }
 
-export async function ensureAssetResolved(
-  relPath: string,
-  filePath: string | null
-): Promise<string> {
-  if (/^(data:|blob:|https?:|asset:)/i.test(relPath)) {
-    return relPath;
-  }
-
-  const key = getCacheKey(filePath, relPath);
-  const cached = assetUrlCache.get(key);
-  if (cached) {
-    return cached;
-  }
-
-  if (!pendingResolutions.has(key)) {
-    pendingResolutions.add(key);
-    try {
-      const absPath = await resolveAssetAbsPath(relPath, filePath);
-      const url = toDisplayableAssetSrc(absPath);
-      assetUrlCache.set(key, url);
-      const view = activeEditorViewGetter();
-      if (view) {
-        view.dispatch({ effects: assetResolvedEffect.of(key) });
-      }
-      return url;
-    } finally {
-      pendingResolutions.delete(key);
-    }
-  }
-
-  return '';
-}
-
-export async function preloadAllAssetsInContent(
-  content: string,
-  filePath: string | null
-): Promise<void> {
-  const regex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-  const promises: Promise<string>[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(content)) !== null) {
-    const relPath = match[2].trim();
-    if (relPath) {
-      promises.push(ensureAssetResolved(relPath, filePath));
-    }
-  }
-  await Promise.all(promises);
-}
-
-class InlineSnipWidget extends WidgetType {
+class ImageWidget extends WidgetType {
   constructor(
-    readonly altText: string,
+    readonly alt: string,
     readonly relPath: string,
-    readonly resolvedUrl: string
+    readonly url: string,
+    readonly key: string
   ) {
     super();
   }
 
-  override eq(other: InlineSnipWidget): boolean {
-    return (
-      other.altText === this.altText &&
-      other.relPath === this.relPath &&
-      other.resolvedUrl === this.resolvedUrl
-    );
+  override eq(other: ImageWidget): boolean {
+    return other.alt === this.alt && other.key === this.key && other.url === this.url;
   }
 
   override toDOM(): HTMLElement {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'inline-img-widget';
-    wrapper.contentEditable = 'false';
-    wrapper.dataset.snipPath = this.relPath;
-
-    // Prevent CodeMirror from stealing mousedown/pointerdown events on the widget
-    wrapper.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-    });
-    wrapper.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-    });
-
-    if (this.resolvedUrl) {
-      const isInitiallyExpanded = expandedSnipSet.has(this.relPath);
-
-      const frame = document.createElement('div');
-      frame.className = `snip-img-frame ${isInitiallyExpanded ? 'expanded' : ''}`;
-
-      const img = document.createElement('img');
-      img.src = this.resolvedUrl;
-      img.alt = this.altText || 'snip';
-      img.referrerPolicy = 'no-referrer';
-      if (isInitiallyExpanded) {
-        img.classList.add('expanded');
-      }
-      img.title =
-        'Single-click to toggle 360px cap / 100% full height • Double-click for Lightbox';
-
-      const pillOverlay = document.createElement('div');
-      pillOverlay.className = 'snip-cap-indicator';
-      pillOverlay.textContent = isInitiallyExpanded
-        ? 'Expanded 100% • Click to Cap at 360px'
-        : 'Capped at 360px • Click Image to Expand 100%';
-
-      frame.appendChild(img);
-      frame.appendChild(pillOverlay);
-
-      const meta = document.createElement('div');
-      meta.className = 'img-meta';
-
-      const pathLabel = document.createElement('span');
-      pathLabel.className = 'img-meta-path';
-      pathLabel.textContent = `↳ ${this.relPath}`;
-
-      const dimLabel = document.createElement('span');
-      dimLabel.className = 'img-meta-dims';
-      dimLabel.textContent = isInitiallyExpanded
-        ? 'Expanded 100%'
-        : '360px height cap';
-
-      const actions = document.createElement('div');
-      actions.className = 'img-meta-actions';
-
-      const toggleSizeBtn = document.createElement('button');
-      toggleSizeBtn.type = 'button';
-      toggleSizeBtn.className = 'img-widget-btn';
-      toggleSizeBtn.textContent = isInitiallyExpanded
-        ? 'Cap 360px'
-        : 'Expand 100%';
-
-      const lightboxBtn = document.createElement('button');
-      lightboxBtn.type = 'button';
-      lightboxBtn.className = 'img-widget-btn';
-      lightboxBtn.textContent = 'Lightbox';
-
-      const copyMdBtn = document.createElement('button');
-      copyMdBtn.type = 'button';
-      copyMdBtn.className = 'img-widget-btn';
-      copyMdBtn.textContent = 'Copy MD';
-
-      let naturalDimsText = '';
-      let isTallImage = true;
-
-      const applyExpandedState = (expanded: boolean) => {
-        if (expanded) {
-          expandedSnipSet.add(this.relPath);
-        } else {
-          expandedSnipSet.delete(this.relPath);
-        }
-        img.classList.toggle('expanded', expanded);
-        frame.classList.toggle('expanded', expanded);
-        wrapper.classList.toggle('expanded', expanded);
-
-        toggleSizeBtn.textContent = expanded ? 'Collapse' : 'Expand';
-
-        if (isTallImage) {
-          pillOverlay.textContent = expanded
-            ? `Expanded 100% (${naturalDimsText || 'Full'}) • Click to Cap 360px`
-            : `Capped at 360px (${naturalDimsText || 'Click to Expand'})`;
-          dimLabel.textContent = naturalDimsText
-            ? `${naturalDimsText} · ${expanded ? 'Expanded 100%' : '360px cap'}`
-            : expanded
-            ? 'Expanded 100%'
-            : '360px cap';
-        } else {
-          pillOverlay.textContent = expanded
-            ? `Zoomed 100% (${naturalDimsText}) • Click to Reset`
-            : `${naturalDimsText || 'Inline Snip'} • Click to Zoom / Expand`;
-          dimLabel.textContent = `${naturalDimsText} · ${
-            expanded ? 'Zoomed' : 'Inline'
-          }`;
-        }
-      };
-
-      const toggleExpand = (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const nextExpanded = !img.classList.contains('expanded');
-        applyExpandedState(nextExpanded);
-      };
-
-      frame.addEventListener('click', toggleExpand);
-      toggleSizeBtn.addEventListener('click', toggleExpand);
-
-      frame.addEventListener('dblclick', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openSnipLightboxModal(this.resolvedUrl, this.relPath, naturalDimsText);
-      });
-
-      lightboxBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openSnipLightboxModal(this.resolvedUrl, this.relPath, naturalDimsText);
-      });
-
-      img.addEventListener('load', () => {
-        if (img.naturalWidth && img.naturalHeight) {
-          naturalDimsText = `${img.naturalWidth}×${img.naturalHeight}px`;
-          isTallImage = img.naturalHeight > 360;
-          frame.classList.toggle('short-snip', !isTallImage);
-          applyExpandedState(img.classList.contains('expanded'));
-        }
-      });
-
-      copyMdBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void navigator.clipboard
-          ?.writeText(`![${this.altText}](${this.relPath})`)
-          .then(() => {
-            copyMdBtn.textContent = 'Copied!';
-            window.setTimeout(() => {
-              copyMdBtn.textContent = 'Copy MD';
-            }, 1200);
-          });
-      });
-
-      img.addEventListener('error', () => {
-        frame.replaceWith(this.createFallbackNode());
-      });
-
-      actions.appendChild(toggleSizeBtn);
-      actions.appendChild(lightboxBtn);
-      actions.appendChild(copyMdBtn);
-
-      meta.appendChild(pathLabel);
-      meta.appendChild(dimLabel);
-      meta.appendChild(actions);
-
-      wrapper.appendChild(frame);
-      wrapper.appendChild(meta);
-    } else {
-      wrapper.appendChild(this.createFallbackNode());
+    const wrap = document.createElement('div');
+    wrap.className = 'inline-img-widget';
+    wrap.contentEditable = 'false';
+    if (!this.url) {
+      wrap.appendChild(placeholder(`Loading image: ${this.relPath}`));
+      return wrap;
     }
-
-    return wrapper;
-  }
-
-  private createFallbackNode(): HTMLElement {
-    const fb = document.createElement('div');
-    fb.className = 'img-fallback';
-    fb.textContent = `Resolving inline image asset: ${this.relPath}...`;
-    return fb;
+    const img = document.createElement('img');
+    img.src = this.url;
+    img.alt = this.alt;
+    img.classList.toggle('expanded', expanded.has(this.key));
+    img.addEventListener('mousedown', (e) => e.preventDefault());
+    img.addEventListener('click', () => {
+      const on = !expanded.has(this.key);
+      if (on) expanded.add(this.key);
+      else expanded.delete(this.key);
+      img.classList.toggle('expanded', on);
+    });
+    img.addEventListener('error', () => img.replaceWith(placeholder(`Image not found: ${this.relPath}`)));
+    wrap.appendChild(img);
+    return wrap;
   }
 
   override ignoreEvent(): boolean {
@@ -311,56 +106,40 @@ class InlineSnipWidget extends WidgetType {
   }
 }
 
-function buildImageDecorations(state: EditorState): DecorationSet {
+function placeholder(text: string): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'img-placeholder';
+  el.textContent = text;
+  return el;
+}
+
+function build(state: EditorState): DecorationSet {
+  const tabId = state.facet(tabIdFacet);
+  const filePath = filePathFor(tabId);
   const widgets: Range<Decoration>[] = [];
-  const doc = state.doc;
-  const currentFilePath = activeFilePathGetter();
-  const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/;
-
-  for (let i = 1; i <= doc.lines; i++) {
-    const line = doc.line(i);
-    const match = line.text.match(imgRegex);
-    if (match) {
-      const altText = match[1].trim() || 'snip';
-      const relPath = match[2].trim();
-      if (!relPath) continue;
-
-      let resolvedUrl = '';
-      if (/^(data:|blob:|https?:|asset:)/i.test(relPath)) {
-        resolvedUrl = relPath;
-      } else {
-        const key = getCacheKey(currentFilePath, relPath);
-        resolvedUrl = assetUrlCache.get(key) || '';
-        if (!resolvedUrl) {
-          void ensureAssetResolved(relPath, currentFilePath);
-        }
-      }
-
-      const deco = Decoration.widget({
-        widget: new InlineSnipWidget(altText, relPath, resolvedUrl),
+  for (let i = 1; i <= state.doc.lines; i++) {
+    const line = state.doc.line(i);
+    const m = line.text.match(IMAGE_LINK);
+    const rel = m?.[2].trim();
+    if (!m || !rel) continue;
+    const url = cachedUrl(filePath, rel) ?? '';
+    if (!url && tabId) ensureResolved(tabId, rel).catch(() => {});
+    widgets.push(
+      Decoration.widget({
+        widget: new ImageWidget(m[1].trim(), rel, url, cacheKey(filePath, rel)),
         block: true,
         side: 1
-      });
-      widgets.push(deco.range(line.to));
-    }
+      }).range(line.to)
+    );
   }
-
   return Decoration.set(widgets, true);
 }
 
-// Guardrail #2: Block widgets MUST use StateField, never ViewPlugin
 export const imageWidgetField = StateField.define<DecorationSet>({
-  create(state) {
-    return buildImageDecorations(state);
-  },
-  update(decorations, tr) {
-    if (
-      tr.docChanged ||
-      tr.effects.some((e) => e.is(assetResolvedEffect))
-    ) {
-      return buildImageDecorations(tr.state);
-    }
-    return decorations.map(tr.changes);
+  create: build,
+  update(deco, tr) {
+    if (tr.docChanged || tr.effects.some((e) => e.is(redraw))) return build(tr.state);
+    return deco.map(tr.changes);
   },
   provide: (f) => EditorView.decorations.from(f)
 });
