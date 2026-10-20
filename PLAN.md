@@ -141,7 +141,8 @@ Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every 
 - [ ] 6 Editor and measuring
 
 ## Handoff (read this after a context reset)
-- Branches: `main` has phase 0 (PR #1 merged): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow, self-test 59/59) and the new module layout. Phase 1 starts on `claude/phase-1` (branched from `main`, no phase work yet). Releases publish only from version tags.
+- Branches: `main` has phase 0 (PR #1 merged): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow, self-test 59/59) and the new module layout. Phase 1 starts on `claude/phase-1` (branched from `main`, no phase work yet).
+- Phase 1 args are approved by the user and saved in `.claude/runs/phase-1.args.json` (root `/home/user/snipmd`, the cloud checkout; change `root` for a local run). The first run on 2026-10-20 stopped at the first agent call, before any build: the thin-* agents were added to `.claude/agents/` mid-session and only load at session start. In a fresh session they are loaded; rerun with the Workflow tool, name `thin-standard`, args from that file. No shim needed. Releases publish only from version tags.
 - The thin-* agents load at session start from `.claude/agents/`. Phases 1-5 run as thin-standard: write the `args` JSON from the phase table, show it to the user, then run. Recommended: local Windows session (Rust compiles there); in the cloud only `snipmd-core` compiles, CI checks the Tauri crate.
 - Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
 - Open items outside the phases:
