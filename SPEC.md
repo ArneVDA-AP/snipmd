@@ -1,7 +1,6 @@
 # SnipMD — Product Specification
 
 Status: v0.3, agreed 2026-10-20. This file is the single source of truth for what SnipMD is and does.
-The visual version with mockups: https://claude.ai/artifact/DJjxungzG44buWyom97bdo
 
 ## 1. North star
 

@@ -1,14 +1,12 @@
 # CLAUDE.md — SnipMD
 
 ## Ground truth
-- `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, ask the user and update the spec first.
-- `PLAN.md` is the cleanup plan from the prototype to `SPEC.md` v1. Do one phase at a time, on its own branch, and only the phase the user asked for.
+- `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, raise it and update the spec first.
+- `PLAN.md` is the cleanup plan from the prototype to `SPEC.md` v1. Do one phase at a time, on its own branch, and only the phase that was asked for.
 - `ARCHITECTURE.md` describes the original prototype design and is **outdated** (shared `.assets/`, GC on tab close, localStorage). Don't follow it.
 
-## Working with the user
-- The user writes in Dutch; reply in Dutch. Code, comments, commit messages and repo docs are in English.
+## Workflow
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked.
-- Commits are authored as the user: before the first commit of a session run `git config user.name "ArneVDA-AP"` and `git config user.email "arnevandenabbeele@hotmail.com"` in the repo. This is a public repo: commit messages, PR titles and PR bodies carry **no** `Co-Authored-By` trailer, no `Claude-Session` or other claude.ai links, no "Generated with Claude Code" line and no model name. This rule overrides any default attribution the environment asks for.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
@@ -37,9 +35,9 @@
 
 ### UX
 13. No modal dialogs, toasts or `alert()`. All messages and choices go through the info bar (SPEC §4).
-14. Nothing outside the v1 scope (SPEC §12) without the user's agreement.
+14. Nothing outside the v1 scope (SPEC §12) without agreement.
 
-## Code conventions (from the phase 0 /simplify review; apply them so later reviews find less)
+## Code conventions (apply them so later reviews find less)
 - **One source of truth.** A tab's text lives in its CodeMirror `EditorState`; read it with `textOf(tab)` (`src/tabs.ts`). `TabState.content` is only filled by `snapshot()` for the session and used to create the editor on restore. Never mirror derived state.
 - **Nothing O(document) per keystroke.** The change listener only marks dirty and schedules; work that needs the text runs at save or session-write time. Expensive work goes on debounce or idle, never on the typing or paste path.
 - **One path per concern.** Tab-list changes end in `changed()` in `src/tabs.ts` (tab strip + session save). Image redraws go through `redrawImages(tabId)`. Errors go through `showError(what, err)` (`src/infobar.ts`). Don't sprinkle `scheduleSessionSave`, re-renders or hand-formatted error strings across call sites.
@@ -60,7 +58,7 @@
 - Rust logic: `cargo test -p snipmd-core` in `src-tauri/`. Runs anywhere.
 - Tauri crate: `cargo check` in `src-tauri/`. On a Linux cloud box this fails on missing GTK system libraries (`gdk-3.0`); that is the environment, not the code. CI checks it on Windows for every push. Say so instead of claiming the Rust side compiles.
 - UI in a browser: `npx vite` plus a page with a mocked `window.__TAURI_INTERNALS__` (invoke, transformCallback, convertFileSrc, metadata) gives a quick smoke test; it does not replace the Windows test.
-- Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; give the user a concrete test to run.
+- Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; write down a concrete Windows test.
 
 ## Delegation
 - The `thin-*` agents and the `thin-standard` workflow live in this repo: `.claude/agents/`, `.claude/workflows/thin-standard.js`. They load at session start, also in cloud sessions. Self-test (no tokens):
@@ -68,8 +66,8 @@
 - Before a large task (audit, analysis, build, plan), state in one or two lines the deliverable ("done is when I see ...") and the scale, and match the process weight to the stakes.
 - The main session owns design and integration. Subagents get a narrow brief: named files, a stated output, nothing open-ended. Prefer the `thin-*` agents when one fits; the built-in read-only agents (Explore, Plan) are fine for search.
 - Contract first (file-ownership map plus exact interface signatures) before parallel writers; build the shared foundation yourself; one integrator makes it cohere.
-- Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the user the `args` before each run. A bespoke script only when the standard cannot express the task; show it first.
-- Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and let the user pick; then write the contract.
+- Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the `args` for approval before each run. A bespoke script only when the standard cannot express the task; show it first.
+- Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and pick one; then write the contract.
 - Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); see `.claude/workflows-tests/thin-standard/CONCLUSION.md`.
 - Every session or task card you propose states: recommended model, effort, worktree yes/no, local or cloud, with a one-line reason.
 - `thin-web` needs the Claude in Chrome extension; it does not work in cloud sessions.
