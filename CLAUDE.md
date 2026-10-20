@@ -38,6 +38,20 @@
 13. No modal dialogs, toasts or `alert()`. All messages and choices go through the info bar (SPEC §4).
 14. Nothing outside the v1 scope (SPEC §12) without the user's agreement.
 
+## Code conventions (from the phase 0 /simplify review; apply them so later reviews find less)
+- **One source of truth.** A tab's text lives in its CodeMirror `EditorState`; read it with `textOf(tab)` (`src/tabs.ts`). `TabState.content` is only filled by `snapshot()` for the session and used to create the editor on restore. Never mirror derived state.
+- **Nothing O(document) per keystroke.** The change listener only marks dirty and schedules; work that needs the text runs at save or session-write time. Expensive work goes on debounce or idle, never on the typing or paste path.
+- **One path per concern.** Tab-list changes end in `changed()` in `src/tabs.ts` (tab strip + session save). Image redraws go through `redrawImages(tabId)`. Errors go through `showError(what, err)` (`src/infobar.ts`). Don't sprinkle `scheduleSessionSave`, re-renders or hand-formatted error strings across call sites.
+- **Async work is bound to a tab id**, applied through `applyToTab` (`src/editor/registry.ts`), never to "the active tab" at completion time.
+- **Normalize at the edge.** Paths are normalized once where they enter (open, save target, session restore) with `src/paths.ts`; compare with `samePath`. No ad-hoc `replace(/\\/g, '/')`.
+- **Reuse the shared helpers**: `src/paths.ts` (paths, `MD_EXTENSIONS`), `src/dom.ts` (`button`), `showError`. One constant for any list used twice. Prefer what the library already does (CodeMirror facets/effects, marked `walkTokens`, `crypto.randomUUID`).
+- **Thin layers stay thin.** `src/ipc.ts` only wraps commands and raw events; policy (which dropped files open, what happens on close) lives in `src/app.ts` or the feature module.
+- **No magic payloads, no dead exports.** Effects carry data only when someone reads it. Export only what another module imports. Delete code instead of leaving it for later.
+- **Independent I/O runs in parallel** (`Promise.all` / `allSettled`); one failure never blocks the rest.
+- **No retry loops by accident.** A failure path must not trigger the same work again (e.g. no redraw after a failed image lookup).
+- **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
+- Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
+
 ## Verification
 - Frontend: `npm run lint` (`tsc --noEmit`), `npm test` (Vitest, jsdom) and `npm run build`.
 - Rust logic: `cargo test -p snipmd-core` in `src-tauri/`. Runs anywhere.
