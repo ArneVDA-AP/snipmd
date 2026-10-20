@@ -25,12 +25,12 @@ export async function handleDrop(d: DroppedFiles): Promise<void> {
 
     const notePath = filePathFor(tabId);
     const results = await Promise.allSettled(d.images.map((src) => importImage(tabId, notePath, src)));
-    let first = true;
+    // Each link goes right below the previous one, so no user text ends up between them.
+    let next = at;
     const failed: { name: string; reason: unknown }[] = [];
     results.forEach((r, i) => {
       if (r.status === 'rejected') return void failed.push({ name: basename(d.images[i]), reason: r.reason });
-      insertSnip(tabId, r.value.link, first ? at : undefined);
-      first = false;
+      next = insertSnip(tabId, r.value.link, next) ?? next;
     });
     if (failed.length < results.length) scheduleSessionSave({ immediate: true });
     if (failed.length > 0) showError(`add ${failed.map((f) => f.name).join(', ')}`, failed[0].reason);

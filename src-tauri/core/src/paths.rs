@@ -110,7 +110,16 @@ pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError
 
 /// R1b. 1 to 64 chars of `[A-Za-z0-9_-]`.
 pub fn valid_tab_id(id: &str) -> bool {
-    (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    (1..=64).contains(&id.len())
+        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        && !windows_device(id)
+}
+
+/// CON, NUL, COM1 and the like name a device, not a folder, on Windows.
+fn windows_device(id: &str) -> bool {
+    let u = id.to_ascii_uppercase();
+    matches!(u.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((u.starts_with("COM") || u.starts_with("LPT")) && u.len() == 4 && u.as_bytes()[3].is_ascii_digit())
 }
 
 /// Lexically normalizes an absolute path to a string with `/` separators.

@@ -65,7 +65,7 @@ describe('paste rules', () => {
 
   it('Ctrl+Shift+V with only an image saves nothing', async () => {
     mount('');
-    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, bubbles: true }));
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true, bubbles: true }));
     paste('', true);
     await flush();
     expect(mockSave).not.toHaveBeenCalled();
@@ -73,7 +73,7 @@ describe('paste rules', () => {
 
   it('a later paste after another key saves again', async () => {
     mount('');
-    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, bubbles: true }));
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true, bubbles: true }));
     view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
     paste('', true);
     await flush();
@@ -123,5 +123,19 @@ describe('insertSnip', () => {
     mount('one\ntwo\nthree', 0);
     insertSnip('a', 'l.png', 5);
     expect(view.state.doc.toString()).toBe('one\ntwo\n![snip](l.png)\nthree');
+  });
+
+  it('the returned position puts the next link right below the previous one', () => {
+    mount('A\nB\nC', 0);
+    const next = insertSnip('a', 'one.png', 0);
+    insertSnip('a', 'two.png', next ?? undefined);
+    expect(view.state.doc.toString()).toBe('A\n![snip](one.png)\n![snip](two.png)\nB\nC');
+  });
+
+  it('chains from an empty line too', () => {
+    mount('\nB', 0);
+    const next = insertSnip('a', 'one.png', 0);
+    insertSnip('a', 'two.png', next ?? undefined);
+    expect(view.state.doc.toString()).toBe('![snip](one.png)\n![snip](two.png)\nB');
   });
 });

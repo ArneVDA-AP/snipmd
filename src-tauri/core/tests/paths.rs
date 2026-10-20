@@ -131,10 +131,11 @@ fn resolve_untitled_stays_in_tab_folder() {
 fn valid_tab_id_rules() {
     use snipmd_core::paths::valid_tab_id;
     assert!(valid_tab_id("123e4567-e89b-12d3-a456-426614174000"));
-    for bad in ["", "..", "a/b", "a:b", "a\\b"] {
+    for bad in ["", "..", "a/b", "a:b", "a\\b", "CON", "nul", "Com1", "LPT9"] {
         assert!(!valid_tab_id(bad), "{bad}");
     }
     assert!(valid_tab_id(&"a".repeat(64)));
+    assert!(valid_tab_id("COM10") && valid_tab_id("console"));
     assert!(!valid_tab_id(&"a".repeat(65)));
 }
 

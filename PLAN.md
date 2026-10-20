@@ -128,8 +128,18 @@ Windows test: untitled note with screenshots, Ctrl+S, Enter: file and folder sid
 
 Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab and images are back.
 
+Comparison run: phase 5 is also built solo (one session, same args as the brief, no workflow) in a separate worktree from the same base commit. Only the better of the two is merged; both get the same R1 review brief and are recorded in the run log below.
+
 ## Phase 6. Editor and measuring (solo)
 Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
+
+## Run log
+One row per phase, filled when its PR merges. "Later" counts defects found after the merge (Windows test, a later phase); it is the quality measure and is updated when one turns up.
+
+| Phase | Mode | Workflow agents / tokens / minutes | Main session | Review (blocker / major / minor) | Later |
+|---|---|---|---|---|---|
+| 2 | thin-standard | not recorded | contract, fixes, /simplify | 1 / 3 / 9 | open (Windows test) |
+| 3 | thin-standard | 12 / 317k / 10 | foundation (ipc signatures), contract, fixes, /simplify; not measured | 0 / 3 / 12 | open (Windows test) |
 
 ## Status
 - [x] 0 Strip and foundation: branch `claude/phase-0`, CI green, Windows test passed (`npm ci`, `npm run tauri dev`: one empty tab on start; Win+Shift+S + Ctrl+V works; tabs come back after restart). PR to `main`.

@@ -51,13 +51,14 @@ describe('handleDrop', () => {
     expect(m.insertSnip).toHaveBeenCalledWith('a', 'l/C:/p.png', 42);
   });
 
-  it('first link uses the point divided by devicePixelRatio, the next ones none', async () => {
+  it('first link uses the point divided by devicePixelRatio, each next one the end of the previous link', async () => {
+    m.insertSnip.mockReturnValueOnce(60).mockReturnValueOnce(80);
     await handleDrop(drop(['1.png', '2.png', '3.png']));
     expect(m.posAtCoords).toHaveBeenCalledWith({ x: 200, y: 100 });
     expect(m.insertSnip.mock.calls).toEqual([
       ['a', 'l/1.png', 42],
-      ['a', 'l/2.png', undefined],
-      ['a', 'l/3.png', undefined]
+      ['a', 'l/2.png', 60],
+      ['a', 'l/3.png', 80]
     ]);
     expect(m.save).toHaveBeenCalledWith({ immediate: true });
   });

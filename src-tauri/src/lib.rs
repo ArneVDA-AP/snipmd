@@ -178,8 +178,14 @@ fn store_image(
     Ok(SavedImage { link, abs_path: displayable(app, &file) })
 }
 
-fn header(request: &Request<'_>, name: &str) -> Option<String> {
-    request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned)
+/// A header that is present but not ASCII is an error, never read as absent: a missing note
+/// path would put the image in the scratch folder of a disk note.
+fn header(request: &Request<'_>, name: &str) -> Result<Option<String>, String> {
+    request
+        .headers()
+        .get(name)
+        .map(|v| v.to_str().map(str::to_owned).map_err(|_| format!("Unreadable {name} header")))
+        .transpose()
 }
 
 fn raw_body<'a>(request: &'a Request<'_>) -> Result<&'a [u8], String> {
@@ -206,8 +212,8 @@ fn save_image(app: AppHandle, request: Request<'_>) -> Result<SavedImage, String
     if bytes.is_empty() {
         return Err("The image is empty".to_string());
     }
-    let tab_id = header(&request, "x-tab-id").ok_or_else(|| "Missing tab id".to_string())?;
-    let note_path = match header(&request, "x-note-path") {
+    let tab_id = header(&request, "x-tab-id")?.ok_or_else(|| "Missing tab id".to_string())?;
+    let note_path = match header(&request, "x-note-path")? {
         Some(raw) => Some(paths::percent_decode(&raw).map_err(|e| e.to_string())?),
         None => None,
     };
@@ -241,6 +247,9 @@ fn resolve_asset_abs_path(
         None => paths::resolve_untitled(&tab_scratch_dir(&app, &tab_id)?, &rel_path)
             .map_err(|e| format!("This note: {e}"))?,
     };
+    if naming::image_ext(&resolved).is_none() {
+        return Err(format!("Not an image: {rel_path}"));
+    }
     Ok(displayable(&app, &resolved))
 }
 

@@ -8,11 +8,12 @@ pub fn snip_name(now: chrono::NaiveDateTime, rand4: u16, ext: &str) -> String {
     format!("{}-{rand4:04x}.{ext}", now.format("snip-%Y%m%d-%H%M%S-%3f"))
 }
 
-/// R4. Creates a new snip file in `dir` and writes `bytes`. Never overwrites, never creates `dir`.
+/// R4. Creates a new snip file in `dir`, writes and syncs `bytes`. Never overwrites, never creates `dir`.
 pub fn create_snip(dir: &Path, ext: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
     let name = || snip_name(chrono::Local::now().naive_local(), rand::random(), ext).into();
     let (path, mut file) = create_unique(dir, name)?;
-    if let Err(e) = file.write_all(bytes) {
+    // Synced like notes: a link must never point to a truncated image after a power loss.
+    if let Err(e) = file.write_all(bytes).and_then(|_| file.sync_all()) {
         drop(file);
         let _ = std::fs::remove_file(&path);
         return Err(e);

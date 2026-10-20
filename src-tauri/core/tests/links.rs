@@ -5,6 +5,7 @@ use std::path::Path;
 #[test]
 fn encodes_exactly_the_five_characters() {
     assert_eq!(encode_link_path("a b(1)#%.png"), "a%20b%281%29%23%25.png");
+    assert_eq!(encode_link_path("R&amp;D.assets/x.png"), "R%26amp;D.assets/x.png");
     assert_eq!(encode_link_path("dir/é.png"), "dir/é.png");
 }
 

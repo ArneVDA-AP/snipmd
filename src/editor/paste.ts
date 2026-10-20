@@ -6,10 +6,13 @@ import { showError } from '../infobar';
 import { applyToTab, filePathFor, getState, tabIdFacet } from './registry';
 import { primeAssetCache } from './imageWidget';
 
-/** T5. Puts `![snip](link)` on its own line below the line holding `at` (default: the cursor), in any tab. */
-export function insertSnip(tabId: string, link: string, at?: number): void {
+/**
+ * T5. Puts `![snip](link)` on its own line below the line holding `at` (default: the cursor), in any tab.
+ * Returns the end of the link's line, so a next link can go right below it; null when the tab is gone.
+ */
+export function insertSnip(tabId: string, link: string, at?: number): number | null {
   const state = getState(tabId);
-  if (!state) return;
+  if (!state) return null;
   const doc = state.doc;
   const line = doc.lineAt(Math.min(at ?? state.selection.main.head, doc.length));
   const snip = `![snip](${link})`;
@@ -22,6 +25,7 @@ export function insertSnip(tabId: string, link: string, at?: number): void {
     anchor = from + insert.length;
   }
   applyToTab(tabId, { changes: { from, to: line.to, insert }, selection: { anchor }, scrollIntoView: true });
+  return from + (empty ? snip.length : snip.length + 1);
 }
 
 async function pasteImage(tabId: string, file: File): Promise<void> {
@@ -40,7 +44,7 @@ export function pasteExtension() {
   let plainPaste = false;
   return EditorView.domEventHandlers({
     keydown(event) {
-      plainPaste = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'v';
+      plainPaste = (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyV';
       return false;
     },
     paste(event, view) {

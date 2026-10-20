@@ -71,7 +71,7 @@ Everything in this spec serves these three steps. If they don't feel instant, no
   - Tested on Windows 11: Explorer only moves a companion folder for `.htm` files, not `.md`, whatever the suffix. SnipMD itself must keep note and folder together (§6.4).
 - **Untitled tabs** store images in `%APPDATA%/snip-md/scratch/<tab-id>/` and link them as `untitled.assets/<file>`. That prefix resolves to the tab's scratch folder.
 - **Filename**: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` (local time to the millisecond + 4 random lowercase hex chars). Created with `OpenOptions::new().write(true).create_new(true)`, retrying with a new suffix on `AlreadyExists`. Never overwrites.
-- **Link format**: relative, `![snip](labo-04.assets/snip-20261020-142211-087-3fa9.png)`. Percent-encode spaces and `( ) # %` in the path so GitHub and Obsidian read it.
+- **Link format**: relative, `![snip](labo-04.assets/snip-20261020-142211-087-3fa9.png)`. Percent-encode spaces and `( ) # % &` in the path so GitHub and Obsidian read it.
 - **Paste rules**:
   - Clipboard has text (any `text/plain`) → paste text. Copying from Excel, Word or a browser pastes text, even though those apps also put an image on the clipboard.
   - Clipboard has only an image → save it and insert the link on its own line below the cursor; cursor moves to the line after.
