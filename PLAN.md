@@ -172,9 +172,9 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
   |---|---|---|---|
   | Installer size | < 10 MB | 1.36 MB (NSIS); MSI 1.89 MB, bare exe 3.60 MB | Release workflow on `windows-latest`, 2026-10-21, phase 6c code |
   | Startup JS (first paint) | as small as the first paint needs | 397 KB (130 KB gzip); read mode 76 KB loaded later | `npm run build`, phase 6b |
-  | Double-click to typing | < 300 ms | runner: 568 ms median of later starts, 2.9 s first start; **owner's machine open** | `windows-run.yml` run 1 on a Windows Server 2025 runner (no GPU), 2026-10-21 |
-  | Ctrl+V to 4K screenshot visible | < 150 ms | runner: 66 ms median; owner's machine open | same run |
-  | Memory, 5 tabs and 20 images | < 120 MB | runner: 125 MB private bytes (upper bound of Task Manager's figure); owner's machine open | same run |
+  | Double-click to typing | < 300 ms | runner: 568 / 658 / 1126 ms median of later starts in three runs, 2.9-5.6 s first start; too noisy to judge; **owner's machine open** | `windows-run.yml` runs 1-3 on Windows Server 2025 runners (no GPU), 2026-10-21; files in `findings/windows-ci/` |
+  | Ctrl+V to 4K screenshot visible | < 150 ms | runner: 66 / 79 / 96 ms median in three runs, within budget; owner's machine open | same runs |
+  | Memory, 5 tabs and 20 images | < 120 MB | runner: 125 / 132 / 129 MB private bytes (an upper bound of Task Manager's figure, which counts the private working set); owner's machine open | same runs |
   The runner is a server VM without a GPU, so its start time says little about a laptop; the start budget is the first thing to check on the Windows machine, and if it misses there, the first suspects are WebView2 start-up and the session read before the first paint.
 
 ## Decisions
