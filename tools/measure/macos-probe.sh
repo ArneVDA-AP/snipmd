@@ -222,7 +222,7 @@ APPLESCRIPT
 
 # "<x> <y>": the system close button's centre, in points from the window's top-left corner.
 close_button_centre() {
-  osascript - "$PID" <<'APPLESCRIPT' 2>/dev/null
+  osascript - "$PID" <<'APPLESCRIPT'
 on run argv
   set pid to (item 1 of argv) as integer
   tell application "System Events"
@@ -242,6 +242,8 @@ start topbar
 activate_app
 shot 05-topbar >/dev/null
 screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
+echo "-- window buttons (role, subrole, description, position, size):"
+osascript -e "tell application \"System Events\" to tell window 1 of (first process whose unix id is $PID) to get {role, subrole, description, position, size} of buttons" 2>&1
 read -r bx by <<<"$(close_button_centre)"
 if [ -z "${by:-}" ]; then
   report traffic-lights BLOCKED "no close button found through System Events"
@@ -252,6 +254,9 @@ else
 fi
 ax=$(ax_dump)
 echo "$ax" >"$OUT/05-topbar-ax.txt"
+echo "-- accessibility tree: $(echo "$ax" | grep -c .) elements; buttons and the first 40 lines:"
+echo "$ax" | grep '^AXButton' | head -20
+echo "$ax" | head -40
 if [ -z "$ax" ]; then
   report own-buttons BLOCKED "no accessibility tree"
 elif echo "$ax" | grep -qE '^AXButton\|(Minimize|Maximize|Restore)\|'; then
@@ -311,6 +316,9 @@ if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3'
   'tell application "System Events" to keystroke "f" using {command down, option down}'; then
   sleep 1
   shot 06-replace >/dev/null
+  echo "-- focused element (role, description, placeholder):"
+  osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set f to value of attribute \"AXFocusedUIElement\"" \
+    -e "tell application \"System Events\" to get {role of f, description of f, value of attribute \"AXPlaceholderValue\" of f}" 2>&1
   focus=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to get description of (value of attribute \"AXFocusedUIElement\")" 2>/dev/null)
   if [ "$focus" = "Replace" ]; then
     report replace PASS "Cmd+Option+F put the cursor in the Replace field"
