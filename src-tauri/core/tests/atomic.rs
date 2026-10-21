@@ -69,3 +69,28 @@ fn create_unique_skips_taken_and_gives_up_after_64() {
     assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(calls, 64);
 }
+
+#[cfg(unix)]
+#[test]
+fn write_through_symlink_keeps_the_link() {
+    let d = dir("symlink");
+    fs::write(d.join("real.md"), b"old").unwrap();
+    std::os::unix::fs::symlink(d.join("real.md"), d.join("link.md")).unwrap();
+    atomic_write(&d.join("link.md"), b"new").unwrap();
+    assert!(fs::symlink_metadata(d.join("link.md")).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read(d.join("real.md")).unwrap(), b"new");
+}
+
+#[test]
+fn read_only_target_is_refused_and_kept() {
+    let d = dir("readonly");
+    let t = d.join("a.md");
+    fs::write(&t, b"keep").unwrap();
+    let mut perm = fs::metadata(&t).unwrap().permissions();
+    perm.set_readonly(true);
+    fs::set_permissions(&t, perm).unwrap();
+    let e = atomic_write(&t, b"new").unwrap_err();
+    assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(fs::read(&t).unwrap(), b"keep");
+    assert_eq!(fs::read_dir(&d).unwrap().count(), 1);
+}

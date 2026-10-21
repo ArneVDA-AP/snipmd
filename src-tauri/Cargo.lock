@@ -3218,7 +3218,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "rand",
- "regex",
  "serde",
  "serde_json",
  "snipmd-core",

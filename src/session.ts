@@ -1,5 +1,5 @@
 // Session persistence: %APPDATA%/snip-md/session.json is the only store (SPEC §7).
-import type { ClosedTab, SessionFile, TabState } from './types';
+import type { ClosedTab, DiskStamp, SessionFile, TabState, TextFormat } from './types';
 import { loadSessionRaw, saveSessionRaw } from './ipc';
 import { clearInfo, showError } from './infobar';
 import { normPath } from './paths';
@@ -79,8 +79,20 @@ function parseTab(raw: unknown): TabState | null {
     // The prototype used 'preview' and 'split'; both map to the closest v1 mode.
     mode: t.mode === 'read' || t.mode === 'preview' ? 'read' : 'edit',
     cursor: num(t.cursor ?? t.cursorPos),
-    scrollTop: num(t.scrollTop)
+    scrollTop: num(t.scrollTop),
+    disk: parseStamp(t.disk),
+    format: parseFormat(t.format)
   };
+}
+
+function parseStamp(raw: unknown): DiskStamp | null {
+  const s = raw as { mtimeMs?: unknown; size?: unknown } | null;
+  return s && typeof s.mtimeMs === 'number' && typeof s.size === 'number' ? { mtimeMs: s.mtimeMs, size: s.size } : null;
+}
+
+function parseFormat(raw: unknown): TextFormat | null {
+  const f = raw as { crlf?: unknown; bom?: unknown } | null;
+  return f && typeof f.crlf === 'boolean' && typeof f.bom === 'boolean' ? { crlf: f.crlf, bom: f.bom } : null;
 }
 
 /** Parses session.json leniently, including the prototype's format. Returns null when nothing usable is in it. */

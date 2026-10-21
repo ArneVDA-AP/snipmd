@@ -55,7 +55,8 @@ Everything in this spec serves these three steps. If they don't feel instant, no
 - **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM.
 - **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
   - Tab clean → reload silently, keep cursor and scroll position.
-  - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Show diff · Reload · Keep mine. Autosave pauses for that tab until the user chooses.
+  - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view is v1.1. Autosave pauses for that tab until the user chooses Reload or Keep mine.
+  - File gone (deleted or moved) → info bar: "<name> is no longer on disk." The tab keeps its text and turns dirty; autosave pauses. Action: Save again (writes it back to the same path; a missing folder stays a write failure).
 - **Write failure** (folder deleted, drive removed, read-only): info bar with the error. The tab stays dirty, its content stays in the session, and other tabs and session saving keep working.
 
 ### 6.2 Untitled tabs
@@ -82,7 +83,8 @@ Everything in this spec serves these three steps. If they don't feel instant, no
 
 ### 6.4 Rename, Save As, promotion
 - **First save of an untitled tab**: move `scratch/<tab-id>/` to `<new-stem>.assets/` (rename; fall back to copy + delete across drives) and rewrite links `untitled.assets/` → `<new-stem>.assets/` in the buffer. The rewrite is one undoable transaction.
-- **Rename** (v1: via Save As to the same folder, then delete the old file) and **Save As** of a disk note: copy the image folder to `<new-stem>.assets/` and rewrite links. Save As keeps the original note and folder intact.
+- **Save As** of a disk note (`Ctrl+Shift+S`): copy the image folder to `<new-stem>.assets/` (never overwriting a file there) and rewrite links; the tab continues as the new note. Save As keeps the original note and folder intact, also in the same folder.
+- **Rename** in v1 is Save As to the same folder; SnipMD never deletes the old note or its images. The user removes them in Explorer.
 - Only links that start with the exact old prefix are rewritten.
 
 ### 6.5 Cleanup
@@ -160,4 +162,6 @@ Measured on an ordinary Windows 11 laptop. Every release is checked against this
 | 3 | Default folder for new notes | Last used; first time `Documents\Notes` |
 | 4 | Image location | One folder per note, `<stem>.assets/` |
 | 5 | Finding notes | `Ctrl+P` recent files in v1.1; no sidebar |
+| 6 | External change with local edits | Open disk version · Reload · Keep mine; a diff view is v1.1 |
+| 7 | Rename | Save As to the same folder; SnipMD never deletes user files |
 | — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import in v1.1 |

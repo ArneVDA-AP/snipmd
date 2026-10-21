@@ -18,8 +18,7 @@ export function mountInfobar(top: HTMLElement, bottom: HTMLElement): void {
   hosts.top = top;
   hosts.bottom = bottom;
   for (const stack of Object.values(stacks)) {
-    for (const e of stack) if (e.timer) clearTimeout(e.timer);
-    stack.length = 0;
+    for (const e of stack.splice(0)) closed(e);
   }
 }
 
@@ -33,11 +32,17 @@ function render(pos: Pos): void {
   if (hosts[pos]?.firstElementChild !== entry.el) hosts[pos]?.replaceChildren(entry.el);
 }
 
+/** An entry leaves its stack: stop its timer and tell its owner. */
+function closed(entry: Entry): void {
+  if (entry.timer) clearTimeout(entry.timer);
+  entry.msg.onClose?.();
+}
+
 function remove(pos: Pos, entry: Entry): void {
   const i = stacks[pos].indexOf(entry);
   if (i === -1) return; // already replaced or dismissed
-  if (entry.timer) clearTimeout(entry.timer);
   stacks[pos].splice(i, 1);
+  closed(entry);
   render(pos);
 }
 
@@ -51,21 +56,22 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
   text.className = 'infobar-text';
   text.textContent = msg.text;
   bar.appendChild(text);
+  if (msg.body) bar.appendChild(msg.body);
   for (const action of msg.actions ?? []) {
     bar.appendChild(
       button(action.primary ? 'primary' : '', action.label, action.label, () => {
-        dismiss();
+        if (!action.keepOpen) dismiss();
         action.run();
       })
     );
   }
-  bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
+  if (!msg.sticky) bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
   return bar;
 }
 
-/** A message without actions that reads the same can keep its bar (no flicker). */
-const same = (a: InfoMessage, b: InfoMessage): boolean =>
-  a.kind === b.kind && a.text === b.text && !a.actions?.length && !b.actions?.length;
+/** A plain message that reads the same can keep its bar (no flicker). */
+const plain = (m: InfoMessage): boolean => !m.actions?.length && !m.body && !m.onClose;
+const same = (a: InfoMessage, b: InfoMessage): boolean => a.kind === b.kind && a.text === b.text && plain(a) && plain(b);
 
 /**
  * T1. Shows a message. An unkeyed message replaces the previous unkeyed one in its position;
@@ -86,7 +92,7 @@ export function showInfo(msg: InfoMessage): () => void {
   } else {
     entry = { msg, el: null, timer: null };
     if (prev) {
-      if (prev.timer) clearTimeout(prev.timer);
+      closed(prev);
       // A keyed update keeps its place; an unkeyed message is always the newest.
       if (msg.key !== undefined) stack[i] = entry;
       else stack.splice(i, 1);
@@ -118,6 +124,6 @@ export function errorText(err: unknown): string {
 }
 
 /** T1. Error bar for a failed action: "Could not <what>: <reason>". With a key it lasts until clearInfo(key). */
-export function showError(what: string, err: unknown, key?: string): () => void {
-  return showInfo({ kind: 'error', text: `Could not ${what}: ${errorText(err)}`, key });
+export function showError(what: string, err: unknown, key?: string, actions?: InfoMessage['actions']): () => void {
+  return showInfo({ kind: 'error', text: `Could not ${what}: ${errorText(err)}`, key, actions });
 }

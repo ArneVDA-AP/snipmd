@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionFile, TabState } from './types';
 
-vi.mock('./ipc', () => ({ readNote: vi.fn(), gcScratchAssets: vi.fn().mockResolvedValue(0), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
+vi.mock('./ipc', () => ({ readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({ renderRead: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
@@ -12,8 +12,9 @@ import { closeTab, initTabs, restore, snapshot, getTabs, textOf } from './tabs';
 import { getView } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
-  id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, ...o
+  id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
 });
+const note = (text: string) => ({ text, format: { crlf: true, bom: false }, stamp: { mtimeMs: 1, size: text.length } });
 const session = (tabs: TabState[], active = tabs[0]?.id ?? ''): SessionFile => ({
   version: 3, activeTabId: active, untitledCounter: 2, lastFolder: null, tabs, closedTabs: []
 });
@@ -31,7 +32,7 @@ beforeEach(() => {
 
 describe('snapshot', () => {
   it('stores no text for a clean disk tab, the text for dirty and untitled tabs, and leaves live tabs alone', async () => {
-    vi.mocked(readNote).mockResolvedValue({ text: 'from disk' });
+    vi.mocked(readNote).mockResolvedValue(note('from disk'));
     await restore(session([
       tab({ id: 'c', title: 'c.md', filePath: 'C:/n/c.md' }),
       tab({ id: 'd', title: 'd.md', filePath: 'C:/n/d.md', dirty: true, content: 'unsaved' }),
@@ -48,7 +49,7 @@ describe('snapshot', () => {
 
 describe('restore', () => {
   it('takes the text of a clean disk tab from readNote, not from the session', async () => {
-    vi.mocked(readNote).mockResolvedValue({ text: 'fresh' });
+    vi.mocked(readNote).mockResolvedValue(note('fresh'));
     await restore(session([tab({ id: 'c', filePath: 'C:/n/c.md', content: 'stale' })]));
     expect(textOf(getTabs()[0])).toBe('fresh');
   });
@@ -62,7 +63,7 @@ describe('restore', () => {
   it('drops a tab whose read fails, keeps the others and shows one error', async () => {
     vi.mocked(readNote).mockImplementation(async (p: string) => {
       if (p.includes('bad')) throw new Error('gone');
-      return { text: 'ok' };
+      return note('ok');
     });
     await restore(session([
       tab({ id: 'b1', title: 'bad1.md', filePath: 'C:/n/bad1.md' }),

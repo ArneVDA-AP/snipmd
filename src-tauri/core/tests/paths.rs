@@ -147,3 +147,34 @@ fn allow_file_allows_only_that_file() {
     assert!(a.check(Path::new("/n/b.png")).is_err());
     assert!(a.check(Path::new("/n")).is_err());
 }
+
+#[test]
+fn note_names() {
+    use snipmd_core::paths::valid_note_name;
+    for ok in ["a.md", "Labo 04.MD", "é.md"] {
+        assert!(valid_note_name(ok), "{ok}");
+    }
+    let long = format!("{}.md", "a".repeat(252));
+    assert!(valid_note_name(&long));
+    for ok in ["console.md", "com10.md", "com.md", "lpt.md", "nul-check.md"] {
+        assert!(valid_note_name(ok), "{ok}");
+    }
+    let too_long = format!("{}.md", "a".repeat(253));
+    for bad in [".md", "a.txt", "a/b.md", "a:b.md", "con.md", "a .md", "a.md.", "a\\b.md", "a\nb.md", "", &too_long,
+        "con.txt.md", "NUL.tar.md", "COM¹.md", "lpt3.md", "CONIN$.md", "conout$.md", "aux .md"] {
+        assert!(!valid_note_name(bad), "{bad}");
+    }
+}
+
+#[test]
+fn may_create_in_folders() {
+    let mut s = AllowedSet::new();
+    s.allow_note(Path::new("C:/notes/a.md"));
+    s.allow_note_folder(Path::new("C:/other"));
+    assert!(s.may_create_in(Path::new("C:/notes")));
+    assert!(s.may_create_in(Path::new("C:/other")));
+    assert!(!s.may_create_in(Path::new("C:/sibling")));
+    assert!(!s.may_create_in(Path::new("C:/other/sub")));
+    assert!(!s.may_create_in(Path::new("C:/notes-other")));
+    assert!(s.check(Path::new("C:/other/x.md")).is_err());
+}

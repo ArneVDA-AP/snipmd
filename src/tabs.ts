@@ -2,7 +2,7 @@
 // The text of a tab lives in its EditorState; TabState.content is only filled when the session is
 // written and used to create the editor state on restore. Read it through textOf().
 import { EditorView } from '@codemirror/view';
-import type { ClosedTab, SessionFile, TabState } from './types';
+import type { ClosedTab, DiskStamp, SessionFile, TabState } from './types';
 import { createEditorState } from './editor/setup';
 import { redrawImages } from './editor/imageWidget';
 import {
@@ -17,7 +17,7 @@ import {
   visibleTabId
 } from './editor/registry';
 import { renderRead } from './preview/render';
-import { gcScratchAssets, readNote } from './ipc';
+import { readNote } from './ipc';
 import { scheduleSessionSave } from './session';
 import { showError } from './infobar';
 import { basename, normPath, samePath } from './paths';
@@ -36,6 +36,13 @@ let closedTabs: ClosedTab[] = [];
 let panes: Panes;
 let titlebar: Titlebar;
 
+let editListener: (id: string) => void = () => {};
+
+/** Called on every edit of a tab (autosave hangs here). Cheap: it must not read the text. */
+export function bindEditListener(fn: (id: string) => void): void {
+  editListener = fn;
+}
+
 export function initTabs(p: Panes, t: Titlebar): void {
   panes = p;
   titlebar = t;
@@ -52,6 +59,7 @@ function changed(opts?: { immediate?: boolean }): void {
 function onDocChange(id: string): void {
   const tab = getTab(id);
   if (!tab) return;
+  editListener(id);
   if (tab.dirty) {
     scheduleSessionSave();
     return;
@@ -65,8 +73,7 @@ export const getTab = (id: string): TabState | undefined => tabs.find((t) => t.i
 export const getActiveTab = (): TabState | undefined => getTab(activeId) ?? tabs[0];
 /** Current text of a tab. */
 export const textOf = (tab: TabState): string => editorText(tab.id) ?? tab.content;
-export const untitledContentsExcept = (id?: string): string[] =>
-  tabs.filter((t) => t.filePath === null && t.id !== id).map(textOf);
+export const getLastFolder = (): string | null => lastFolder;
 
 export function setLastFolder(folder: string): void {
   lastFolder = folder;
@@ -111,7 +118,7 @@ export async function restore(s: SessionFile): Promise<void> {
       failed.push(t.title);
       return;
     }
-    if (r.value) t.content = r.value.text;
+    if (r.value) Object.assign(t, { content: r.value.text, disk: r.value.stamp, format: r.value.format });
     kept.push(t);
   });
   if (failed.length > 0) showError(`reopen ${failed.join(', ')}`, reason);
@@ -160,7 +167,7 @@ export async function activate(id: string): Promise<void> {
   }
 }
 
-async function addTab(title: string, filePath: string | null, content: string): Promise<void> {
+async function addTab(title: string, filePath: string | null, content: string, extra?: Partial<TabState>): Promise<void> {
   const tab: TabState = {
     id: crypto.randomUUID(),
     title,
@@ -169,7 +176,10 @@ async function addTab(title: string, filePath: string | null, content: string): 
     dirty: false,
     mode: 'edit',
     cursor: 0,
-    scrollTop: 0
+    scrollTop: 0,
+    disk: null,
+    format: null,
+    ...extra
   };
   tabs.push(tab);
   await activate(tab.id);
@@ -180,13 +190,18 @@ export function newUntitled(): Promise<void> {
   return addTab(`Untitled-${untitledCounter++}`, null, '');
 }
 
+/** A new untitled tab in read mode holding `text`: the disk version of a note in conflict. */
+export function openCopy(title: string, text: string): Promise<void> {
+  return addTab(title, null, text, { mode: 'read' });
+}
+
 export async function openPath(path: string): Promise<void> {
   const norm = normPath(path);
   const existing = tabs.find((t) => t.filePath && samePath(t.filePath, norm));
   if (existing) return activate(existing.id);
   try {
-    const { text } = await readNote(norm);
-    await addTab(basename(norm), norm, text);
+    const note = await readNote(norm);
+    await addTab(basename(norm), norm, note.text, { disk: note.stamp, format: note.format });
   } catch (err) {
     showError(`open ${basename(norm)}`, err);
   }
@@ -203,10 +218,6 @@ export async function closeTab(id: string): Promise<void> {
   const [closing] = tabs.splice(idx, 1);
   closing.content = textOf(closing); // a write still queued for this tab reads it from here
   dropState(id);
-  // Prototype behaviour, replaced in phase 5 by the closed-tabs list and startup-only cleanup.
-  if (closing.filePath === null) {
-    await gcScratchAssets(untitledContentsExcept()).catch(() => 0);
-  }
   if (tabs.length === 0) return newUntitled();
   if (activeId === id) await activate(tabs[Math.min(idx, tabs.length - 1)].id);
   changed({ immediate: true });
@@ -226,15 +237,27 @@ export async function cycle(delta: 1 | -1): Promise<void> {
   await activate(tabs[(idx + delta + tabs.length) % tabs.length].id);
 }
 
-/** Marks a tab clean if its text still equals what was written. Sets the path after a first save. */
-export function markSaved(id: string, writtenText: string, newPath?: string): void {
+/** Marks a tab dirty without an edit (its file is gone), so the session keeps its text. */
+export function markDirty(id: string): void {
+  const tab = getTab(id);
+  if (!tab || tab.dirty) return;
+  tab.dirty = true;
+  changed({ immediate: true });
+}
+
+/**
+ * After a write or reload: stores the file's stamp, marks the tab clean if its text still equals
+ * `text`, and sets the path after a first save or Save As.
+ */
+export function markSaved(id: string, written: { text: string; stamp: DiskStamp; path?: string }): void {
   const tab = getTab(id);
   if (!tab) return;
-  if (newPath) {
-    tab.filePath = normPath(newPath);
-    tab.title = basename(newPath);
+  if (written.path) {
+    tab.filePath = normPath(written.path);
+    tab.title = basename(written.path);
     redrawImages(id); // image links now resolve against the new folder
   }
-  if (textOf(tab) === writtenText) tab.dirty = false;
+  tab.disk = written.stamp;
+  if (textOf(tab) === written.text) tab.dirty = false;
   changed();
 }

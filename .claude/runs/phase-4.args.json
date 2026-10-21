@@ -1,0 +1,133 @@
+{
+  "goal": "SnipMD phase 4: saving flows (SPEC §6.1, §6.2, §6.4): autosave, carried text format, external changes and conflicts, the first-save bar with image promotion, Save As with image copy",
+  "root": "/home/user/snipmd",
+  "contract": {
+    "shared": ["src/types.ts", "src/ipc.ts", "src/diskState.ts", "src/infobar.ts", "src/session.ts", "src/tabs.ts", "src/paths.ts", "src/dom.ts", "src-tauri/core/src/lib.rs", "SPEC.md"],
+    "signatures": [
+      { "id": "R3c", "owner": "B1", "signature": "pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> (unchanged signature)", "doc": "snipmd_core::atomic, three fixes from review/phase2-R1.md. D7: when target is a symlink (symlink_metadata), write to the file it points to (fs::canonicalize) so the link stays a link. D8: when the existing target is read-only (metadata().permissions().readonly()), return ErrorKind::PermissionDenied with the message `read-only` and touch nothing. D9: on Windows the temp file is created with FILE_ATTRIBUTE_HIDDEN (std::os::windows::fs::OpenOptionsExt::attributes(0x2), cfg(windows)); give create_unique an OpenOptions-taking variant or parameter for that, snips stay unhidden. Everything else in R3/R3b unchanged." },
+      { "id": "R7", "owner": "B1", "signature": "pub fn move_dir(from: &Path, to: &Path) -> std::io::Result<()>; pub fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()>", "doc": "snipmd_core::assets (assets_dir_for already exists). copy_dir: creates `to` with fs::create_dir when missing (its parent must exist; never create_dir_all), copies every file and subfolder of `from` recursively; each file is created with create_new and streamed with io::copy, so an existing file in `to` is an AlreadyExists error and is never overwritten; `from` is untouched. move_dir: when `to` does not exist, fs::rename; when the rename fails (another drive) or `to` already exists, copy_dir then fs::remove_dir_all(from), removing only after the whole copy succeeded (CLAUDE.md guardrail 3). A missing `from` is NotFound. links.rs: delete the rewrite_prefix stub (links are rewritten in the editor, T12)." },
+      { "id": "R2b", "owner": "B1", "signature": "pub fn valid_note_name(name: &str) -> bool; impl AllowedSet { pub fn allow_note_folder(&mut self, dir: &Path); pub fn may_create_in(&self, dir: &Path) -> bool }", "doc": "snipmd_core::paths. valid_note_name: a plain file name, at most 255 chars, ending in `.md` (case-insensitive) with a non-empty stem; no `/ \\\\ : * ? \" < > |`, no control characters, no trailing dot or space, and a stem that is not a Windows device name (reuse the device check behind valid_tab_id). allow_note_folder: a folder where new notes may be created (normalized like allow_dir, but it does not allow the files inside). may_create_in: true for a folder given to allow_note_folder or the folder of a note given to allow_note; same normalization and case folding as check()." },
+      { "id": "C3", "owner": "B2", "signature": "read_markdown_file(path) -> NoteFile; write_markdown_file(path, content, format: Option<{crlf,bom}>) -> DiskStamp; stat_note(path) -> Option<DiskStamp>; promote_untitled(tab_id, note_path) -> Option<PrefixMove>; copy_assets(from_note, to_note) -> Option<PrefixMove>; default_note_folder() -> String; pick_folder() -> Option<String>; note_name_free(folder, name) -> bool; claim_new_note(folder, name) -> String", "doc": "src-tauri/src/lib.rs, every file-system command #[tauri::command(async)], shapes exactly as src/types.ts and src/ipc.ts (camelCase: NoteFile {text, format:{crlf,bom}, stamp:{mtimeMs,size}}, DiskStamp {mtimeMs,size} from metadata().modified() in ms since the epoch and len(), PrefixMove {from,to}). read: decode as today, plus format and stamp. write: the given format, or (None) sniff/NEW_FILE as today; returns the stamp after the rename. stat_note: check_path, NotFound gives None, other errors Err. promote_untitled: ImageHome-style checks (valid_tab_id, check_path); scratch/<tab_id>/ missing or empty gives None; else assets::move_dir into assets_dir_for(note) and Some({from: \"untitled.assets/\", to: encode_link_path(\"<stem>.assets/\")}). copy_assets: both notes check_path'd; same path or no <from-stem>.assets/ folder gives None; else copy_dir and Some({from: encode(\"<old stem>.assets/\"), to: encode(\"<new stem>.assets/\")}). default_note_folder: app.path().document_dir()/Notes, create_dir_all, allow_note_folder, returned as a string. pick_folder: the dialog plugin's folder picker (same channel pattern as pick), allow_note_folder on the result. note_name_free: valid_note_name and may_create_in(folder) or Err, then whether folder/name does not exist. claim_new_note: the same checks, then OpenOptions create_new of an empty file (AlreadyExists is an error naming the file), allow_note, return the path. load_session: also allow_note_folder(lastFolder) when the session has one; save_session: a lastFolder for which may_create_in is false is set to null (like filePath today). Delete promote_scratch_assets, gc_scratch_assets, resolve_scratchpad_dir, extract_referenced_snips and the regex crate (src-tauri/Cargo.toml), and the gc calls in load_session." },
+      { "id": "T4b", "owner": "main", "signature": "src/ipc.ts readNote, writeNote(path, text, format), statNote, promoteUntitled, copyAssets, defaultNoteFolder, pickFolder, noteNameFree, claimNewNote; src/types.ts TextFormat, DiskStamp, TabState.disk/format, NoteFile, PrefixMove, InfoMessage.body; src/diskState.ts beginWrite/endWrite/isWriting/setConflict/inConflict; src/tabs.ts markSaved(id, {text, stamp, path?}), bindEditListener, getLastFolder, openCopy(title, text, mode)", "doc": "Already written by the main session; read them, do not edit them. TabState.disk and .format are filled by openPath and restore from readNote and persisted in the session." },
+      { "id": "T12", "owner": "B3", "signature": "export function rewriteImagePrefix(tabId: string, move: PrefixMove): number", "doc": "src/editor/links.ts. In the tab's state (visible or not; getState + applyToTab), every Markdown Image whose URL text starts with exactly move.from gets that prefix replaced by move.to; links in code, other links and other prefixes stay. All replacements in one transaction (one undo step, so Ctrl+Z after a first save restores the old links), cursor mapped. Uses ensureSyntaxTree(state, state.doc.length, 1000) so a long note that is not visible is fully parsed. Returns the number of links changed." },
+      { "id": "T13", "owner": "B3", "signature": "export async function saveTab(id: string): Promise<boolean>; export async function saveAs(id: string): Promise<boolean>; export async function flushDirty(): Promise<void>; export function scheduleAutosave(id: string): void", "doc": "src/saving.ts. Disk writes as today (one per tab at a time, merged follow-ups, newest text) plus: writeNote(path, text, tab.format) and markSaved(id, {text, stamp}); beginWrite/endWrite around each write; a tab inConflict is never written (saveTab, autosave, flushDirty skip it). scheduleAutosave: 1 s after the last call for that tab, saveTab when it is a dirty disk tab (bound to bindEditListener in app.ts). First save (saveTab of an untitled tab, and saveAs of one): askFirstSave (T14); a {folder,name} choice gives claimNewNote, 'other' gives pickSavePath, null stops; then promoteUntitled(tab.id, target) and rewriteImagePrefix with its move, then writeNote(target, textOf(tab), null), markSaved with the path, setLastFolder(dirname(target)). On any failure the tab stays untitled with its text and its images in scratch, and one showError names the step. saveAs of a disk tab: pickSavePath(title); same path is a plain save; else copyAssets(old, target), rewriteImagePrefix, writeNote(target, text, tab.format), markSaved with the new path; the original note and folder stay untouched." },
+      { "id": "T14", "owner": "B5", "signature": "export type FirstSaveChoice = { folder: string; name: string } | 'other' | null; export function askFirstSave(tab: TabState, text: string): Promise<FirstSaveChoice>", "doc": "src/firstSaveBar.ts, SPEC §6.2. One keyed top info bar (key `firstsave:<tab id>`, kind info, text `Save as`) whose body holds: a folder button showing the folder's last segment followed by ` ›` (click: pickFolder, keeps the old folder on cancel), a name input prefilled from the first Markdown heading of `text` slugified (lowercase, accents removed via NFD, every run of other characters becomes `-`, trimmed, `.md` added; `# DHCP-probleem lokaal B` gives `dhcp-probleem-lokaal-b.md`), fallback `note-YYYYMMDD.md` (local date), a Save button and an `Other folder…` button. Folder: getLastFolder() or else defaultNoteFolder(). While the name is invalid or taken (noteNameFree false or rejecting, checked after each input, latest answer wins) the input has class `taken` and Save is disabled. Enter in the input saves when allowed; Esc or the bar's dismiss resolves null; Other folder… resolves 'other'. The input gets focus and its stem is selected. Resolving clears the bar. Built with DOM APIs (src/dom.ts button), no innerHTML. CSS for the controls goes into src/styles/main.css." },
+      { "id": "T15", "owner": "B4", "signature": "export function startExternalWatch(): void; export async function checkTabs(): Promise<void>", "doc": "src/external.ts, SPEC §6.1 external changes. checkTabs: for every disk tab with a disk stamp that is not isWriting and not inConflict, statNote in parallel (allSettled; a failing stat is ignored). Same stamp: nothing. Changed and the tab clean: readNote, replace only the changed middle of the document (common prefix and suffix kept, so cursor and scroll stay), then markSaved(id, {text, stamp}); the tab's format becomes the read one. Changed and the tab dirty: setConflict(id, true) and a keyed warning bar (key `external:<tab id>`) `<title> was changed outside SnipMD and you have changes too.` with Open disk version (readNote, then openCopy(`<title> (disk)`, text, 'read'); the bar stays), Reload (replace as for a clean tab, setConflict false) and Keep mine (tab.disk = the new stamp, setConflict false, saveTab). Gone (statNote null): the tab turns dirty if it was clean, setConflict(id, true), keyed warning bar `<title> is no longer on disk.` with Save again (setConflict false, saveTab). startExternalWatch: checkTabs on window focus and every 2 s while document.hasFocus(); the interval stops on blur. Never rejects." }
+    ]
+  },
+  "phases": [
+    {
+      "title": "Build core, external changes and first-save bar",
+      "units": [
+        {
+          "id": "B1",
+          "agentType": "thin-builder",
+          "task": "Implement R3c, R7 and R2b in snipmd-core exactly as the contract documents them: atomic.rs (D7 symlink, D8 read-only, D9 hidden temp on Windows), assets.rs (move_dir, copy_dir; assets_dir_for stays), paths.rs (valid_note_name, AllowedSet::allow_note_folder and may_create_in), links.rs (delete rewrite_prefix). Do not edit core/src/lib.rs. Tests: core/tests/atomic.rs (extend; unix-only cases under cfg(unix)): writing through a symlink keeps the symlink and changes the real file; a read-only target errs with PermissionDenied and keeps its bytes; existing cases stay green. core/tests/assets.rs (extend): copy_dir copies nested files, leaves `from` intact, and errs without changing an existing file of the same name in `to`; copy_dir into a folder whose parent is missing errs and creates nothing; move_dir to a new folder moves everything; move_dir into an existing folder merges and removes `from` only when every file copied; move_dir of a missing `from` is NotFound. core/tests/paths.rs (extend): valid_note_name accepts `a.md`, `Labo 04.MD`, `é.md` and refuses `.md`, `a.txt`, `a/b.md`, `a:b.md`, `con.md`, `a .md`, `a.md.` and 256 chars; may_create_in is true for a folder of an allowed note and an allowed note folder, false for a sibling folder, a subfolder of a note folder and `C:/notes-other` next to `C:/notes`.",
+          "output": "atomic.rs, assets.rs, paths.rs, links.rs changed; tests extended; checks passing.",
+          "owns": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/assets.rs", "src-tauri/core/src/paths.rs", "src-tauri/core/src/links.rs", "src-tauri/core/tests/atomic.rs", "src-tauri/core/tests/assets.rs", "src-tauri/core/tests/paths.rs", "src-tauri/core/tests/links.rs"],
+          "reads": ["src-tauri/core/src/lib.rs", "src-tauri/core/src/naming.rs", "src-tauri/core/Cargo.toml", "review/phase2-R1.md", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3c", "R7", "R2b"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "folders move and copy without overwriting and remove the source only after a full copy; symlinks and read-only notes are respected; new note names and folders are checked" }
+          ],
+          "limits": "no new crates; no unsafe; assets.rs under 80 lines; atomic.rs under 90 lines"
+        },
+        {
+          "id": "B4",
+          "agentType": "thin-builder",
+          "task": "External changes (SPEC §6.1) in a new src/external.ts: T15 exactly as the contract says, using statNote and readNote (src/ipc.ts), getTabs, getTab, markSaved, openCopy, textOf (src/tabs.ts), getState and applyToTab (src/editor/registry.ts), isWriting, inConflict, setConflict (src/diskState.ts), saveTab (src/saving.ts), showInfo and clearInfo (src/infobar.ts). Clear the bar (clearInfo) when the conflict is resolved and when a later check finds the stamps equal again. Tests in src/external.test.ts (jsdom; vi.mock './ipc', './tabs', './saving', './infobar', './editor/registry'; fake timers for the watch): same stamp does nothing; a changed clean tab is reloaded with only the middle replaced and marked saved; a changed dirty tab sets the conflict, shows one keyed bar with the three actions, and a second check while in conflict does nothing; Reload, Keep mine and Open disk version do what the contract says; a tab being written is skipped; a missing file sets the conflict and offers Save again; startExternalWatch checks on focus and every 2 s while focused, and stops on blur; one failing stat does not stop the other tabs.",
+          "output": "src/external.ts; src/external.test.ts; checks passing.",
+          "owns": ["src/external.ts", "src/external.test.ts"],
+          "reads": ["src/ipc.ts", "src/types.ts", "src/tabs.ts", "src/saving.ts", "src/diskState.ts", "src/infobar.ts", "src/editor/registry.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T4b", "T15"],
+          "checks": [
+            { "cmd": "npx vitest run src/external", "expect_exit": 0, "proves": "outside changes reload clean tabs in place and put dirty ones in conflict with the three choices; own writes never count as outside changes" }
+          ],
+          "limits": "do not edit src/types.ts, src/ipc.ts, src/tabs.ts, src/saving.ts, src/diskState.ts or src/infobar.ts; external.ts under 130 lines"
+        },
+        {
+          "id": "B5",
+          "agentType": "thin-builder",
+          "task": "The first-save bar (SPEC §6.2) in a new src/firstSaveBar.ts: T14 exactly as the contract says, using showInfo with a body and clearInfo (src/infobar.ts), button (src/dom.ts), getLastFolder (src/tabs.ts), defaultNoteFolder, pickFolder and noteNameFree (src/ipc.ts), basename (src/paths.ts). Add the styles for the folder button, the name input and its `taken` state to src/styles/main.css, using the existing CSS variables. Tests in src/firstSaveBar.test.ts (jsdom; real infobar mounted on two divs; vi.mock './ipc' and './tabs'): the name comes from the first heading (`# DHCP-probleem lokaal B` gives `dhcp-probleem-lokaal-b.md`; `# Café ölçü` gives `cafe-olcu.md`) and falls back to note-YYYYMMDD.md (fake date); the folder is the last folder, else defaultNoteFolder; a taken name marks the input and disables Save, and an older noteNameFree answer arriving late does not override a newer one; Enter resolves {folder, name}; Esc and the dismiss button resolve null; Other folder… resolves 'other'; picking a folder updates the button and re-checks the name; the bar is gone after resolving.",
+          "output": "src/firstSaveBar.ts; src/firstSaveBar.test.ts; CSS added; checks passing.",
+          "owns": ["src/firstSaveBar.ts", "src/firstSaveBar.test.ts", "src/styles/main.css"],
+          "reads": ["src/infobar.ts", "src/dom.ts", "src/ipc.ts", "src/types.ts", "src/tabs.ts", "src/paths.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T4b", "T14"],
+          "checks": [
+            { "cmd": "npx vitest run src/firstSaveBar", "expect_exit": 0, "proves": "the first-save bar proposes the right name and folder, never offers a taken name, and resolves on Enter, Esc and Other folder" }
+          ],
+          "limits": "do not edit src/infobar.ts, src/types.ts, src/ipc.ts or src/tabs.ts; firstSaveBar.ts under 130 lines; no innerHTML"
+        }
+      ]
+    },
+    {
+      "title": "Build Tauri and saving",
+      "units": [
+        {
+          "id": "B2",
+          "agentType": "thin-builder",
+          "task": "Implement C3 in src-tauri/src/lib.rs exactly as the contract documents it, on R3c, R7 and R2b from snipmd-core (built by B1) and the existing ImageHome, check_path, allow_note, displayable and pick helpers. Register the new commands in generate_handler and remove the deleted ones. Remove the regex dependency from src-tauri/Cargo.toml. Keep every other command, the allowed-set checks and the navigation guard unchanged; error strings name files with note_name.",
+          "output": "lib.rs and Cargo.toml changed; checks passing.",
+          "owns": ["src-tauri/src/lib.rs", "src-tauri/Cargo.toml"],
+          "reads": ["src-tauri/core/src/atomic.rs", "src-tauri/core/src/assets.rs", "src-tauri/core/src/paths.rs", "src-tauri/core/src/links.rs", "src-tauri/core/src/text.rs", "src-tauri/core/src/lib.rs", "src/ipc.ts", "src/types.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["R3c", "R7", "R2b", "C3"],
+          "inputs_from": ["B1"],
+          "checks": [
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles against the phase 4 core (GTK libraries are installed in this session)" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core still green" }
+          ],
+          "limits": "lib.rs under 640 lines; no new crates; no create_dir_all except the app data, scratch and Documents\\Notes folders; no fs::copy (it overwrites)"
+        },
+        {
+          "id": "B3",
+          "agentType": "thin-builder",
+          "task": "Saving flows: (1) src/editor/links.ts: T12. (2) src/saving.ts: T13 exactly as the contract says, keeping the per-tab write chain, merged follow-ups and keyed save errors of today. (3) src/app.ts: bindEditListener(scheduleAutosave); Ctrl+Shift+S calls saveAs for the active tab (the other Ctrl+Shift keys stay unhandled, phase 5); after the session restore and the CLI files, await checkTabs() (src/external.ts, built by B4) and then startExternalWatch(); change nothing else. Tests: src/editor/links.test.ts (jsdom; real states from createEditorState in './setup', real registry): only links starting with the exact prefix change, `untitled.assets-old/` and a link in a code block stay, several links on one line all change, one undo restores all of them, a non-visible tab is rewritten. src/saving.test.ts (extend; keep the existing tests): autosave writes 1 s after the last edit and not before, and not for untitled or clean tabs; a tab in conflict is not written by saveTab, autosave or flushDirty; writeNote gets the tab's format and markSaved the returned stamp; first save with a {folder,name} choice claims the note, promotes, rewrites with the returned move, writes, and sets the path and last folder in that order; 'other' uses pickSavePath; null writes nothing; a failing promote leaves the tab untitled and shows one error; saveAs of a disk tab copies assets, rewrites, writes the new path with the old format and never writes the old path.",
+          "output": "links.ts, saving.ts and app.ts changed; links.test.ts; saving.test.ts extended; checks passing.",
+          "owns": ["src/editor/links.ts", "src/editor/links.test.ts", "src/saving.ts", "src/saving.test.ts", "src/app.ts"],
+          "reads": ["src/ipc.ts", "src/types.ts", "src/tabs.ts", "src/session.ts", "src/diskState.ts", "src/infobar.ts", "src/paths.ts", "src/firstSaveBar.ts", "src/external.ts", "src/editor/registry.ts", "src/editor/setup.ts", "SPEC.md", "CLAUDE.md"],
+          "seams": ["T4b", "T12", "T13", "T14", "T15"],
+          "inputs_from": ["B4", "B5"],
+          "checks": [
+            { "cmd": "npx vitest run src/saving src/editor/links", "expect_exit": 0, "proves": "autosave after 1 s, conflicts pause writes, first save moves images and rewrites links in one undo step, Save As copies and leaves the original" },
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check across the whole frontend" }
+          ],
+          "limits": "do not edit src/types.ts, src/ipc.ts, src/tabs.ts, src/session.ts, src/diskState.ts, src/external.ts or src/firstSaveBar.ts; saving.ts under 170 lines; links.ts under 50 lines"
+        }
+      ]
+    },
+    {
+      "title": "Verify",
+      "units": [
+        {
+          "id": "V1",
+          "agentType": "thin-verifier",
+          "task": "Run the whole-project checks for phase 4 from the project root and record the results: npm run lint; npm test; npm run build; cd src-tauri && cargo test -p snipmd-core; cd src-tauri && cargo check. Also confirm by reading the code: no promote_scratch_assets, gc_scratch_assets, scratchpad or regex remains in src-tauri/; no fs::copy is used for user files; write_markdown_file takes the format; every new command is #[tauri::command(async)] and checks its paths (check_path, may_create_in, valid_note_name, valid_tab_id); saving.ts never writes a tab in conflict; the first-save rewrite and the Save As rewrite go through rewriteImagePrefix in one transaction; nothing deletes a user's note or image folder.",
+          "output": "findings/phase4-V1.md with each command, its exit code and the confirmations.",
+          "owns": ["findings/phase4-V1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4", "B5"],
+          "checks": [
+            { "cmd": "npm run lint", "expect_exit": 0, "proves": "types check" },
+            { "cmd": "npm test", "expect_exit": 0, "proves": "frontend tests pass" },
+            { "cmd": "npm run build", "expect_exit": 0, "proves": "the frontend builds" },
+            { "cmd": "cd src-tauri && cargo test -p snipmd-core", "expect_exit": 0, "proves": "core tests pass" },
+            { "cmd": "cd src-tauri && cargo check", "expect_exit": 0, "proves": "the Tauri crate compiles" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Review",
+      "units": [
+        {
+          "id": "R1",
+          "agentType": "thin-review",
+          "task": "Adversarial review of the phase 4 diff (git diff main) against SPEC.md §6.1, §6.2, §6.4 and §8 and the CLAUDE.md guardrails 1-9, 12 and 13 and the code conventions. Hunt for: any path that loses text or images (first save failing halfway, promote failing, Save As failing, a conflict resolved wrongly, a reload over unsaved edits); an overwrite of an existing note or image (claim race, copy_dir, move_dir merge, Save As onto the original's folder); a deletion of anything next to a user's note; the source folder removed before the copy finished; an own write seen as an outside change, or an outside change missed while a write runs; autosave writing a tab in conflict; a format change (CRLF, BOM) on save; links rewritten that do not start with the exact prefix, or not undoable in one step; a Rust command that creates or reads a path outside the allowed set or the may_create_in folders (lastFolder from a tampered session, a name with separators or a device name); the first-save bar built with innerHTML or offering a taken name; anything that breaks phase 0-3 behaviour (paste, drop, session restore, close flush, the allowed-set checks).",
+          "output": "review/phase4-R1.md; defects with severity, location, statement and evidence.",
+          "owns": ["review/phase4-R1.md"],
+          "inputs_from": ["B1", "B2", "B3", "B4", "B5", "V1"],
+          "checks": []
+        }
+      ]
+    }
+  ]
+}

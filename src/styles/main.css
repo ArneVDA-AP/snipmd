@@ -98,3 +98,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .read-view pre { padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
 .read-view pre code { color: inherit; }
 .read-view blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--line); color: var(--text-dim); }
+.firstsave-body { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.infobar .firstsave-folder { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.firstsave-name { min-width: 200px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
+.firstsave-name:focus { outline: none; border-color: var(--accent); }
+.firstsave-name.taken { border-color: #c0392b; color: #c0392b; }
+.infobar button:disabled { opacity: 0.5; cursor: default; }

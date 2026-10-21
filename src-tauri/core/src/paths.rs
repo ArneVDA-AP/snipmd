@@ -109,11 +109,33 @@ pub fn valid_tab_id(id: &str) -> bool {
         && !windows_device(id)
 }
 
-/// CON, NUL, COM1 and the like name a device, not a folder, on Windows.
-fn windows_device(id: &str) -> bool {
-    let u = id.to_ascii_uppercase();
-    matches!(u.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || ((u.starts_with("COM") || u.starts_with("LPT")) && u.len() == 4 && u.as_bytes()[3].is_ascii_digit())
+/// R2b. A plain `.md` file name for a new note.
+pub fn valid_note_name(name: &str) -> bool {
+    if name.chars().count() > 255 || name.ends_with('.') || name.ends_with(' ') {
+        return false;
+    }
+    if name.chars().any(|c| c.is_control() || "/\\:*?\"<>|".contains(c)) {
+        return false;
+    }
+    let n = name.len();
+    if n < 4 || !name.is_char_boundary(n - 3) || !name[n - 3..].eq_ignore_ascii_case(".md") {
+        return false;
+    }
+    let stem = &name[..n - 3];
+    !stem.ends_with(['.', ' ']) && !windows_device(stem)
+}
+
+/// CON, NUL, COM1 and the like name a device on Windows, also with an extension (`con.txt`) and
+/// trailing spaces before it; COM/LPT also take the superscript digits ¹ ² ³.
+fn windows_device(name: &str) -> bool {
+    let base = name.split('.').next().unwrap_or("").trim_end().to_uppercase();
+    if matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$") {
+        return true;
+    }
+    let mut chars = base.chars();
+    let head: String = chars.by_ref().take(3).collect();
+    let (digit, rest) = (chars.next(), chars.next());
+    (head == "COM" || head == "LPT") && rest.is_none() && digit.is_some_and(|d| ('1'..='9').contains(&d) || "¹²³".contains(d))
 }
 
 /// Lexically normalizes an absolute path to a string with `/` separators.
@@ -157,6 +179,8 @@ fn dir_key(n: &str) -> String {
 pub struct AllowedSet {
     files: HashSet<String>,
     dirs: HashSet<String>,
+    /// Folders where new notes may be created (not their contents).
+    note_dirs: HashSet<String>,
 }
 
 impl AllowedSet {
@@ -191,6 +215,21 @@ impl AllowedSet {
         if let Some(n) = normalize(dir) {
             self.dirs.insert(dir_key(&n));
         }
+    }
+
+    /// Allows creating new notes in this folder; the files inside stay unallowed.
+    pub fn allow_note_folder(&mut self, dir: &Path) {
+        if let Some(n) = normalize(dir) {
+            self.note_dirs.insert(dir_key(&n));
+        }
+    }
+
+    /// True for a folder given to `allow_note_folder` or the folder of an allowed note.
+    pub fn may_create_in(&self, dir: &Path) -> bool {
+        let Some(n) = normalize(dir) else { return false };
+        let k = dir_key(&n);
+        self.note_dirs.contains(&k)
+            || self.files.iter().any(|f| f.rsplit_once('/').is_some_and(|(p, _)| dir_key(p) == k))
     }
 
     /// Returns the normalized path when it is allowed.

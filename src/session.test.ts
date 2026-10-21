@@ -12,8 +12,9 @@ describe('parseSession', () => {
       untitledCounter: 4,
       lastFolder: 'C:/Users/x/Documents/Notes',
       tabs: [
-        { id: 'a', title: 'a.md', filePath: 'C:/n/a.md', content: '# a', dirty: false, mode: 'edit', cursor: 2, scrollTop: 10 },
-        { id: 'b', title: 'Untitled-3', filePath: null, content: 'x', dirty: true, mode: 'read', cursor: 0, scrollTop: 0 }
+        { id: 'a', title: 'a.md', filePath: 'C:/n/a.md', content: '# a', dirty: false, mode: 'edit', cursor: 2, scrollTop: 10,
+          disk: { mtimeMs: 1700000000000, size: 3 }, format: { crlf: true, bom: false } },
+        { id: 'b', title: 'Untitled-3', filePath: null, content: 'x', dirty: true, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null }
       ],
       closedTabs: []
     };

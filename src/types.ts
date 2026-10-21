@@ -2,6 +2,18 @@
 
 export type TabMode = 'edit' | 'read';
 
+/** Line endings and BOM of a note as found on disk (SPEC §6.1). */
+export interface TextFormat {
+  crlf: boolean;
+  bom: boolean;
+}
+
+/** What SnipMD last knew of a note's file; a different stamp means it changed outside SnipMD. */
+export interface DiskStamp {
+  mtimeMs: number;
+  size: number;
+}
+
 /** Serializable state of one tab. The CodeMirror EditorState lives in editor/registry.ts. */
 export interface TabState {
   id: string;
@@ -13,6 +25,10 @@ export interface TabState {
   mode: TabMode;
   cursor: number;
   scrollTop: number;
+  /** Stamp of the file after the last read or write; null for untitled tabs and unknown ones. */
+  disk: DiskStamp | null;
+  /** Format the note was read with, sent back on write; null lets Rust read it from the file. */
+  format: TextFormat | null;
 }
 
 export interface ClosedTab {
@@ -36,6 +52,8 @@ export interface InfoAction {
   label: string;
   run: () => void;
   primary?: boolean;
+  /** The bar stays after this action (e.g. "Open disk version": the choice is still open). */
+  keepOpen?: boolean;
 }
 
 /** A message in the info bar (SPEC §4). The only way the app shows messages or choices. */
@@ -48,6 +66,12 @@ export interface InfoMessage {
   position?: 'top' | 'bottom';
   /** A keyed message stays until it is dismissed or cleared with clearInfo(key); showing the key again updates it in place. */
   key?: string;
+  /** No dismiss button: the bar stays until its choice is made (conflicts). */
+  sticky?: boolean;
+  /** Controls of the feature that shows the bar (first-save form), placed after the text. Built with DOM APIs, never innerHTML. */
+  body?: HTMLElement;
+  /** Called once when the bar goes, however it goes: dismissed, an action, replaced, cleared or reset. */
+  onClose?: () => void;
 }
 
 export interface SavedImage {
@@ -66,4 +90,15 @@ export interface DroppedFiles {
 
 export interface NoteFile {
   text: string;
+  format: TextFormat;
+  stamp: DiskStamp;
+}
+
+/** A note write either happened, or was refused because the file changed outside SnipMD (null: it is gone). */
+export type WriteOutcome = { written: DiskStamp } | { changed: DiskStamp | null };
+
+/** Images moved or copied to another folder: links that start exactly with `from` now start with `to` (both as written in Markdown, percent-encoded). */
+export interface PrefixMove {
+  from: string;
+  to: string;
 }
