@@ -201,7 +201,8 @@ Every item runs the same command as its key. `Cmd+W` closes the tab, never the w
 **Opening files.** Double-click in Finder, Open With, a drop on the Dock icon, a drop on the window, `open -a SnipMD <path>` and `Cmd+O`. macOS keeps one instance and hands a running app the files. Closing the window quits the app: SnipMD has one window, and the session restores it.
 
 **Distribution.**
-- A `.dmg` with a signed and notarized app, so Gatekeeper opens it without a warning.
+- One universal app (Apple Silicon and Intel) in a `.dmg`, for macOS 13 Ventura or later.
+- Signed and notarized, so Gatekeeper opens it without a warning. Until there is a Developer ID, builds are ad-hoc signed for testers, who clear the quarantine flag by hand.
 - The §9 budgets apply, measured on an ordinary Apple Silicon Mac.
 
 ## 14. Decisions log

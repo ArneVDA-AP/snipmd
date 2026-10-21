@@ -184,10 +184,10 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 
 These need one session on a real Mac before the first macOS release.
 
-**Open for the owner:**
-- An Apple Developer account (99 USD a year) for signing and notarization; without it Gatekeeper calls the downloaded app damaged.
-- The oldest macOS to support, and whether Intel Macs are in.
-- Whether a Mac is available for the final test.
+**Settled with the owner (2026-10-21):**
+- No Apple Developer account yet. Builds are ad-hoc signed; the tester clears quarantine with `xattr -dr com.apple.quarantine /Applications/SnipMD.app`, or uses Open Anyway in System Settings › Privacy & Security. Signing and notarization stay in 7d, behind secrets, for when the account exists.
+- Universal binary (Apple Silicon and Intel), macOS 13 Ventura or later.
+- A tester with a Mac does the final check; 7d writes their test list in `RELEASE-MACOS.md`.
 
 ## Run log
 One row per phase, filled when its PR merges. "Later" counts defects found after the merge (Windows test, a later phase); it is the quality measure and is updated when one turns up.
@@ -241,6 +241,7 @@ Autonomous runs add one line per decision: date, what, why.
 - 2026-10-21. A manual workflow (`windows-run.yml`) measures the budgets and screenshots the real window on a Windows runner. It found the two defects above within one run; its numbers are a reference, the owner's machine stays the judge.
 - 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
 - 2026-10-21. macOS comes after v1.0.0, as SPEC §13; Linux stays out. Why: most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop that the Windows release depends on. The window keeps the native macOS buttons instead of drawing its own, and the bar stays opaque: vibrancy needs `macOSPrivateApi`. Closing the window quits the app: there is only one window. New notes use LF on macOS.
+- 2026-10-21. macOS 13 Ventura or later, universal binary. Why: the owner wants Intel in; Ventura still runs on 2017 Intel Macs and its WebKit has everything the frontend uses (`crypto.randomUUID` needs Safari 15.4). Older versions add test surface for few users. No Apple Developer account yet, so builds are ad-hoc signed and the tester clears quarantine by hand.
 - 2026-10-21. Found while planning macOS: Tauri's `app_data_dir` is named after the identifier (`com.snipmd.desktop`), not `snip-md` as SPEC §6.3, §6.5 and §7 and the comment on `app_data` in `lib.rs` say. Behavior is correct; the names need to agree. Settle it before v1.0.0, because a later rename means moving users' sessions.
 
 ## Handoff
