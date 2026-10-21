@@ -184,7 +184,7 @@ export function scheduleAutosave(id: string): void {
     setTimeout(() => {
       timers.delete(id);
       const tab = findTab(id); // also a closed tab: a link rewrite after its first save is written
-      // markSaved's tab-list change schedules the debounced session write; no immediate one per pause.
+      // markSaved writes the session at once (SPEC §7: right after a save).
       if (tab?.filePath && tab.dirty && !inConflict(id)) void writeTab(tab);
     }, AUTOSAVE_MS)
   );

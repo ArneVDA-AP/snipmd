@@ -20,16 +20,20 @@ export async function handleDrop(d: DroppedFiles): Promise<void> {
     // mode the hidden view still holds another note.
     const tabId = d.images.length > 0 ? (getActiveTab()?.id ?? null) : null;
     const at = tabId ? dropPosition(tabId, d) : undefined;
-    if (d.notes.length > 0) await openPaths(d.notes);
-    if (!tabId) return;
-
-    const notePath = filePathFor(tabId);
+    if (!tabId) {
+      if (d.notes.length > 0) await openPaths(d.notes);
+      return;
+    }
+    // Tracked from the start, so a close while notes are still opening waits for the images too.
     const results = await trackImageSave(
       tabId,
-      Promise.allSettled(d.images.map((src) => importImage(tabId, notePath, src))).then((r) => {
+      (async () => {
+        if (d.notes.length > 0) await openPaths(d.notes);
+        const notePath = filePathFor(tabId);
+        const r = await Promise.allSettled(d.images.map((src) => importImage(tabId, notePath, src)));
         placeImages(tabId, r.flatMap((x) => (x.status === 'fulfilled' ? [x.value] : [])), at);
         return r;
-      })
+      })()
     );
     // A tab in read mode shows its new images at once.
     if (getTab(tabId)?.mode === 'read' && getActiveTab()?.id === tabId) await activate(tabId);

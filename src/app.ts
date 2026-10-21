@@ -51,6 +51,11 @@ async function findInRead(replace: boolean): Promise<void> {
   if (view) requestAnimationFrame(() => openFind(view, replace));
 }
 
+function findInEdit(replace: boolean): void {
+  const view = getView();
+  if (view) openFind(view, replace);
+}
+
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
@@ -69,7 +74,10 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 's': return onActive(saveTab);
     case 'w': return onActive(closeTabWithRestore);
     case 'e': return toggleMode;
-    case 'f': case 'h': return getActiveTab()?.mode === 'read' ? () => findInRead(key === 'h') : undefined;
+    case 'f': case 'h':
+      if (getActiveTab()?.mode === 'read') return () => findInRead(key === 'h');
+      // Outside the note (tab strip, a bar) CodeMirror does not see the key; open its panel here.
+      return document.activeElement?.closest('.cm-editor') ? undefined : () => findInEdit(key === 'h');
   }
   return undefined;
 }

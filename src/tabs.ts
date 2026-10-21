@@ -4,6 +4,7 @@
 import { EditorView } from '@codemirror/view';
 import type { ClosedTab, DiskStamp, SessionFile, TabState } from './types';
 import { createEditorState } from './editor/setup';
+import type { EditorState } from '@codemirror/state';
 import { redrawImages } from './editor/imageWidget';
 import {
   bindChangeListener,
@@ -168,12 +169,21 @@ export async function restore(s: SessionFile): Promise<void> {
   await activate(s.activeTabId);
 }
 
-function mountEditor(tab: TabState): void {
+/**
+ * A tab's EditorState, created from its content on first use. Every shown tab has one, also in read
+ * mode, so a drop, a reload or a link rewrite always has a document to land in.
+ */
+function ensureState(tab: TabState): EditorState {
   let state = getState(tab.id);
   if (!state) {
     state = createEditorState(tab.id, tab.content);
     setState(tab.id, state);
   }
+  return state;
+}
+
+function mountEditor(tab: TabState): void {
+  const state = ensureState(tab);
   let view = getView();
   if (!view) {
     view = new EditorView({ state, parent: panes.editor });
@@ -206,6 +216,7 @@ export async function activate(id: string): Promise<void> {
   captureVisible();
   const tab = getTab(id) ?? tabs[0];
   activeId = tab.id;
+  ensureState(tab);
   panes.editor.hidden = tab.mode !== 'edit';
   panes.read.hidden = tab.mode !== 'read';
   changed();

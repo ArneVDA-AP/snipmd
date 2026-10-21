@@ -51,7 +51,7 @@ describe('snapshot', () => {
 describe('restore', () => {
   it('takes the text of a clean disk tab from readNote, not from the session', async () => {
     vi.mocked(readNote).mockResolvedValue(note('fresh'));
-    await restore(session([tab({ id: 'c', filePath: 'C:/n/c.md', content: 'stale' })]));
+    await restore(session([tab({ id: 'fresh-c', filePath: 'C:/n/c.md', content: 'stale' })]));
     expect(textOf(getTabs()[0])).toBe('fresh');
   });
 
@@ -105,9 +105,15 @@ describe('closeTab', () => {
     expect(snapshot().closedTabs.find((c) => c.tab.id === 'e')?.tab.content).toBe('![snip](untitled.assets/a.png)\n');
   });
 
+  it('a tab restored in read mode has a document, so a drop or reload lands in it', async () => {
+    await restore(session([tab({ id: 'read-r', mode: 'read', content: 'text' })]));
+    expect(applyToTab('read-r', { changes: { from: 4, insert: '\n![snip](x.png)' } })).toBe(true);
+    expect(textOf(getTabs()[0])).toBe('text\n![snip](x.png)');
+  });
+
   it('drops an empty untitled tab with nothing saving', async () => {
-    await restore(session([tab({ id: 'g', mode: 'edit' }), tab({ id: 'h', mode: 'edit', content: 'x' })]));
-    expect(await closeTab('g')).toBeUndefined();
+    await restore(session([tab({ id: 'empty-g', mode: 'edit' }), tab({ id: 'empty-h', mode: 'edit', content: 'x' })]));
+    expect(await closeTab('empty-g')).toBeUndefined();
   });
 });
 
