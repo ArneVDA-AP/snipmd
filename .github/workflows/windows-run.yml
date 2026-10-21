@@ -1,0 +1,62 @@
+name: Windows run
+
+# Manual: builds the release app on a Windows runner, measures the SPEC §9 budgets with
+# tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and pushes
+# the results to the branch ci/windows-run-<run number>. A runner is not the owner's laptop: the
+# numbers are a reference, the owner's machine is the judge.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build
+        run: |
+          npm ci
+          npx tauri build --bundles nsis
+
+      - name: Windows version
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path findings/windows-ci | Out-Null
+          $v = [Environment]::OSVersion.Version
+          "Runner: $((Get-CimInstance Win32_OperatingSystem).Caption) build $($v.Build), $((Get-CimInstance Win32_Processor | Select-Object -First 1).Name), $([Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)) GB" | Tee-Object findings/windows-ci/runner.txt
+
+      - name: Measure budgets
+        continue-on-error: true
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File tools/measure/measure.ps1 -Exe src-tauri/target/release/snip-md.exe -Runs 5 -Pastes 3 2>&1 | Tee-Object findings/windows-ci/measure.txt
+
+      - name: Screenshots
+        continue-on-error: true
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out findings/ui/windows-ci 2>&1 | Tee-Object findings/windows-ci/shots.txt
+
+      - name: Push results
+        shell: bash
+        run: |
+          git config user.name ArneVDA-AP
+          git config user.email arnevandenabbeele@hotmail.com
+          git checkout -b "ci/windows-run-${{ github.run_number }}"
+          git add findings/windows-ci findings/ui/windows-ci || true
+          git commit -m "Windows run ${{ github.run_number }}: budgets and screenshots from a CI runner" -m "Co-Authored-By: Claude" || exit 0
+          git push origin "ci/windows-run-${{ github.run_number }}"
