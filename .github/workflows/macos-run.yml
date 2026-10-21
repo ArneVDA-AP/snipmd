@@ -41,13 +41,14 @@ jobs:
           du -sh src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
 
       - name: Probe
-        continue-on-error: true
+        shell: bash # pipefail: a broken harness fails the job through tee
         run: |
           mkdir -p findings/macos-ci
           app=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
           tools/measure/macos-probe.sh "$app" findings/ui/macos-ci 2>&1 | tee findings/macos-ci/probe.txt
 
       - name: Push results
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

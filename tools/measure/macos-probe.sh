@@ -3,14 +3,18 @@
 # build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED - <detail>" and the
 # script always finishes, so one blocked permission never hides the other answers.
 # Every launch uses its own data folder (SNIPMD_DATA_DIR); screenshots go to <out>.
+# Exits 1 only when the harness itself is broken (no app, the app does not start); a probe that
+# finds a known gap still exits 0.
 #
 #   tools/measure/macos-probe.sh <path to SnipMD.app> <out folder>
 set -u
-APP="$1"
-OUT="$2"
-mkdir -p "$OUT"
-BIN="$APP/Contents/MacOS/$(defaults read "$APP/Contents/Info.plist" CFBundleExecutable)"
-ID="$(defaults read "$APP/Contents/Info.plist" CFBundleIdentifier)"
+APP="$(cd "$1" && pwd)" || { echo "No app at $1"; exit 1; }
+mkdir -p "$2"
+OUT="$(cd "$2" && pwd)"
+plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Contents/Info.plist"; }
+BIN="$APP/Contents/MacOS/$(plist CFBundleExecutable)"
+ID="$(plist CFBundleIdentifier)"
+[ -x "$BIN" ] || { echo "No executable at $BIN"; exit 1; }
 WORK="$(mktemp -d)"
 PID=""
 
@@ -33,7 +37,9 @@ start() {
 }
 
 # Asks the app to quit the way Cmd+Q does (a quit Apple Event) and waits up to 10 s.
+# Returns 2 when the app was not running, 1 when it had to be killed.
 quit_app() {
+  kill -0 "$PID" 2>/dev/null || return 2
   osascript -e "tell application id \"$ID\" to quit" >/dev/null 2>&1
   for _ in $(seq 1 20); do
     kill -0 "$PID" 2>/dev/null || return 0
@@ -72,8 +78,14 @@ if kill -0 "$PID" 2>/dev/null; then
   report launch PASS "running, screenshot $(shot 01-launch)"
 else
   report launch FAIL "process ended; log: $(tail -5 "$WORK/launch.log" | tr '\n' ' ')"
+  exit 1
 fi
-quit_app && report quit-event PASS "quit Apple Event ended the app" || report quit-event FAIL "still running after 10 s, killed"
+quit_app
+case $? in
+  0) report quit-event PASS "quit Apple Event ended the app" ;;
+  1) report quit-event FAIL "still running after 10 s, killed" ;;
+  *) report quit-event FAIL "the app had already ended" ;;
+esac
 
 echo "== Open from Finder (LaunchServices Apple Event, as a double-click)"
 start open
