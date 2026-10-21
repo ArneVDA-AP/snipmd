@@ -1,0 +1,269 @@
+{
+ "goal": "SnipMD phase 5: tabs and recovery (SPEC §6.5, §7, §10, §11): startup scratch cleanup (R8), the closed-tabs bar and Ctrl+Shift+T, the keyboard table",
+ "root": "/home/user/snipmd",
+ "contract": {
+  "shared": [
+   "src/types.ts",
+   "src/ipc.ts",
+   "src/diskState.ts",
+   "src/infobar.ts",
+   "src/session.ts",
+   "src/tabs.ts",
+   "src/saving.ts",
+   "src/external.ts",
+   "src/paths.ts",
+   "src/dom.ts",
+   "src-tauri/core/src/lib.rs",
+   "SPEC.md"
+  ],
+  "signatures": [
+   {
+    "id": "R8",
+    "owner": "B1",
+    "signature": "pub const SCRATCH_GRACE: Duration; pub fn scan_scratch(scratch: &Path) -> std::io::Result<Vec<ScratchEntry>>; pub fn select_for_cleanup(entries: &[ScratchEntry], live: &HashMap<String, Option<String>>, now: SystemTime, grace: Duration) -> Vec<PathBuf>; pub fn clean_scratch(scratch: &Path, live: &HashMap<String, Option<String>>, now: SystemTime, grace: Duration) -> usize",
+    "doc": "snipmd_core::cleanup (ScratchEntry stays in core lib.rs as it is). SCRATCH_GRACE = 14 days. `live` maps the id of every tab in the session (open and closed) to its text when known, None when not (a disk tab: its text is not in the session). scan_scratch: one entry per folder directly in `scratch` whose name passes paths::valid_tab_id (is_dir true, tab_id = its name), and one per item directly inside such a folder (is_dir false, same tab_id); modified from metadata; loose files at the scratch root, other folder names and deeper levels are not listed; an entry whose metadata fails is left out; a missing `scratch` gives Ok(empty). select_for_cleanup (pure): a tab folder is selected when its tab_id is not in `live` and both the folder and every item inside it are at least `grace` old; its items are then not listed separately. An item in a folder whose tab is live with Some(text) is selected when it is at least `grace` old and neither its file name nor links::encode_link_path(file name) occurs in that text (substring match; conservative). An item of a tab with None, or of a non-live folder that is not selected, is kept. A modified time after `now` counts as young. clean_scratch: scan, select, then remove each selected path (remove_dir_all for a folder, remove_file for an item), only when the path starts_with `scratch`; a failure skips that path; returns how many were removed; a scan error removes nothing and returns 0."
+   },
+   {
+    "id": "C5",
+    "owner": "B2",
+    "signature": "src-tauri/src/lib.rs: startup cleanup inside load_session; no new command",
+    "doc": "After load_session has read and parsed session.json, once per process (a static AtomicBool or std::sync::Once), build `live` from session_tabs (open and closed tabs): a string id maps to Some(content, or \"\" when missing) when filePath is null or missing, to None otherwise; an id seen as None stays None. Then std::thread::spawn a cleanup::clean_scratch(app_data/scratch, live, SystemTime::now(), SCRATCH_GRACE) so startup never waits for it; eprintln the count when it is above 0. No session.json, a read error or JSON that does not parse: no cleanup at all (nothing is known to be unused). Single instance already resolves relative paths against the second launch's cwd (open_args): keep it unchanged."
+   },
+   {
+    "id": "T15",
+    "owner": "main",
+    "signature": "src/tabs.ts closeTab(id): Promise<TabState | undefined>; reopenClosed(id?: string): Promise<TabState | undefined>; markSaved also updates a closed entry; src/infobar.ts clearTabInfo(id)",
+    "doc": "Already written by the main session (commit 9401e13); read them, do not edit them. closeTab puts the tab at the front of the closed-tabs list (20 entries, 14 days) with its latest text and returns it; it does not save, clear bars or show anything. reopenClosed takes an entry off the list (the newest without id), reopens it with the same id (a clean disk tab is read again) and returns it, or activates the open tab for that note and returns undefined. clearTabInfo removes every bar whose key ends in `:<tab id>`."
+   },
+   {
+    "id": "T16",
+    "owner": "B3",
+    "signature": "export async function closeTabWithRestore(id: string): Promise<void>; export async function restoreClosedTab(id?: string): Promise<void>",
+    "doc": "src/closedTabs.ts, the close and restore commands. closeTabWithRestore: no tab, nothing. A dirty disk tab that is not inConflict gets void saveTab(id) BEFORE closeTab (the write holds the tab object and reads the closed text; a write that ends later marks the entry saved through markSaved). A tab in conflict is not written and keeps its conflict flag while closed, so no queued write overwrites the outside change. Then closeTab(id), then clearTabInfo(id) (its first-save bar ends through its own onClose), then the restore bar: showInfo({kind: 'info', key: 'closed', position: 'bottom', timeoutMs: 8000, text, body, actions: [{label: 'Restore', primary: true, run: () => void restoreClosedTab(id)}]}); text is `<title> closed.` or `<title> closed, with N screenshot(s).` (1 screenshot, N screenshots) where N is the number of distinct relative image URLs in the closed text (Markdown `![alt](url)`, url without a scheme and not starting with `/`); body is a <kbd> with textContent `Ctrl+Shift+T`, built with DOM APIs. A newer close replaces the bar (same key). restoreClosedTab: tab = await reopenClosed(id); when a tab came back, resolveConflict(tab.id) so the external watch compares it with its file again; clearInfo('closed') in every case. An empty list does nothing."
+   },
+   {
+    "id": "T17",
+    "owner": "B4",
+    "signature": "src/app.ts registerKeys and the titlebar close handler",
+    "doc": "The SPEC §10 table, keydown on window with Ctrl (or Meta) and no Alt: Ctrl+T and Ctrl+N newUntitled; Ctrl+O open; Ctrl+S saveTab; Ctrl+Shift+S saveAs; Ctrl+W closeTabWithRestore(active); Ctrl+Shift+T restoreClosedTab(); Ctrl+Tab / Ctrl+Shift+Tab cycle(1 / -1); Ctrl+1..Ctrl+9 activate the Nth tab of getTabs() when it exists, matched on e.code `Digit1`..`Digit9` and `Numpad1`..`Numpad9` (on AZERTY e.key of Ctrl+1 is `&`); Ctrl+E toggleMode. Every handled key calls preventDefault; Ctrl+F, Ctrl+H (phase 6), Ctrl+V and Ctrl+Shift+V (paste.ts) are not handled here. The titlebar close button and middle-click use closeTabWithRestore. Delete closeAndSave."
+   }
+  ]
+ },
+ "phases": [
+  {
+   "units": [
+    {
+     "id": "B1",
+     "agentType": "thin-builder",
+     "task": "Implement R8 in src-tauri/core/src/cleanup.rs exactly as the contract documents it (replace the stub; keep the doc comment style). Do not edit core/src/lib.rs. Tests in core/tests/cleanup.rs (new), on real temp folders with set modified times (File::set_modified, std 1.75+): an old folder of a tab not in live is selected; the same folder with one young item is kept; an old folder of a live tab is kept; an old unreferenced item of a tab with Some(text) is selected, the same item named in the text or in its percent-encoded form (a name with a space) is kept, and every item of a tab with None is kept; a young unreferenced item is kept; a future mtime is kept; loose files at the scratch root and a folder with an invalid tab id are never listed; clean_scratch removes exactly the selected paths and returns their count; a missing scratch folder gives 0 and creates nothing.",
+     "output": "cleanup.rs implemented; core/tests/cleanup.rs; checks passing.",
+     "owns": [
+      "src-tauri/core/src/cleanup.rs",
+      "src-tauri/core/tests/cleanup.rs"
+     ],
+     "reads": [
+      "src-tauri/core/src/lib.rs",
+      "src-tauri/core/src/paths.rs",
+      "src-tauri/core/src/links.rs",
+      "src-tauri/core/tests/assets.rs",
+      "SPEC.md",
+      "CLAUDE.md"
+     ],
+     "seams": [
+      "R8"
+     ],
+     "checks": [
+      {
+       "cmd": "cd src-tauri && cargo test -p snipmd-core",
+       "expect_exit": 0,
+       "proves": "nothing younger than 14 days or referenced is selected; nothing outside scratch is listed or removed; the rest of core stays green"
+      },
+      {
+       "cmd": "cd src-tauri && cargo build -p snipmd-core 2>&1 | grep -c warning | grep -qx 0",
+       "expect_exit": 0,
+       "proves": "core builds without warnings now that allow(dead_code) is gone"
+      }
+     ],
+     "limits": "no new crates; no unsafe; cleanup.rs under 110 lines"
+    },
+    {
+     "id": "B3",
+     "agentType": "thin-builder",
+     "task": "Implement T16 in src/closedTabs.ts exactly as the contract documents it, on T15 (tabs.ts closeTab, reopenClosed; infobar clearTabInfo) and saving.saveTab, external.resolveConflict, diskState.inConflict, infobar showInfo/clearInfo. Tests in src/closedTabs.test.ts with the other modules mocked (as src/external.test.ts does): a dirty disk tab is saved before it is closed and a clean or untitled one is not; a tab in conflict is not saved and its conflict is not cleared on close; clearTabInfo runs for the closed id; the bar text for 0, 1 and 3 distinct relative images (http and absolute links not counted, a repeated link counted once), its key, position, timeout and kbd body; Restore and restoreClosedTab call reopenClosed with the id, resolveConflict for the returned tab, and clearInfo('closed'); restoreClosedTab with nothing to reopen still clears the bar and calls no resolveConflict.",
+     "output": "src/closedTabs.ts and its tests; checks passing.",
+     "owns": [
+      "src/closedTabs.ts",
+      "src/closedTabs.test.ts"
+     ],
+     "reads": [
+      "src/tabs.ts",
+      "src/infobar.ts",
+      "src/saving.ts",
+      "src/external.ts",
+      "src/diskState.ts",
+      "src/types.ts",
+      "src/external.test.ts",
+      "SPEC.md",
+      "CLAUDE.md"
+     ],
+     "seams": [
+      "T15",
+      "T16"
+     ],
+     "checks": [
+      {
+       "cmd": "npx vitest run src/closedTabs",
+       "expect_exit": 0,
+       "proves": "close saves what it should, keeps conflicts and shows the restore bar; restore reopens and re-arms the watch"
+      },
+      {
+       "cmd": "npm run lint",
+       "expect_exit": 0,
+       "proves": "types check"
+      }
+     ],
+     "limits": "closedTabs.ts under 80 lines; no innerHTML"
+    },
+    {
+     "id": "B4",
+     "agentType": "thin-builder",
+     "task": "Apply T17 in src/app.ts exactly as the contract documents it; import closeTabWithRestore and restoreClosedTab from './closedTabs' (built in parallel by B3 to the T16 signature) and getTabs from './tabs'. Tests in src/app.test.ts (new): mock every module app.ts imports (ipc, tabs, saving, session, external, drop, infobar, titlebar, closedTabs), run startApp on a div, then dispatch KeyboardEvents on window: each row of the table calls its function once and is preventDefault'ed; Ctrl+1 with code Digit1 and key '&' activates the first tab; Ctrl+5 with three tabs does nothing and is not preventDefault'ed; Ctrl+Shift+T calls restoreClosedTab and not newUntitled; Ctrl+Alt+S and plain S do nothing; Ctrl+V and Ctrl+F are not handled; the titlebar close handler calls closeTabWithRestore.",
+     "output": "src/app.ts changed and src/app.test.ts; checks passing.",
+     "owns": [
+      "src/app.ts",
+      "src/app.test.ts"
+     ],
+     "reads": [
+      "src/tabs.ts",
+      "src/saving.ts",
+      "src/titlebar.ts",
+      "src/ipc.ts",
+      "src/types.ts",
+      "SPEC.md",
+      "CLAUDE.md"
+     ],
+     "seams": [
+      "T16",
+      "T17"
+     ],
+     "checks": [
+      {
+       "cmd": "npx vitest run src/app",
+       "expect_exit": 0,
+       "proves": "the keyboard table of SPEC §10 is wired, digits by key position"
+      }
+     ],
+     "limits": "app.ts under 110 lines"
+    }
+   ]
+  },
+  {
+   "units": [
+    {
+     "id": "B2",
+     "agentType": "thin-builder",
+     "task": "Implement C5 in src-tauri/src/lib.rs exactly as the contract documents it, on R8 from snipmd-core (built by B1) and the existing app_data, session_tabs and file_path helpers. Keep every command, the allowed-set checks, the navigation guard and the single-instance handler unchanged.",
+     "output": "lib.rs changed; checks passing.",
+     "owns": [
+      "src-tauri/src/lib.rs"
+     ],
+     "reads": [
+      "src-tauri/core/src/cleanup.rs",
+      "src-tauri/core/src/lib.rs",
+      "src/session.ts",
+      "src/tabs.ts",
+      "SPEC.md",
+      "CLAUDE.md"
+     ],
+     "seams": [
+      "R8",
+      "C5"
+     ],
+     "inputs_from": [
+      "B1"
+     ],
+     "checks": [
+      {
+       "cmd": "cd src-tauri && cargo check",
+       "expect_exit": 0,
+       "proves": "the Tauri crate compiles against the phase 5 core (GTK libraries are installed in this session)"
+      },
+      {
+       "cmd": "cd src-tauri && cargo test -p snipmd-core",
+       "expect_exit": 0,
+       "proves": "core still green"
+      }
+     ],
+     "limits": "lib.rs under 690 lines; no new crates; cleanup never runs outside load_session or more than once"
+    }
+   ]
+  },
+  {
+   "units": [
+    {
+     "id": "V1",
+     "agentType": "thin-verifier",
+     "task": "Run the whole-project checks for phase 5 from the project root and record the results: npm run lint; npm test; npm run build; cd src-tauri && cargo test -p snipmd-core; cd src-tauri && cargo check. Also confirm by reading the code: cleanup runs only from load_session, once, on a thread, and only when session.json parsed; clean_scratch removes only paths under scratch that select_for_cleanup chose; no remove_dir_all or remove_file elsewhere touches user folders; core/src/lib.rs has no allow(dead_code) and core builds without warnings; closeTabWithRestore never saves a tab in conflict; every close path in app.ts and the titlebar goes through closeTabWithRestore; Ctrl+1..9 match on e.code.",
+     "output": "findings/phase5-V1.md with each command, its exit code and the confirmations.",
+     "owns": [
+      "findings/phase5-V1.md"
+     ],
+     "inputs_from": [
+      "B1",
+      "B2",
+      "B3",
+      "B4"
+     ],
+     "checks": [
+      {
+       "cmd": "npm run lint",
+       "expect_exit": 0,
+       "proves": "types check"
+      },
+      {
+       "cmd": "npm test",
+       "expect_exit": 0,
+       "proves": "frontend tests pass"
+      },
+      {
+       "cmd": "npm run build",
+       "expect_exit": 0,
+       "proves": "the frontend builds"
+      },
+      {
+       "cmd": "cd src-tauri && cargo test -p snipmd-core",
+       "expect_exit": 0,
+       "proves": "core tests pass"
+      },
+      {
+       "cmd": "cd src-tauri && cargo check",
+       "expect_exit": 0,
+       "proves": "the Tauri crate compiles"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "units": [
+    {
+     "id": "R1",
+     "agentType": "thin-review",
+     "task": "Adversarial review of the phase 5 diff (git diff main) against SPEC.md §6.5, §7, §10 and §11 and the CLAUDE.md guardrails 1-6, 12 and 13 and the code conventions. Hunt for: any path that deletes a scratch image or folder that a session tab or closed tab still references, that is younger than 14 days, or that lies outside scratch (symlinks, odd names, a tampered session.json, a session that failed to parse, clock skew); cleanup delaying startup or running twice; a close or restore that loses text (a dirty disk tab whose write fails or is refused, a tab in conflict, an untitled tab with images, a first-save bar open at close, a write that ends after the close, a closed note that is open again); a restored tab that stays stuck in conflict or whose own write is seen as an outside change; the list exceeding 20 entries or 14 days, or losing entries across a restart; bars of a closed tab left behind or the restore bar built with innerHTML; a key of the §10 table missing, doubled with CodeMirror or wrong on AZERTY; anything that breaks phase 0-4 behaviour (paste, drop, saving, conflicts, session restore, close flush).",
+     "output": "review/phase5-R1.md; defects with severity, location, statement and evidence.",
+     "owns": [
+      "review/phase5-R1.md"
+     ],
+     "inputs_from": [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "V1"
+     ],
+     "checks": []
+    }
+   ]
+  }
+ ]
+}
