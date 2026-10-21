@@ -1,0 +1,58 @@
+name: macOS run
+
+# Manual: builds the universal app on a macOS runner (ad-hoc signed, SPEC §13), runs
+# tools/measure/macos-probe.sh against it, and pushes what it found to the branch
+# ci/macos-run-<run number>. Phase 7a spike (ROADMAP.md): which automation the runner allows and how
+# today's build behaves on macOS. A runner is not a Mac on a desk: the tester's Mac is the judge.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # install scripts and build.rs never see a write token
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build
+        run: |
+          npm ci
+          npx tauri build --target universal-apple-darwin --bundles app --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+          ls -la src-tauri/target/universal-apple-darwin/release/bundle/macos/
+          du -sh src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+
+      - name: Probe
+        shell: bash # pipefail: a broken harness fails the job through tee
+        run: |
+          mkdir -p findings/macos-ci
+          app=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          tools/measure/macos-probe.sh "$app" findings/ui/macos-ci 2>&1 | tee findings/macos-ci/probe.txt
+
+      - name: Push results
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name ArneVDA-AP
+          git config user.email arnevandenabbeele@hotmail.com
+          git checkout -b "ci/macos-run-${{ github.run_number }}"
+          git add findings/macos-ci findings/ui/macos-ci || true
+          git commit -m "macOS run ${{ github.run_number }}: probe results from a CI runner" -m "Co-Authored-By: Claude" || exit 0
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "ci/macos-run-${{ github.run_number }}"
