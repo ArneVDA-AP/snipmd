@@ -160,3 +160,25 @@ fn missing_scratch_gives_zero_and_creates_nothing() {
     assert_eq!(clean_scratch(&root, &live(&[]), now(), SCRATCH_GRACE), 0);
     assert!(!root.exists());
 }
+
+#[test]
+fn a_name_is_matched_as_the_resolver_reads_the_link() {
+    let root = scratch("resolved");
+    let old = 20 * DAY;
+    let dir = tab(&root, "t7", old, &[("snip-1.png", old), ("my pic (1).png", old), ("Shot.png", old), ("gone.png", old)]);
+    let text = "![](untitled.assets/snip%2D1.png)\n![](untitled.assets/my%20pic%20(1).png)\n![](untitled.assets/shot.PNG) 50% done";
+    assert_eq!(selected(&root, &live(&[("t7", Some(text))])), vec![dir.join("gone.png")]);
+}
+
+#[test]
+fn a_dead_folder_with_a_young_file_deeper_down_is_kept() {
+    let root = scratch("deeper");
+    let old = 20 * DAY;
+    let dir = tab(&root, "t8", old, &[("a.png", old)]);
+    let sub = dir.join("sub");
+    fs::create_dir(&sub).unwrap();
+    fs::write(sub.join("young.png"), b"png").unwrap();
+    age_dir(&sub, old);
+    age_dir(&dir, old);
+    assert!(selected(&root, &live(&[])).is_empty());
+}

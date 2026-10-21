@@ -146,4 +146,12 @@ describe('titlebar', () => {
     calledOnly(m.closeTabWithRestore);
     expect(m.closeTabWithRestore).toHaveBeenCalledWith('b');
   });
+  it('a held Ctrl+W or Ctrl+T acts once; a held Ctrl+Tab keeps cycling', async () => {
+    const w = press('w', { repeat: true });
+    press('t', { repeat: true });
+    press('Tab', { repeat: true });
+    await flush();
+    expect(w.defaultPrevented).toBe(true);
+    calledOnly(m.cycle);
+  });
 });

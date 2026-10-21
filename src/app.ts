@@ -37,6 +37,8 @@ const CLOSE_WAIT_MS = 3000;
 
 /** Ctrl+1..Ctrl+9 by key position, so AZERTY (where e.key of Ctrl+1 is `&`) works too. */
 const DIGIT = /^(?:Digit|Numpad)([1-9])$/;
+/** Keys that act once per press: close, and new or restored tab. */
+const CLOSE_KEYS = new Set(['w', 't', 'n']);
 
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
@@ -63,6 +65,8 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
 function registerKeys(): void {
   window.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    // A held Ctrl+W must not empty the window and push older tabs off the closed-tabs list.
+    if (e.repeat && CLOSE_KEYS.has(e.key.toLowerCase())) return e.preventDefault();
     const run = commandFor(e);
     if (!run) return;
     e.preventDefault();

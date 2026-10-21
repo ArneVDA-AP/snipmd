@@ -16,7 +16,8 @@ vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 vi.mock('./editor/links', () => ({ rewriteImagePrefix: vi.fn(), rewrittenText: vi.fn(() => 'rewritten') }));
 vi.mock('./tabs', () => ({
   getTab: (id: string) => h.tabs.find((t) => t.id === id),
-  getTabs: () => h.tabs,
+  findTab: (id: string) => h.tabs.find((t) => t.id === id),
+  allTabs: () => h.tabs,
   textOf: (t: { text: string }) => t.text,
   markSaved: vi.fn((id: string, w: { path?: string }) => {
     const t = h.tabs.find((x) => x.id === id);

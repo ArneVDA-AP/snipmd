@@ -20,7 +20,6 @@ vi.mock('./tabs', () => ({
   textOf: (t: any) => t.content
 }));
 vi.mock('./saving', () => ({ saveTab: m.saveTab }));
-vi.mock('./external', () => ({ resolveConflict: m.resolveConflict }));
 vi.mock('./diskState', () => ({ inConflict: (id: string) => m.conflicts.has(id) }));
 vi.mock('./infobar', () => ({ showInfo: m.showInfo, clearInfo: m.clearInfo, clearTabInfo: m.clearTabInfo }));
 
@@ -38,7 +37,7 @@ beforeEach(() => {
   m.tabs.length = 0;
   m.order.length = 0;
   m.conflicts.clear();
-  m.saveTab.mockImplementation(async (id: string) => void m.order.push(`save:${id}`));
+  m.saveTab.mockImplementation(async (id: string) => (m.order.push(`save:${id}`), true));
   m.closeTab.mockImplementation(async (id: string) => {
     m.order.push(`close:${id}`);
     const i = m.tabs.findIndex((t) => t.id === id);
@@ -73,7 +72,6 @@ describe('closeTabWithRestore', () => {
     m.conflicts.add('a');
     await closeTabWithRestore('a');
     expect(m.saveTab).not.toHaveBeenCalled();
-    expect(m.resolveConflict).not.toHaveBeenCalled();
     expect(m.conflicts.has('a')).toBe(true);
     expect(m.order).toEqual(['close:a']);
   });
@@ -116,6 +114,35 @@ describe('closeTabWithRestore', () => {
   });
 });
 
+describe('edits the close could not write', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  const unsaved = () => m.showInfo.mock.calls.map((c: any[]) => c[0]).find((b: any) => b.key === 'unsaved:a');
+
+  it('a tab in conflict gets a lasting warning with Restore', async () => {
+    addTab('a', { dirty: true });
+    m.conflicts.add('a');
+    await closeTabWithRestore('a');
+    await flush();
+    expect(unsaved()).toMatchObject({ kind: 'warning', text: 'a.md was closed with changes that are not on disk.' });
+    expect(unsaved().timeoutMs).toBeUndefined();
+    expect(unsaved().actions[0].label).toBe('Restore');
+  });
+
+  it('a failed or refused close write gets the warning; a successful one does not', async () => {
+    addTab('a', { dirty: true });
+    m.saveTab.mockResolvedValueOnce(false);
+    await closeTabWithRestore('a');
+    await flush();
+    expect(unsaved()).toBeDefined();
+    m.showInfo.mockClear();
+    addTab('a', { dirty: true });
+    m.saveTab.mockResolvedValueOnce(true);
+    await closeTabWithRestore('a');
+    await flush();
+    expect(unsaved()).toBeUndefined();
+  });
+});
+
 describe('restoreClosedTab', () => {
   it('Restore reopens that tab, re-arms its watch and clears the bar', async () => {
     addTab('a');
@@ -124,7 +151,7 @@ describe('restoreClosedTab', () => {
     bar().actions![0].run();
     await new Promise((r) => setTimeout(r, 0));
     expect(m.reopenClosed).toHaveBeenCalledWith('a');
-    expect(m.resolveConflict).toHaveBeenCalledWith('a');
+    expect(m.clearTabInfo).toHaveBeenLastCalledWith('a');
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 
@@ -132,14 +159,14 @@ describe('restoreClosedTab', () => {
     m.reopenClosed.mockResolvedValue({ id: 'b' });
     await restoreClosedTab();
     expect(m.reopenClosed).toHaveBeenCalledWith(undefined);
-    expect(m.resolveConflict).toHaveBeenCalledWith('b');
+    expect(m.clearTabInfo).toHaveBeenCalledWith('b');
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 
-  it('with nothing to reopen still clears the bar and resolves no conflict', async () => {
+  it('with nothing to reopen still clears the bar and touches no tab bars', async () => {
     m.reopenClosed.mockResolvedValue(undefined);
     await restoreClosedTab();
-    expect(m.resolveConflict).not.toHaveBeenCalled();
+    expect(m.clearTabInfo).not.toHaveBeenCalled();
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 });

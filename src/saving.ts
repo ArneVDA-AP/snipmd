@@ -5,7 +5,7 @@ import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
 import { beginWrite, endWrite, inConflict } from './diskState';
 import { handleRefusedWrite, resolveConflict } from './external';
-import { getTab, getTabs, markSaved, setLastFolder, textOf } from './tabs';
+import { allTabs, findTab, getTab, markSaved, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { dirname, normPath, samePath } from './paths';
@@ -105,7 +105,7 @@ async function moveImages(tab: TabState): Promise<void> {
     // The images stay in the scratch folder; nothing is lost.
     const id = tab.id;
     showError(`move the images of ${tab.title}`, err, imagesKey(id), [
-      { label: 'Try again', primary: true, run: () => void (getTab(id) && moveImages(getTab(id)!)) }
+      { label: 'Try again', primary: true, run: () => void (findTab(id) && moveImages(findTab(id)!)) }
     ]);
   }
 }
@@ -150,9 +150,9 @@ function startFirstSave(tab: TabState, run: (t: TabState) => Promise<boolean>): 
   return p;
 }
 
-/** Ctrl+S. A tab in conflict is not written. */
+/** Ctrl+S, and the write when a tab closes. A tab in conflict is not written. */
 export async function saveTab(id: string): Promise<boolean> {
-  const tab = getTab(id);
+  const tab = findTab(id);
   if (!tab || inConflict(id)) return false;
   const ok = await (tab.filePath ? writeTab(tab) : startFirstSave(tab, firstSave));
   if (ok) scheduleSessionSave({ immediate: true });
@@ -173,22 +173,22 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Called on every edit: saves a dirty disk tab 1 s after the last one. */
 export function scheduleAutosave(id: string): void {
-  if (!getTab(id)?.filePath) return; // untitled tabs live in the session until their first save
+  if (!findTab(id)?.filePath) return; // untitled tabs live in the session until their first save
   clearTimeout(timers.get(id));
   timers.set(
     id,
     setTimeout(() => {
       timers.delete(id);
-      const tab = getTab(id);
+      const tab = findTab(id); // also a closed tab: a link rewrite after its first save is written
       // markSaved's tab-list change schedules the debounced session write; no immediate one per pause.
       if (tab?.filePath && tab.dirty && !inConflict(id)) void writeTab(tab);
     }, AUTOSAVE_MS)
   );
 }
 
-/** Window blur and close: write every dirty disk tab. One failure never stops the others or the session save. */
+/** Window blur and close: write every dirty disk tab, closed ones included. One failure never stops the others or the session save. */
 export async function flushDirty(): Promise<void> {
   void flushSession(); // the session never waits for a note write
-  await Promise.all(getTabs().filter((t) => t.dirty && t.filePath && !inConflict(t.id)).map(writeTab));
+  await Promise.all(allTabs().filter((t) => t.dirty && t.filePath && !inConflict(t.id)).map(writeTab));
   await flushSession(); // the saved flags land in the session
 }

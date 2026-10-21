@@ -500,8 +500,8 @@ fn claim_new_note(app: AppHandle, folder: String, name: String) -> Result<String
 /// thread so startup never waits. A tab with a file path has no known text (None): its scratch
 /// items are kept; an untitled tab's text is its content.
 fn start_cleanup(scratch: PathBuf, session: &mut Value) {
-    static STARTED: AtomicBool = AtomicBool::new(false);
-    if STARTED.swap(true, Ordering::SeqCst) {
+    // A session without open tabs is one the frontend discards: nothing is known to be in use.
+    if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
         return;
     }
     let mut live: HashMap<String, Option<String>> = HashMap::new();
@@ -524,6 +524,9 @@ fn start_cleanup(scratch: PathBuf, session: &mut Value) {
 
 #[tauri::command(async)]
 fn load_session(app: AppHandle) -> Result<Option<String>, String> {
+    // Cleanup belongs to the first load only (startup), whatever that load finds.
+    static LOADED: AtomicBool = AtomicBool::new(false);
+    let first = !LOADED.swap(true, Ordering::SeqCst);
     let app_data = app_data(&app)?;
     let session_path = app_data.join("session.json");
     if !session_path.exists() {
@@ -540,7 +543,9 @@ fn load_session(app: AppHandle) -> Result<Option<String>, String> {
         if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
             allowed(&app).allow_note_folder(Path::new(folder));
         }
-        start_cleanup(app_data.join("scratch"), &mut parsed);
+        if first {
+            start_cleanup(app_data.join("scratch"), &mut parsed);
+        }
     }
 
     Ok(Some(raw))
