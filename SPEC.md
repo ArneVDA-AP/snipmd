@@ -1,10 +1,10 @@
 # SnipMD — Product Specification
 
-Status: v0.3, agreed 2026-10-20. This file is the single source of truth for what SnipMD is and does.
+Status: v0.4 draft, 2026-10-21 (adds §13 macOS; v0.3 agreed 2026-10-20). This file is the single source of truth for what SnipMD is and does.
 
 ## 1. North star
 
-**Paste, type, keep going.** A Windows note-taking app where a screenshot is as easy as a sentence. It never asks you anything while you write, it never loses anything, and your notes stay plain files.
+**Paste, type, keep going.** A note-taking app for Windows, and for macOS after v1 (§13), where a screenshot is as easy as a sentence. It never asks you anything while you write, it never loses anything, and your notes stay plain files.
 
 **For whom:** people who document what happens on their screen while they work: running a lab, reproducing a bug, following a meeting. Short text with many screenshots in between.
 
@@ -12,7 +12,7 @@ Status: v0.3, agreed 2026-10-20. This file is the single source of truth for wha
 
 ## 2. The core loop
 
-Everything in this spec serves these three steps. If they don't feel instant, nothing else matters.
+Everything in this spec serves these three steps. The keys are the Windows ones; §13 gives the macOS loop. If they don't feel instant, nothing else matters.
 
 1. `Win+Shift+S`: the user snips part of the screen with the Windows tool.
 2. `Ctrl+V`: the image appears in the note below the cursor, already saved to disk.
@@ -38,7 +38,7 @@ Everything in this spec serves these three steps. If they don't feel instant, no
 - An empty tab shows a short hint for the core loop (§2) until the first character is typed.
 - **Info bar**: a single thin bar directly below the top bar (or at the bottom for undo notices). It is the only way the app shows information or choices. No modals, no toasts, no `alert()`. Used for: first save, closed-tab restore, external-change conflict, errors (e.g. a file could not be written).
 - Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
-- System fonts (Segoe UI, Cascadia Mono / Consolas). No web fonts, no network access at runtime.
+- System fonts (Segoe UI, Cascadia Mono / Consolas on Windows; the system font and its monospace on macOS). No web fonts, no network access at runtime.
 
 ## 5. Editor
 
@@ -144,7 +144,7 @@ Measured on an ordinary Windows 11 laptop. Every release is checked against this
 | In the tab strip: arrows, `Home`, `End` / `Enter` / `Delete` | Move between tabs / open / close |
 | `Esc` in an info bar | Dismiss it (a pending choice, such as a conflict, stays) |
 
-A held key acts once, except moving between tabs.
+A held key acts once, except moving between tabs. On macOS, §13 maps these keys.
 
 ## 11. Opening files
 
@@ -158,9 +158,53 @@ A held key acts once, except moving between tabs.
 
 **v1 — deliberately out:** theme gallery, font choice, settings screen; folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; macOS and Linux builds.
 
+**After v1.0:** a macOS build as §13 describes, once v1.0.0 is tagged on Windows. Linux stays out.
+
 **v1.1:** `Ctrl+P` quick open over recent files. Share as one file: export to TextPack (zip of note + images) and import `.textpack` / `.textbundle`. The working format stays plain Markdown.
 
-## 13. Decisions log
+## 13. macOS
+
+Everything above holds on macOS, with these differences. Where this section is silent, the Windows behavior applies with `Cmd` for `Ctrl`.
+
+**Core loop.** Two ways in, both instant:
+1. `Cmd+Ctrl+Shift+4` puts a snip on the clipboard; `Cmd+V` pastes it (§6.3 rules).
+2. `Cmd+Shift+4` shows a floating thumbnail; dragging it onto the editor drops the image (§6.3 drag and drop).
+
+The empty-tab hint shows both.
+
+**Keys.** `Cmd` replaces `Ctrl` in §10, except:
+- `Ctrl+Tab` / `Ctrl+Shift+Tab` stay `Ctrl`, as in browsers.
+- Replace is `Cmd+Option+F`; `Cmd+H` hides the app.
+- `Cmd+Q` quits with the same flush as closing the window. Nothing is lost (§3.3, §9).
+
+Labels and tooltips show the macOS keys (⌘ ⌥ ⇧ ⌃).
+
+**Menu bar.** macOS needs one: the webview's clipboard keys only work through an Edit menu.
+- SnipMD: About, Hide, Hide Others, Quit.
+- File: New Tab, Open…, Save, Save As…, Close Tab, Reopen Closed Tab.
+- Edit: Undo, Redo, Cut, Copy, Paste, Paste as Plain Text, Select All, Find, Replace.
+- View: Read Mode, Enter Full Screen.
+- Window: Minimize, Zoom.
+
+Every item runs the same command as its key. `Cmd+W` closes the tab, never the window. The menu bar is the system's, not window chrome; §3.5 still holds for the window.
+
+**Window.** The window uses the native title bar overlaid on the 34px top bar:
+- The system's close, minimize and zoom buttons sit at the left of the bar; the tab strip starts after them. SnipMD draws no window buttons of its own.
+- Native full screen and rounded corners.
+- The bar is opaque and follows the macOS light/dark setting. No vibrancy in the first macOS release: it needs a private API.
+
+**Files.**
+- App data lives in `~/Library/Application Support/` under the app's identifier, the macOS counterpart of `%APPDATA%` in §6.3, §6.5 and §7.
+- The first-save folder is `~/Documents/Notes`.
+- New notes use LF. Existing files keep their line endings and BOM (§6.1).
+
+**Opening files.** Double-click in Finder, Open With, a drop on the Dock icon, a drop on the window, `open -a SnipMD <path>` and `Cmd+O`. macOS keeps one instance and hands a running app the files. Closing the window quits the app: SnipMD has one window, and the session restores it.
+
+**Distribution.**
+- A `.dmg` with a signed and notarized app, so Gatekeeper opens it without a warning.
+- The §9 budgets apply, measured on an ordinary Apple Silicon Mac.
+
+## 14. Decisions log
 
 | # | Question | Decision |
 |---|---|---|
