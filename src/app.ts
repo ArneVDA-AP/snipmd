@@ -1,6 +1,6 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
-import { bindReturnFocus, focusInfobar, mountInfobar } from './infobar';
+import { focusInfobar, mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
@@ -45,7 +45,8 @@ const DIGIT = /^(?:Digit|Numpad)([1-9])$/;
 async function findInRead(replace: boolean): Promise<void> {
   await toggleMode();
   const view = getView();
-  if (view) openFind(view, replace);
+  // After the frame in which the editor takes focus, or that focus would pull the cursor out of the panel.
+  if (view) requestAnimationFrame(() => openFind(view, replace));
 }
 
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
@@ -86,7 +87,8 @@ function registerKeys(titlebar: Titlebar): void {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'F6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
-      return cycleRegion(titlebar, e.shiftKey);
+      if (!e.repeat) cycleRegion(titlebar, e.shiftKey);
+      return;
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     // A held key acts once (a held Ctrl+W would empty the window); only moving between tabs repeats.
@@ -102,9 +104,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   root.innerHTML = SKELETON;
   const byId = (id: string) => document.getElementById(id)!;
 
-  mountInfobar(byId('infoTop'), byId('infoBottom'));
+  mountInfobar(byId('infoTop'), byId('infoBottom'), focusActive);
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),
+    open: (id) => void activate(id).then(focusActive),
     close: (id) => void closeTabWithRestore(id),
     newTab: () => void newUntitled(),
     toggleMode: () => void toggleMode()
@@ -113,7 +116,6 @@ export async function startApp(root: HTMLElement): Promise<void> {
   bindSessionSource(snapshot);
   bindEditListener(scheduleAutosave);
   registerKeys(titlebar);
-  bindReturnFocus(focusActive);
   window.addEventListener('blur', () => void flushDirty());
 
   const [session, cliFiles, mica] = await Promise.all([

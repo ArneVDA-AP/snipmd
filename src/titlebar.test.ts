@@ -5,7 +5,7 @@ vi.mock('./ipc', () => ({ appWindow: { minimize: vi.fn(), toggleMaximize: vi.fn(
 
 import { Titlebar } from './titlebar';
 
-const h = { select: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn() };
+const h = { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn() };
 const tab = (id: string, extra: Partial<TabState> = {}): TabState => ({
   id, title: `${id}.md`, filePath: `C:/n/${id}.md`, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null, ...extra
 });
@@ -57,9 +57,31 @@ describe('tab strip', () => {
     key(tabEl('a'), 'ArrowRight');
     expect(document.activeElement).toBe(tabEl('b'));
     key(tabEl('b'), 'Enter');
-    expect(h.select).toHaveBeenCalledWith('b');
+    expect(h.open).toHaveBeenCalledWith('b');
     key(tabEl('b'), 'Delete');
     expect(h.close).toHaveBeenCalledWith('b');
+  });
+
+  it('a held Delete closes one tab', () => {
+    bar.render([tab('a'), tab('b')], 'a');
+    tabEl('a').focus();
+    key(tabEl('a'), 'Delete');
+    tabEl('a').dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', repeat: true, bubbles: true, cancelable: true }));
+    expect(h.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps focus on the focused tab when the order changes', () => {
+    bar.render([tab('a'), tab('b')], 'a');
+    tabEl('a').focus();
+    bar.render([tab('b'), tab('a')], 'a');
+    expect(document.activeElement).toBe(tabEl('a'));
+  });
+
+  it('a mouse press does not take focus from the note', () => {
+    bar.render([tab('a')], 'a');
+    const down = new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true });
+    tabEl('a').dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
   });
 
   it('the focused tab keeps the tab stop through a render', () => {
