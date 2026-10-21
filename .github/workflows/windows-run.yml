@@ -51,9 +51,17 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out findings/ui/windows-ci 2>&1 | Tee-Object findings/windows-ci/shots.txt
 
+      - name: Clean-install smoke test
+        continue-on-error: true
+        shell: powershell
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          powershell -ExecutionPolicy Bypass -File tools/measure/install-smoke.ps1 -Setup $setup.FullName 2>&1 | Tee-Object findings/windows-ci/install-smoke.txt
+
       - name: Push results
         shell: bash
         run: |
+          for f in findings/windows-ci/*.txt; do iconv -f UTF-16 -t UTF-8 "$f" > "$f.u" 2>/dev/null && mv "$f.u" "$f" || rm -f "$f.u"; done
           git config user.name ArneVDA-AP
           git config user.email arnevandenabbeele@hotmail.com
           git checkout -b "ci/windows-run-${{ github.run_number }}"
