@@ -2,7 +2,7 @@ name: macOS run
 
 # Manual: builds the universal app on a macOS runner (ad-hoc signed, SPEC §13), runs
 # tools/measure/macos-probe.sh against it, and pushes what it found to the branch
-# ci/macos-run-<run number>. Phase 7a spike (PLAN.md): which automation the runner allows and how
+# ci/macos-run-<run number>. Phase 7a spike (ROADMAP.md): which automation the runner allows and how
 # today's build behaves on macOS. A runner is not a Mac on a desk: the tester's Mac is the judge.
 on:
   workflow_dispatch:
