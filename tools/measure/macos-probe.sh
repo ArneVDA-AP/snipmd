@@ -1,7 +1,6 @@
 #!/bin/bash
 # The macOS acceptance probes (#30): what a macOS runner can drive in the real SnipMD app, and how
-# the build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED|SEE - <detail>"
-# (SEE: judge the named screenshot) and the
+# the build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED - <detail>" and the
 # script always finishes, so one blocked permission never hides the other answers.
 # Every launch uses its own data folder (SNIPMD_DATA_DIR); screenshots go to <out>.
 # Exits 1 only when the harness itself is broken (no app, the app does not start); a probe that
@@ -192,17 +191,89 @@ tab_counts() {
   session | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("tabs",[])), len(d.get("closedTabs",[])))' 2>/dev/null
 }
 
+# One line per accessibility element of the app's window, "role|description|value", web content
+# included: WKWebView exposes the page's tree to System Events.
+ax_dump() {
+  osascript - "$PID" <<'APPLESCRIPT' 2>/dev/null
+on run argv
+  set pid to (item 1 of argv) as integer
+  set out to ""
+  tell application "System Events"
+    repeat with e in (entire contents of window 1 of (first process whose unix id is pid))
+      set r to ""
+      set d to ""
+      set v to ""
+      try
+        set r to role of e
+      end try
+      try
+        set d to description of e
+      end try
+      try
+        set v to (value of e) as text
+      end try
+      set out to out & r & "|" & d & "|" & v & linefeed
+    end repeat
+  end tell
+  return out
+end run
+APPLESCRIPT
+}
+
+# "<x> <y>": the system close button's centre, in points from the window's top-left corner.
+close_button_centre() {
+  osascript - "$PID" <<'APPLESCRIPT' 2>/dev/null
+on run argv
+  set pid to (item 1 of argv) as integer
+  tell application "System Events"
+    set w to window 1 of (first process whose unix id is pid)
+    set b to first button of w whose subrole is "AXCloseButton"
+    set {wx, wy} to position of w
+    set {bx, by} to position of b
+    set {bw, bh} to size of b
+    return ((bx - wx + bw / 2) as integer as text) & " " & ((by - wy + bh / 2) as integer as text)
+  end tell
+end run
+APPLESCRIPT
+}
+
 echo "== Top bar (SPEC §13: system window buttons, room for them, macOS key labels in the hint)"
 start topbar
 activate_app
 shot 05-topbar >/dev/null
 screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
-report topbar SEE "05-topbar.png and 05-topbar-zoom.png: traffic lights left of the first tab, no own buttons, ⌘ keys in the hint"
+read -r bx by <<<"$(close_button_centre)"
+if [ -z "${by:-}" ]; then
+  report traffic-lights BLOCKED "no close button found through System Events"
+elif [ "$by" -ge 13 ] && [ "$by" -le 21 ]; then
+  report traffic-lights PASS "close button centre at x $bx, y $by: inside the 34 pt bar"
+else
+  report traffic-lights FAIL "close button centre at x $bx, y $by; the 34 pt bar's middle is y 17"
+fi
+ax=$(ax_dump)
+echo "$ax" >"$OUT/05-topbar-ax.txt"
+if [ -z "$ax" ]; then
+  report own-buttons BLOCKED "no accessibility tree"
+elif echo "$ax" | grep -qE '^AXButton\|(Minimize|Maximize|Restore)\|'; then
+  report own-buttons FAIL "the page still draws its own window buttons"
+else
+  report own-buttons PASS "no Minimize/Maximize buttons in the page"
+fi
+# The empty hint is aria-hidden (CodeMirror's placeholder), so the labels are read off the + button;
+# both come from platform.ts. The hint itself is in the screenshots.
+if echo "$ax" | grep -q '^AXButton|New tab (⌘T)|'; then
+  report key-labels PASS "the + button reads \"New tab (⌘T)\""
+else
+  report key-labels FAIL "no \"New tab (⌘T)\" button (tree in 05-topbar-ax.txt)"
+fi
 quit_app
 
 echo "== Cmd+W closes exactly one tab (the page and the menu must not both run it)"
 start close-once
+# Three tabs, text in the last: one Cmd+W leaves two open and one closed. A second run of the
+# command would also close an empty tab, which is dropped: one open, one closed.
 if keys_to_app 'tell application "System Events" to keystroke "t" using command down' 'delay 0.5' \
+  'tell application "System Events" to keystroke "t" using command down' 'delay 0.5' \
   'tell application "System Events" to keystroke "closeonce"' 'delay 0.3' \
   'tell application "System Events" to keystroke "w" using command down'; then
   sleep 1.5
@@ -240,7 +311,12 @@ if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3'
   'tell application "System Events" to keystroke "f" using {command down, option down}'; then
   sleep 1
   shot 06-replace >/dev/null
-  report replace SEE "06-replace.png: the find panel with its Replace field"
+  focus=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to get description of (value of attribute \"AXFocusedUIElement\")" 2>/dev/null)
+  if [ "$focus" = "Replace" ]; then
+    report replace PASS "Cmd+Option+F put the cursor in the Replace field"
+  else
+    report replace FAIL "after Cmd+Option+F the focus is on: ${focus:-unknown} (see 06-replace.png)"
+  fi
   keys_to_app 'tell application "System Events" to keystroke "h" using command down' >/dev/null
   sleep 1
   visible=$(osascript -e "tell application \"System Events\" to get visible of (first process whose unix id is $PID)" 2>/dev/null)
