@@ -120,7 +120,8 @@ fn a_dead_folder_whose_image_another_tab_names_is_kept() {
     assert!(selected(&root, &live(&[("t2", Some("![](untitled.assets/snip-a.png)"))])).is_empty());
 }
 
-#[cfg(unix)]
+// Linux only: APFS refuses names that are not UTF-8, and Windows names are UTF-16.
+#[cfg(target_os = "linux")]
 #[test]
 fn an_item_whose_name_is_not_text_is_kept() {
     use std::os::unix::ffi::OsStrExt;
