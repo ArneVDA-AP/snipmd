@@ -321,11 +321,38 @@ if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3'
   'tell application "System Events" to keystroke "f" using {command down, option down}'; then
   sleep 1
   shot 06-replace >/dev/null
-  focus=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to get description of (value of attribute \"AXFocusedUIElement\")" 2>/dev/null)
-  if [ "$focus" = "Replace" ]; then
+  # "description|value|focused" for each text field of the page.
+  fields=$(osascript - "$PID" <<'APPLESCRIPT' 2>&1
+on run argv
+  set pid to (item 1 of argv) as integer
+  set out to ""
+  tell application "System Events"
+    set els to entire contents of window 1 of (first process whose unix id is pid)
+    repeat with i from 1 to count of els
+      set e to item i of els
+      try
+        if role of e is "AXTextField" then
+          set f to ""
+          try
+            set f to (value of attribute "AXFocused" of e) as text
+          end try
+          set out to out & (description of e) & "|" & ((value of e) as text) & "|" & f & linefeed
+        end if
+      end try
+    end repeat
+  end tell
+  return out
+end run
+APPLESCRIPT
+)
+  echo "-- text fields (description|value|focused):"
+  echo "$fields"
+  if echo "$fields" | grep -q '^Replace|.*|true$'; then
     report replace PASS "Cmd+Option+F put the cursor in the Replace field"
+  elif echo "$fields" | grep -q '^Find|'; then
+    report replace FAIL "the find panel is open, but the Replace field does not have the cursor"
   else
-    report replace FAIL "after Cmd+Option+F the focus is on: ${focus:-unknown} (see 06-replace.png)"
+    report replace FAIL "no find panel after Cmd+Option+F (see 06-replace.png)"
   fi
   keys_to_app 'tell application "System Events" to keystroke "h" using command down' >/dev/null
   sleep 1
