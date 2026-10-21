@@ -112,7 +112,7 @@ export function clearInfo(key: string): void {
   }
 }
 
-/** Removes every bar of a tab. A tab's bar keys end in `:<tab id>` (`save:`, `images:`, `external:`, `firstsave:`). */
+/** Removes every bar of a tab. Rule for every module: a bar that belongs to a tab has a key ending in `:<tab id>`. */
 export function clearTabInfo(id: string): void {
   for (const pos of ['top', 'bottom'] as const) {
     for (const entry of stacks[pos].filter((e) => e.msg.key?.endsWith(`:${id}`))) remove(pos, entry);

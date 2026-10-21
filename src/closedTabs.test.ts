@@ -20,7 +20,6 @@ vi.mock('./tabs', () => ({
   textOf: (t: any) => t.content
 }));
 vi.mock('./saving', () => ({ saveTab: m.saveTab }));
-vi.mock('./diskState', () => ({ inConflict: (id: string) => m.conflicts.has(id) }));
 vi.mock('./infobar', () => ({ showInfo: m.showInfo, clearInfo: m.clearInfo, clearTabInfo: m.clearTabInfo }));
 
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
@@ -37,7 +36,7 @@ beforeEach(() => {
   m.tabs.length = 0;
   m.order.length = 0;
   m.conflicts.clear();
-  m.saveTab.mockImplementation(async (id: string) => (m.order.push(`save:${id}`), true));
+  m.saveTab.mockImplementation(async (id: string) => !m.conflicts.has(id) && (m.order.push(`save:${id}`), true)); // saveTab skips a tab in conflict
   m.closeTab.mockImplementation(async (id: string) => {
     m.order.push(`close:${id}`);
     const i = m.tabs.findIndex((t) => t.id === id);
@@ -67,11 +66,10 @@ describe('closeTabWithRestore', () => {
     expect(m.order).toEqual(['close:a', 'close:u']);
   });
 
-  it('does not save a tab in conflict and leaves its conflict alone', async () => {
+  it('does not write a tab in conflict and leaves its conflict alone', async () => {
     addTab('a', { dirty: true });
     m.conflicts.add('a');
     await closeTabWithRestore('a');
-    expect(m.saveTab).not.toHaveBeenCalled();
     expect(m.conflicts.has('a')).toBe(true);
     expect(m.order).toEqual(['close:a']);
   });
@@ -151,7 +149,6 @@ describe('restoreClosedTab', () => {
     bar().actions![0].run();
     await new Promise((r) => setTimeout(r, 0));
     expect(m.reopenClosed).toHaveBeenCalledWith('a');
-    expect(m.clearTabInfo).toHaveBeenLastCalledWith('a');
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 
@@ -159,14 +156,12 @@ describe('restoreClosedTab', () => {
     m.reopenClosed.mockResolvedValue({ id: 'b' });
     await restoreClosedTab();
     expect(m.reopenClosed).toHaveBeenCalledWith(undefined);
-    expect(m.clearTabInfo).toHaveBeenCalledWith('b');
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 
-  it('with nothing to reopen still clears the bar and touches no tab bars', async () => {
+  it('with nothing to reopen still clears the bar', async () => {
     m.reopenClosed.mockResolvedValue(undefined);
     await restoreClosedTab();
-    expect(m.clearTabInfo).not.toHaveBeenCalled();
     expect(m.clearInfo).toHaveBeenCalledWith('closed');
   });
 });

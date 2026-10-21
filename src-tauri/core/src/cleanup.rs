@@ -1,9 +1,9 @@
 //! R8: startup cleanup of the scratch folder (SPEC §6.5).
-use crate::paths::valid_tab_id;
+use crate::paths::{percent_decode_lossy, valid_tab_id};
 use crate::ScratchEntry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 /// R8. How long an unused scratch folder or image is kept: 14 days.
@@ -52,28 +52,6 @@ fn newest(p: &Path) -> Option<SystemTime> {
     Some(max)
 }
 
-/// The text as the resolver reads link targets: every valid `%XX` decoded, case folded (Windows
-/// file names ignore case). A name found in it may be referenced; one not found is not.
-fn as_resolved(text: &str) -> String {
-    let hex = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
-    let b = text.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        match (b[i], b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
-            (b'%', Some(h), Some(l)) => {
-                out.push(h * 16 + l);
-                i += 3;
-            }
-            (c, _, _) => {
-                out.push(c);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).to_lowercase()
-}
-
 /// At least `grace` old; a time after `now` counts as young.
 fn is_old(modified: SystemTime, now: SystemTime, grace: Duration) -> bool {
     now.duration_since(modified).is_ok_and(|age| age >= grace)
@@ -83,33 +61,31 @@ fn is_old(modified: SystemTime, now: SystemTime, grace: Duration) -> bool {
 /// unknown. Selects a non-live tab folder when it and everything in it are old (its items are then not
 /// listed), and an old item of a tab with known text that the text does not name, decoded and
 /// case folded like the resolver reads it.
-pub fn select_for_cleanup(
-    entries: &[ScratchEntry],
+pub fn select_for_cleanup<'a>(
+    entries: &'a [ScratchEntry],
     live: &HashMap<String, Option<String>>,
     now: SystemTime,
     grace: Duration,
-) -> Vec<PathBuf> {
+) -> Vec<&'a ScratchEntry> {
     let old = |e: &ScratchEntry| is_old(e.modified, now, grace);
-    let resolved: HashMap<&str, String> =
-        live.iter().filter_map(|(id, t)| Some((id.as_str(), as_resolved(t.as_deref()?)))).collect();
-    let mut out = Vec::new();
-    for e in entries {
-        match (e.is_dir, live.get(&e.tab_id)) {
-            (true, None) => {
-                if entries.iter().filter(|o| o.tab_id == e.tab_id).all(old) {
-                    out.push(e.path.clone());
-                }
-            }
-            (false, Some(Some(_))) if old(e) => {
-                let Some(name) = e.path.file_name().and_then(|n| n.to_str()) else { continue };
-                if !resolved[e.tab_id.as_str()].contains(&name.to_lowercase()) {
-                    out.push(e.path.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-    out
+    let has_young: HashSet<&str> = entries.iter().filter(|e| !old(e)).map(|e| e.tab_id.as_str()).collect();
+    // Decoded and case folded like the resolver reads links (Windows names ignore case).
+    let resolved: HashMap<&str, String> = live
+        .iter()
+        .filter_map(|(id, t)| Some((id.as_str(), percent_decode_lossy(t.as_deref()?).to_lowercase())))
+        .collect();
+    entries
+        .iter()
+        .filter(|e| match (e.is_dir, live.get(&e.tab_id)) {
+            (true, None) => !has_young.contains(e.tab_id.as_str()),
+            (false, Some(Some(_))) if old(e) => e
+                .path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| !resolved[e.tab_id.as_str()].contains(&name.to_lowercase())),
+            _ => false,
+        })
+        .collect()
 }
 
 /// R8. Scans, selects and removes each selected path under `scratch` (a folder with everything in it,
@@ -121,13 +97,9 @@ pub fn clean_scratch(
     grace: Duration,
 ) -> usize {
     let Ok(entries) = scan_scratch(scratch) else { return 0 };
-    let dirs: Vec<&Path> = entries.iter().filter(|e| e.is_dir).map(|e| e.path.as_path()).collect();
     select_for_cleanup(&entries, live, now, grace)
         .into_iter()
-        .filter(|p| p.starts_with(scratch))
-        .filter(|p| {
-            let removed = if dirs.contains(&p.as_path()) { fs::remove_dir_all(p) } else { fs::remove_file(p) };
-            removed.is_ok()
-        })
+        .filter(|e| e.path.starts_with(scratch)) // the scan only lists paths under scratch; kept as the last guard
+        .filter(|e| if e.is_dir { fs::remove_dir_all(&e.path) } else { fs::remove_file(&e.path) }.is_ok())
         .count()
 }

@@ -1,8 +1,7 @@
 // T16: closing a tab (Ctrl+W, middle-click, ×) and restoring it (Ctrl+Shift+T, the bar's Restore). SPEC §7.
 import { clearInfo, clearTabInfo, showInfo } from './infobar';
-import { inConflict } from './diskState';
 import { saveTab } from './saving';
-import { closeTab, getTab, reopenClosed, textOf } from './tabs';
+import { closeTab, getTab, reopenClosed } from './tabs';
 
 const BAR_KEY = 'closed';
 const BAR_MS = 8000;
@@ -32,18 +31,6 @@ function shortcut(): HTMLElement {
   return kbd;
 }
 
-const unsavedKey = (id: string): string => `unsaved:${id}`;
-
-/** Edits the close could not write (a conflict, a failed or refused write) are reported until restored. */
-function warnUnsaved(id: string, title: string): void {
-  showInfo({
-    kind: 'warning',
-    key: unsavedKey(id),
-    text: `${title} was closed with changes that are not on disk.`,
-    actions: [{ label: 'Restore', primary: true, run: () => void restoreClosedTab(id) }]
-  });
-}
-
 /**
  * Closes a tab at once. A dirty disk tab is written once more (the write finds the closed entry);
  * a tab in conflict is not written and stays in conflict while closed. Either way, edits that do
@@ -52,27 +39,30 @@ function warnUnsaved(id: string, title: string): void {
 export async function closeTabWithRestore(id: string): Promise<void> {
   const tab = getTab(id);
   if (!tab) return;
-  const written = tab.dirty && tab.filePath ? (inConflict(id) ? Promise.resolve(false) : saveTab(id)) : null;
+  // saveTab writes no tab in conflict and reports false, like a failed or refused write.
+  const written = tab.dirty && tab.filePath ? saveTab(id) : null;
   const closed = await closeTab(id);
   if (!closed) return;
   clearTabInfo(id);
+  const restore = { label: 'Restore', primary: true, run: () => void restoreClosedTab(id) };
   showInfo({
     kind: 'info',
     key: BAR_KEY,
     position: 'bottom',
     timeoutMs: BAR_MS,
-    text: closedText(closed.title, screenshotCount(textOf(closed))),
+    text: closedText(closed.title, screenshotCount(closed.content)),
     body: shortcut(),
-    actions: [{ label: 'Restore', primary: true, run: () => void restoreClosedTab(id) }]
+    actions: [restore]
   });
+  // Edits the close could not write stay reported until the tab is restored.
   void written?.then((ok) => {
-    if (!ok && !getTab(id)) warnUnsaved(id, closed.title);
+    if (ok || getTab(id)) return;
+    showInfo({ kind: 'warning', key: `unsaved:${id}`, text: `${closed.title} was closed with changes that are not on disk.`, actions: [restore] });
   });
 }
 
-/** Reopens a closed tab (the most recent without `id`); its leftover bars go, the external watch compares it again. */
+/** Reopens a closed tab (the most recent without `id`) and ends the restore bar. */
 export async function restoreClosedTab(id?: string): Promise<void> {
-  const tab = await reopenClosed(id);
-  if (tab) clearTabInfo(tab.id);
+  await reopenClosed(id);
   clearInfo(BAR_KEY);
 }

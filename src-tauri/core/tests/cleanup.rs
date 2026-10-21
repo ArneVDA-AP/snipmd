@@ -40,7 +40,8 @@ fn tab(root: &Path, id: &str, dir_age: Duration, items: &[(&str, Duration)]) -> 
 }
 
 fn selected(root: &Path, live: &HashMap<String, Option<String>>) -> Vec<PathBuf> {
-    let mut v = select_for_cleanup(&scan_scratch(root).unwrap(), live, now(), SCRATCH_GRACE);
+    let entries = scan_scratch(root).unwrap();
+    let mut v: Vec<PathBuf> = select_for_cleanup(&entries, live, now(), SCRATCH_GRACE).into_iter().map(|e| e.path.clone()).collect();
     v.sort();
     v
 }

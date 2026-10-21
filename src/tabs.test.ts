@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionFile, TabState } from './types';
 
 vi.mock('./ipc', () => ({ readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
-vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
+vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({ renderRead: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
-import { showError } from './infobar';
+import { clearTabInfo, showError } from './infobar';
 import { closeTab, initTabs, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
 import { applyToTab, getState, getView } from './editor/registry';
@@ -201,5 +201,6 @@ describe('a closed tab is a tab without a view', () => {
     expect(inConflict('cf')).toBe(true);
     await reopenClosed('cf');
     expect(inConflict('cf')).toBe(false);
+    expect(clearTabInfo).toHaveBeenCalledWith('cf');
   });
 });

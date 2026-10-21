@@ -105,7 +105,10 @@ async function moveImages(tab: TabState): Promise<void> {
     // The images stay in the scratch folder; nothing is lost.
     const id = tab.id;
     showError(`move the images of ${tab.title}`, err, imagesKey(id), [
-      { label: 'Try again', primary: true, run: () => void (findTab(id) && moveImages(findTab(id)!)) }
+      { label: 'Try again', primary: true, run: () => {
+        const t = findTab(id);
+        if (t) void moveImages(t);
+      } }
     ]);
   }
 }
