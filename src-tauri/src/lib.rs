@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{ErrorKind, Read};
-use snipmd_core::{assets::{self, assets_dir_for}, atomic, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
@@ -493,6 +495,40 @@ fn claim_new_note(app: AppHandle, folder: String, name: String) -> Result<String
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// SPEC §6.5: at startup, on its own thread so startup never waits, read session.json and clean
+/// the scratch folder. No session, an unreadable one or one without open tabs (the frontend
+/// discards it) cleans nothing. A tab with a file path has no known text (None): its scratch
+/// items are kept; an untitled tab's text is its content.
+fn start_cleanup(app_data: PathBuf) {
+    std::thread::spawn(move || {
+        let Ok(raw) = fs::read_to_string(app_data.join("session.json")) else { return };
+        let Ok(mut session) = serde_json::from_str::<Value>(&raw) else { return };
+        if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
+            return;
+        }
+        let live = live_tabs(&mut session);
+        let removed = cleanup::clean_scratch(&app_data.join("scratch"), &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
+        if removed > 0 {
+            eprintln!("cleanup: removed {removed} unused scratch item(s)");
+        }
+    });
+}
+
+/// Every session tab id (open and closed) with its text when the session holds it.
+fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
+    let mut live: HashMap<String, Option<String>> = HashMap::new();
+    for tab in session_tabs(session) {
+        let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
+        let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
+        // An id seen twice keeps both texts; once None, it stays None.
+        match (live.entry(id.to_string()).or_insert_with(|| Some(String::new())), text) {
+            (Some(all), Some(t)) => all.extend(["\n", t]),
+            (known, _) => *known = None,
+        }
+    }
+    live
+}
+
 #[tauri::command(async)]
 fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     let app_data = app_data(&app)?;
@@ -612,6 +648,7 @@ pub fn run() {
             let handle = app.handle();
             if let Ok(dir) = handle.path().app_data_dir() {
                 allowed(handle).allow_dir(&dir);
+                start_cleanup(dir);
             }
             Ok(())
         })

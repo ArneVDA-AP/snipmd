@@ -2,14 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionFile, TabState } from './types';
 
 vi.mock('./ipc', () => ({ readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
-vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
+vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({ renderRead: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
-import { showError } from './infobar';
-import { closeTab, initTabs, restore, snapshot, getTabs, textOf } from './tabs';
-import { getView } from './editor/registry';
+import { clearTabInfo, showError } from './infobar';
+import { closeTab, initTabs, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
+import { inConflict, setConflict } from './diskState';
+import { applyToTab, getState, getView } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
@@ -92,5 +93,114 @@ describe('closeTab', () => {
     await closeTab('a');
     expect(getTabs().map((t) => t.id)).toEqual(['b']);
     expect(textOf(closing)).toBe('typed');
+  });
+});
+
+describe('closed-tabs list', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('keeps a closed tab with its text, newest first, and reopens it with the same id', async () => {
+    await restore(session([tab({ id: 'ca', content: 'one' }), tab({ id: 'cb', content: 'two' }), tab({ id: 'cc' })]));
+    await closeTab('ca');
+    await closeTab('cb');
+    expect(snapshot().closedTabs.map((c) => [c.tab.id, c.tab.content])).toEqual([['cb', 'two'], ['ca', 'one']]);
+    const back = await reopenClosed();
+    expect(back?.id).toBe('cb');
+    expect(textOf(back!)).toBe('two');
+    expect(getTabs().map((t) => t.id)).toEqual(['cc', 'cb']);
+    await reopenClosed('ca');
+    expect(snapshot().closedTabs).toEqual([]);
+  });
+
+  it('keeps at most 20 entries and none older than 14 days, also from the session', async () => {
+    const old = { tab: tab({ id: 'old' }), closedAt: Date.now() - 15 * DAY };
+    const fresh = { tab: tab({ id: 'fresh' }), closedAt: Date.now() - DAY };
+    await restore({ ...session([tab({ id: 'k' })]), closedTabs: [old, fresh] });
+    expect(snapshot().closedTabs.map((c) => c.tab.id)).toEqual(['fresh']);
+    const many = Array.from({ length: 21 }, (_, i) => tab({ id: `t${i}`, content: 'x' }));
+    await restore(session([...many, tab({ id: 'keep' })]));
+    for (const t of many) await closeTab(t.id);
+    const ids = snapshot().closedTabs.map((c) => c.tab.id);
+    expect(ids).toHaveLength(20);
+    expect(ids[0]).toBe('t20');
+  });
+
+  it('a write that ends after the close marks the closed entry saved', async () => {
+    await restore(session([tab({ id: 'd', filePath: 'C:/n/d.md', dirty: true, content: 'mine' }), tab({ id: 'e' })]));
+    await closeTab('d');
+    const stamp = { mtimeMs: 5, size: 4 };
+    markSaved('d', { text: 'mine', stamp });
+    const entry = snapshot().closedTabs[0].tab;
+    expect(entry.dirty).toBe(false);
+    expect(entry.disk).toEqual(stamp);
+  });
+
+  it('reads a clean disk tab again on reopen, and keeps its closed text when the read fails', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('v1'));
+    await restore(session([tab({ id: 'c', filePath: 'C:/n/c.md' }), tab({ id: 'u' })]));
+    await closeTab('c');
+    vi.mocked(readNote).mockResolvedValueOnce(note('v2'));
+    expect(textOf((await reopenClosed())!)).toBe('v2');
+    await closeTab('c');
+    vi.mocked(readNote).mockRejectedValueOnce(new Error('gone'));
+    expect(textOf((await reopenClosed())!)).toBe('v2');
+  });
+
+  it('activates a note that is open again instead of a second tab, and opens unsaved edits as a read copy', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('disk'));
+    await restore(session([tab({ id: 'd', title: 'd.md', filePath: 'C:/n/d.md', dirty: true, content: 'mine' }), tab({ id: 'x2', title: 'd.md', filePath: 'C:/n/D.md' })]));
+    await closeTab('d');
+    expect(await reopenClosed()).toBeUndefined();
+    expect(getTabs().filter((t) => t.filePath).map((t) => t.id)).toEqual(['x2']);
+    const copy = getTabs().find((t) => t.title === 'd.md (closed)');
+    expect(copy?.mode).toBe('read');
+    expect(textOf(copy!)).toBe('mine');
+  });
+});
+
+describe('a closed tab is a tab without a view', () => {
+  it('an edit that lands after the close (a paste, a link rewrite) is in the entry and comes back', async () => {
+    await restore(session([tab({ id: 'pa', mode: 'edit', content: 'text' }), tab({ id: 'pb', mode: 'edit', content: 'x' })]));
+    await closeTab('pa');
+    expect(applyToTab('pa', { changes: { from: 4, insert: '\n![snip](untitled.assets/s.png)' } })).toBe(true);
+    expect(snapshot().closedTabs[0].tab.content).toBe('text\n![snip](untitled.assets/s.png)');
+    expect(textOf((await reopenClosed('pa'))!)).toBe('text\n![snip](untitled.assets/s.png)');
+  });
+
+  it('keeps unwritten edits past 20 entries; drops the others and their editor state', async () => {
+    const dirty = tab({ id: 'dw', filePath: 'C:/n/dw.md', dirty: true, content: 'mine' });
+    const many = Array.from({ length: 21 }, (_, i) => tab({ id: `w${i}`, content: 'x' }));
+    await restore(session([dirty, ...many, tab({ id: 'wk', content: 'k' })]));
+    await closeTab('dw');
+    for (const t of many) await closeTab(t.id);
+    const ids = snapshot().closedTabs.map((c) => c.tab.id);
+    expect(ids).toContain('dw');
+    expect(ids).not.toContain('w0');
+    expect(getState('w0')).toBeUndefined();
+  });
+
+  it('an empty untitled tab is not kept', async () => {
+    await restore(session([tab({ id: 'e0' }), tab({ id: 'e1', content: 'k' })]));
+    expect(await closeTab('e0')).toBeUndefined();
+    expect(snapshot().closedTabs.map((c) => c.tab.id)).not.toContain('e0');
+  });
+
+  it('opening a closed note brings the entry back with its id and edits', async () => {
+    await restore(session([tab({ id: 'op', title: 'op.md', filePath: 'C:/n/op.md', dirty: true, content: 'unsaved' }), tab({ id: 'oq', content: 'k' })]));
+    await closeTab('op');
+    await openPath('C:\\n\\op.md');
+    const back = getTabs().find((t) => t.id === 'op');
+    expect(back && textOf(back)).toBe('unsaved');
+    expect(readNote).not.toHaveBeenCalled();
+  });
+
+  it('reopening clears the conflict flag so the watch compares again', async () => {
+    await restore(session([tab({ id: 'cf', filePath: 'C:/n/cf.md', dirty: true, content: 'm' }), tab({ id: 'cg', content: 'k' })]));
+    setConflict('cf', true);
+    await closeTab('cf');
+    expect(inConflict('cf')).toBe(true);
+    await reopenClosed('cf');
+    expect(inConflict('cf')).toBe(false);
+    expect(clearTabInfo).toHaveBeenCalledWith('cf');
   });
 });

@@ -7,25 +7,36 @@ fn hex(b: u8) -> Option<u8> {
     (b as char).to_digit(16).map(|d| d as u8)
 }
 
-pub fn percent_decode(s: &str) -> Result<String, PathError> {
+/// `%XX` decoded; a `%` without two hex digits is an error when `strict`, else kept as it is.
+fn decode_bytes(s: &str, strict: bool) -> Option<Vec<u8>> {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' {
-            let h = b.get(i + 1).copied().and_then(hex);
-            let l = b.get(i + 2).copied().and_then(hex);
-            match (h, l) {
-                (Some(h), Some(l)) => out.push(h * 16 + l),
-                _ => return Err(PathError::Invalid(s.to_string())),
+        match (b[i], b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
+            (b'%', Some(h), Some(l)) => {
+                out.push(h * 16 + l);
+                i += 3;
             }
-            i += 3;
-        } else {
-            out.push(b[i]);
-            i += 1;
+            (b'%', _, _) if strict => return None,
+            (c, _, _) => {
+                out.push(c);
+                i += 1;
+            }
         }
     }
-    String::from_utf8(out).map_err(|_| PathError::Invalid(s.to_string()))
+    Some(out)
+}
+
+pub fn percent_decode(s: &str) -> Result<String, PathError> {
+    decode_bytes(s, true)
+        .and_then(|b| String::from_utf8(b).ok())
+        .ok_or_else(|| PathError::Invalid(s.to_string()))
+}
+
+/// Free text (a whole note) with every valid `%XX` decoded, like the resolver decodes the links in it.
+pub fn percent_decode_lossy(s: &str) -> String {
+    String::from_utf8_lossy(&decode_bytes(s, false).unwrap_or_default()).into_owned()
 }
 
 /// Windows drops trailing dots and spaces from a path component, so `.. ` would act as `..`

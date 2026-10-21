@@ -48,11 +48,13 @@
 - **No magic payloads, no dead exports.** Effects carry data only when someone reads it. Export only what another module imports. Delete code instead of leaving it for later.
 - **Independent I/O runs in parallel** (`Promise.all` / `allSettled`); one failure never blocks the rest.
 - **No retry loops by accident.** A failure path must not trigger the same work again (e.g. no redraw after a failed image lookup).
-- **Security checks parse like the consumer.** Decide on URLs and paths with the same parser the webview or OS uses (`new URL`, `Url::parse`, one lexical walk in `snipmd_core::paths`), never with a prefix match; `:80`, `\\`, a newline or a trailing dot/space disguises a prefix.
+- **Security checks parse like the consumer.** Decide on URLs and paths with the same parser the webview or OS uses (`new URL`, `Url::parse`, one lexical walk in `snipmd_core::paths`), never with a prefix match; `:80`, `\\`, a newline or a trailing dot/space disguises a prefix. The same holds for deleting: the scratch cleanup counts an image as used when the note names it decoded and case folded the way the resolver and Windows read it (`percent_decode_lossy`).
 - **Trust is applied after sanitizing.** Content the app vouches for (resolved image URLs) is set on the clean DOM, never recognized from a string or attribute the note could have written.
 - **File-system commands run off the main thread.** Every Tauri command that touches the disk is `#[tauri::command(async)]` (or `async fn`); a plain sync command runs on the main thread, so a removed drive freezes the window.
 - **Lasting messages are keyed.** An error that holds until its cause is fixed uses `showError(what, err, key)` and `clearInfo(key)` (`src/infobar.ts`); the info bar keeps it under newer messages. No module-level map of dismiss handles.
-- **Closed tabs keep their text.** `closeTab` stores the latest text in `TabState.content` before dropping the editor state, so work still queued for that tab reads it through `textOf`. Don't capture text at call time to work around it.
+- **A closed tab is a tab without a view.** A closed-tabs entry keeps its TabState and its EditorState, so a paste, a link rewrite or a write that ends after the close lands in the entry. Code that must reach any tab (saving, markSaved, the change listener) uses `findTab` / `allTabs`; code about what the user sees uses `getTab` / `getTabs`. Don't capture text at call time to work around a close.
+- **Unwritten edits never go silently.** A limited list (closed tabs) keeps every entry whose edits are not on disk past its limits, and a close that could not write says so in a lasting bar with Restore.
+- **A tab's bars carry its id.** Every bar that belongs to a tab has a key ending in `:<tab id>`, so `clearTabInfo(id)` removes them all on close and restore.
 - **Repeated work merges.** Saves of one tab run one at a time and a save asked for during a write joins the one queued behind it; it reads the newest text when it starts.
 - **One landing point per effect.** Saved images enter a tab only through `placeImages` (`src/editor/paste.ts`): it primes the cache, inserts all links in one transaction and asks for the immediate session write. Paste and drop call it; neither repeats those steps.
 - **One state per key.** A cache keeps one tagged entry per key (`ok` / `pending` / `failed`), not parallel maps and sets that each need clearing.
@@ -62,7 +64,8 @@
 - **Writes carry what they expect.** A note write sends the stamp the tab last saw; Rust refuses it when the file changed or went away, and the external-change module decides what happens. No write path skips that check except a new file the user just chose.
 - **One owner per state, wired from the root.** Conflict state and its bars belong to `src/external.ts`; others call `resolveConflict` / `handleRefusedWrite`. When two modules need each other, `app.ts` passes the function in (`startExternalWatch(saveTab)`); no late-bound hooks with silent no-op defaults.
 - **Bars report their own end.** A bar that stands for a pending choice uses `onClose` (fires for every way it goes) and `keepOpen` actions; nothing reaches into the info bar's DOM.
-- **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
+- **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button. Startup work in Rust (the scratch cleanup) runs from `.setup()` on its own thread, not from a command the webview happens to call first.
+- **A held key acts once.** Only moving between tabs (Ctrl+Tab, Ctrl+1..9) repeats; every other command ignores `e.repeat`.
 - Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
 
 ## Verification

@@ -1,7 +1,5 @@
 //! SnipMD logic without Tauri, so it builds and tests on any machine.
 //! contract.shared: module declarations and shared types live here; the main session owns this file.
-//! Every function is a stub (`todo!()`) until its phase implements it (see PLAN.md).
-#![allow(unused_variables, dead_code)] // removed once every stub is implemented
 
 use std::fmt;
 use std::path::PathBuf;
@@ -60,7 +58,7 @@ impl fmt::Display for TextError {
 
 impl std::error::Error for TextError {}
 
-/// One item in `%APPDATA%/snip-md/scratch/`: a tab folder (`is_dir`) or an image inside one.
+/// One item in `%APPDATA%/snip-md/scratch/`: a tab folder (`is_dir`) or an item directly inside one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScratchEntry {
     pub path: PathBuf,
