@@ -268,6 +268,7 @@ export async function activate(id: string): Promise<void> {
     try {
       article = await renderRead(tab.id, textOf(tab));
     } catch (err) {
+      if (render !== renders) return; // a newer render owns the pane
       // A note the renderer cannot handle (very deep nesting) goes back to writing: a read tab that
       // throws on every start would stop the startup.
       showError(`show ${tab.title} in read mode`, err);

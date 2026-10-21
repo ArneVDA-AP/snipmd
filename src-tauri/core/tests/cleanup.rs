@@ -223,3 +223,15 @@ fn a_dead_folder_with_a_young_file_deeper_down_is_kept() {
     age_dir(&dir, old);
     assert!(selected(&root, &live(&[])).is_empty());
 }
+
+#[test]
+fn the_raw_text_of_a_set_aside_session_keeps_the_screenshots_it_names() {
+    // A session set aside because it is not UTF-8: its lossy text is one more known text (lib.rs start_cleanup).
+    let root = scratch("set-aside");
+    tab(&root, "gone-a", 30 * DAY, &[("snip-20260901-101010-000-aaaa.png", 30 * DAY)]);
+    let other = tab(&root, "gone-b", 30 * DAY, &[("snip-20260901-101010-000-bbbb.png", 30 * DAY)]);
+    let raw = b"{\"tabs\":[{\"id\":\"gone-a\",\"content\":\"caf\xe9 ![snip](untitled.assets/snip-20260901-101010-000-aaaa.png)\"";
+    let mut known = live(&[]);
+    known.insert("set-aside:session.unreadable-1.json".into(), Some(String::from_utf8_lossy(raw).into_owned()));
+    assert_eq!(selected(&root, &known), vec![other]);
+}

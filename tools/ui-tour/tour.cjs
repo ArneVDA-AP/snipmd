@@ -85,7 +85,7 @@ async function run(browser, png, name, scene, theme, scale) {
       convertFileSrc: () => 'data:image/png;base64,' + png,
       invoke: async (cmd, args) => {
         switch (cmd) {
-          case 'load_session': return session ? JSON.stringify(session) : null;
+          case 'load_session': return { raw: session ? JSON.stringify(session) : null, setAside: null };
           case 'save_session': return null;
           case 'get_cli_startup_files': return [];
           case 'read_markdown_file': return { text: args.path.endsWith('labo-04.md') ? note : '# Meeting\n\nOn disk.\n', format: { crlf: true, bom: false }, stamp: { mtimeMs: 1, size: 1 } };

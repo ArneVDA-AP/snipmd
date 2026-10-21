@@ -518,11 +518,13 @@ fn start_cleanup(app_data: PathBuf) {
             return;
         }
         let mut live = live_tabs(&mut session);
-        // A set-aside session still links its untitled notes' screenshots. One that cannot be read
-        // names unknown images, so nothing is cleaned while it exists.
+        // A set-aside session still links its untitled notes' screenshots. It was set aside because it
+        // does not parse, but its raw text still spells every name it links, and names are matched as
+        // text across all tabs: it counts as one more known text. One that cannot be read at all
+        // names unknown images, so nothing is cleaned that run.
         for aside in session::set_aside(&app_data) {
-            let Some(mut old) = fs::read_to_string(&aside).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) else { return };
-            add_live(&mut live, &mut old);
+            let Ok(bytes) = fs::read(&aside) else { return };
+            live.insert(format!("set-aside:{}", aside.display()), Some(String::from_utf8_lossy(&bytes).into_owned()));
         }
         let removed = cleanup::clean_scratch(&app_data.join("scratch"), &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
         if removed > 0 {
@@ -533,12 +535,7 @@ fn start_cleanup(app_data: PathBuf) {
 
 /// Every session tab id (open and closed) with its text when the session holds it.
 fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
-    let mut live = HashMap::new();
-    add_live(&mut live, session);
-    live
-}
-
-fn add_live(live: &mut HashMap<String, Option<String>>, session: &mut Value) {
+    let mut live: HashMap<String, Option<String>> = HashMap::new();
     for tab in session_tabs(session) {
         let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
         let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
@@ -548,6 +545,7 @@ fn add_live(live: &mut HashMap<String, Option<String>>, session: &mut Value) {
             (known, _) => *known = None,
         }
     }
+    live
 }
 
 
