@@ -50,7 +50,11 @@ jobs:
         shell: pwsh
         run: |
           $v = (Get-Content package.json | ConvertFrom-Json).version
-          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match version $v" }
+          $conf = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $crate = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          foreach ($x in @($v, $conf, $crate)) {
+            if ("v$x" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match the versions: package.json $v, tauri.conf.json $conf, Cargo.toml $crate" }
+          }
 
       - name: Build installers
         run: npx tauri build --bundles nsis,msi
@@ -80,7 +84,7 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write

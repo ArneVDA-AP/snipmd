@@ -144,6 +144,14 @@ describe('keyboard table (SPEC §10)', () => {
     expect(m.activate).toHaveBeenCalledWith('a');
   });
 
+  it('Ctrl+End and Ctrl+Left on the numpad with NumLock off stay editor keys', () => {
+    for (const [key, code] of [['End', 'Numpad1'], ['ArrowLeft', 'Numpad4']]) {
+      const e = press(key, { code });
+      expect(e.defaultPrevented).toBe(false);
+    }
+    calledOnly(undefined as never);
+  });
+
   it('Ctrl+5 with three tabs does nothing', () => {
     const e = press('5', { code: 'Digit5' });
     expect(e.defaultPrevented).toBe(false);

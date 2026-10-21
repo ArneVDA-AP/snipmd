@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{ErrorKind, Read};
-use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, session, text};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -543,22 +543,13 @@ fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
 #[tauri::command(async)]
 fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     let app_data = app_data(&app)?;
-    let session_path = app_data.join("session.json");
-    if !session_path.exists() {
-        return Ok(None);
-    }
-
-    let raw = fs::read_to_string(&session_path)
-        .map_err(|e| format!("Failed to read session.json: {e}"))?;
-
-    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else {
-        // Unreadable: keep it aside (its untitled text may be recoverable by hand) instead of letting
-        // the fresh session overwrite it. Never deleted.
-        let secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-        let aside = app_data.join(format!("session.unreadable-{secs}.json"));
-        fs::rename(&session_path, &aside).map_err(|e| format!("session.json cannot be read and could not be kept aside: {e}"))?;
-        return Ok(None);
+    // An unreadable session is kept aside (its untitled text may be recoverable by hand); when it
+    // cannot be, the error tells the page not to write a fresh session over it.
+    let raw = match session::load(&app_data.join("session.json"), |s| serde_json::from_str::<Value>(s).is_ok())? {
+        session::Loaded::Text(raw) => raw,
+        session::Loaded::Missing | session::Loaded::SetAside(_) => return Ok(None),
     };
+    let mut parsed: Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
     for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
         allow_note(&app, Path::new(p));
     }
@@ -607,13 +598,14 @@ fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
 /// The configured first size (1200 x 820) is taller than the work area of a 1080p laptop at 150%
 /// or a 1440p screen at 200%, which would put the bottom of the window off-screen.
 fn fit_to_screen(window: &WebviewWindow) {
-    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
+    let (Ok(Some(monitor)), Ok(outer), Ok(inner)) = (window.current_monitor(), window.outer_size(), window.inner_size()) else { return };
     let area = monitor.work_area().size;
-    if size.width <= area.width && size.height <= area.height {
+    let (over_w, over_h) = (outer.width.saturating_sub(area.width), outer.height.saturating_sub(area.height));
+    if over_w == 0 && over_h == 0 {
         return;
     }
-    let fitted = PhysicalSize::new(size.width.min(area.width), size.height.min(area.height));
-    let _ = window.set_size(fitted);
+    // `set_size` sets the inner size, so take the overflow of the outer frame off the inner size.
+    let _ = window.set_size(PhysicalSize::new(inner.width.saturating_sub(over_w), inner.height.saturating_sub(over_h)));
     let _ = window.center();
 }
 

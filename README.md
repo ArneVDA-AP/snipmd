@@ -53,7 +53,7 @@ SnipMD makes no network connections and collects nothing. See [`SECURITY.md`](SE
 ## Install
 SnipMD runs on Windows 10 and 11 (x64).
 
-Download `SnipMD_<version>_x64-setup.exe` from [Releases](../../releases). The installer needs no admin rights, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it. To open `.md` files with a double-click, pick SnipMD once under *Open with*.
+Download `SnipMD_<version>_x64-setup.exe` from [Releases](../../releases). The installer needs no admin rights, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it. To open `.md` files with a double-click, pick SnipMD once under *Open with*. The installer is not code-signed yet, so Windows SmartScreen may warn on the first run: choose *More info*, then *Run anyway*.
 
 To build it yourself, you need Node.js 22, Rust with the MSVC toolchain, and the Visual Studio C++ build tools:
 

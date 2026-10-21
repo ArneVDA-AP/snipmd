@@ -9,7 +9,9 @@ const m = vi.hoisted(() => ({
   onQuitRequested: vi.fn(async () => {}),
   onOpenedNotes: vi.fn(async () => {}),
   onMenuCommand: vi.fn(async () => {}),
-  onPasteText: vi.fn(async () => {})
+  onPasteText: vi.fn(async () => {}),
+  loadSession: vi.fn(async () => ({ version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] })),
+  showError: vi.fn()
 }));
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => ['C:/n/hung.md'],
@@ -40,11 +42,11 @@ vi.mock('./tabs', () => ({
   toggleMode: async () => {}
 }));
 vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: async () => {}, saveTab: async () => true, scheduleAutosave: () => {} }));
-vi.mock('./session', () => ({ loadSession: async () => ({ version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] }) }));
+vi.mock('./session', () => ({ loadSession: m.loadSession }));
 vi.mock('./external', () => ({ startExternalWatch: () => void m.order.push('watch') }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClosedTab: async () => {} }));
 
@@ -61,4 +63,13 @@ it('a hung read of a command-line or Finder file leaves session writes, the clos
   expect(m.onOpenedNotes).toHaveBeenCalled();
   expect(m.onMenuCommand).toHaveBeenCalled();
   expect(m.onPasteText).toHaveBeenCalled();
+});
+
+it('a session that could not be read or kept aside is not overwritten: no session writes, and a lasting error', async () => {
+  m.order.length = 0;
+  m.loadSession.mockRejectedValueOnce('session.json cannot be read (locked) and could not be kept aside');
+  void startApp(document.createElement('div'));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(m.order).not.toContain('session writes');
+  expect(m.showError).toHaveBeenCalledWith(expect.stringContaining('session'), expect.anything(), 'session');
 });

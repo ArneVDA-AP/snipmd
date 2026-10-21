@@ -21,7 +21,7 @@ vi.mock('./ipc', () => ({
   perfMark: vi.fn(async () => false)
 }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
-vi.mock('./preview/render', () => ({ renderRead: vi.fn() }));
+vi.mock('./preview/render', () => ({ renderRead: vi.fn(async () => document.createElement('article')) }));
 vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 
 import { claimNewNote, promoteUntitled, readNote, saveImage, saveSessionRaw, writeNote } from './ipc';

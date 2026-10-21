@@ -3,12 +3,15 @@ import type { SessionFile, TabState } from './types';
 
 vi.mock('./ipc', () => ({ readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
-vi.mock('./preview/render', () => ({ renderRead: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('./preview/render', () => ({
+  renderRead: vi.fn(async (_id: string, text: string) => Object.assign(document.createElement('article'), { textContent: text }))
+}));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
+import { renderRead } from './preview/render';
 import { clearTabInfo, showError } from './infobar';
-import { closeTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
+import { activate, closeTab, getActiveTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
 import { applyToTab, filePathFor, getState, getView, trackImageSave } from './editor/registry';
 
@@ -286,5 +289,30 @@ describe('a closed tab the hidden view still holds', () => {
     const { activate } = await import('./tabs');
     await activate('cv-E');
     expect(getState('cv-A')?.doc.toString()).toBe('A\n![snip](a.assets/s.png)\n');
+  });
+});
+
+describe('read mode', () => {
+  it('a note the renderer throws on goes back to writing with an error, so a restore still finishes', async () => {
+    vi.mocked(renderRead).mockRejectedValueOnce(new RangeError('Maximum call stack size exceeded'));
+    await restore(session([tab({ id: 'rm-deep', title: 'deep.md', mode: 'read', content: '>'.repeat(3000) })]));
+    expect(getActiveTab()?.mode).toBe('edit');
+    expect(document.getElementById('r')!.hidden).toBe(true);
+    expect(showError).toHaveBeenCalledWith('show deep.md in read mode', expect.any(RangeError));
+  });
+
+  it('a slow render of one tab does not land in the read pane of the tab the user went to', async () => {
+    await restore(session([tab({ id: 'rm-a', content: 'A' }), tab({ id: 'rm-b', content: 'B' })], 'rm-b'));
+    let release!: () => void;
+    const slow = document.createElement('article');
+    slow.textContent = 'note A';
+    vi.mocked(renderRead).mockReturnValueOnce(new Promise((r) => (release = () => r(slow))));
+    const goingToA = activate('rm-a');
+    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-a', 'A')); // A is rendering
+    await activate('rm-b');
+    release();
+    await goingToA;
+    expect(getActiveTab()?.id).toBe('rm-b');
+    expect(document.getElementById('r')!.textContent).toBe('B');
   });
 });

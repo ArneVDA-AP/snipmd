@@ -260,7 +260,19 @@ export async function activate(id: string): Promise<void> {
       return;
     }
     if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
-    await renderRead(panes.read, tab.id, textOf(tab));
+    let article: HTMLElement;
+    try {
+      article = await renderRead(tab.id, textOf(tab));
+    } catch (err) {
+      // A note the renderer cannot handle (very deep nesting) goes back to writing: a read tab that
+      // throws on every start would stop the startup.
+      showError(`show ${tab.title} in read mode`, err);
+      tab.mode = 'edit';
+      if (activeId === tab.id) await activate(tab.id);
+      return;
+    }
+    if (activeId !== tab.id || tab.mode !== 'read') return; // a slow render must not show in another tab
+    panes.read.replaceChildren(article);
     requestAnimationFrame(() => {
       panes.read.scrollTop = tab.scrollTop;
       if (!stripHasFocus()) panes.read.focus({ preventScroll: true });
