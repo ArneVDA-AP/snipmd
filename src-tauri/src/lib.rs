@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{ErrorKind, Read};
-use snipmd_core::{cleanup, assets::{self, assets_dir_for}, atomic, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -496,27 +496,28 @@ fn claim_new_note(app: AppHandle, folder: String, name: String) -> Result<String
     Ok(path.to_string_lossy().into_owned())
 }
 
-static CLEANUP_STARTED: AtomicBool = AtomicBool::new(false);
-
-/// Startup cleanup of old scratch folders (SPEC 6.5), once per process, off the calling thread.
-/// `live` holds every session tab (open and closed): its text, or None for a disk tab.
-fn start_scratch_cleanup(app_data: &Path, session: &mut Value) {
-    if CLEANUP_STARTED.swap(true, Ordering::SeqCst) {
+/// SPEC §6.5: once per process, after session.json parsed, clean the scratch folder on its own
+/// thread so startup never waits. A tab with a file path has no known text (None): its scratch
+/// items are kept; an untitled tab's text is its content.
+fn start_cleanup(scratch: PathBuf, session: &mut Value) {
+    static STARTED: AtomicBool = AtomicBool::new(false);
+    if STARTED.swap(true, Ordering::SeqCst) {
         return;
     }
     let mut live: HashMap<String, Option<String>> = HashMap::new();
     for tab in session_tabs(session) {
         let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
-        let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or("").to_string());
-        if !matches!(live.get(id), Some(None)) {
-            live.insert(id.to_string(), text);
+        let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
+        // An id seen twice keeps both texts; once None, it stays None.
+        match (live.entry(id.to_string()).or_insert_with(|| Some(String::new())), text) {
+            (Some(all), Some(t)) => all.extend(["\n", t]),
+            (known, _) => *known = None,
         }
     }
-    let scratch = app_data.join("scratch");
     std::thread::spawn(move || {
-        let n = cleanup::clean_scratch(&scratch, &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
-        if n > 0 {
-            eprintln!("cleanup: removed {n} old scratch item(s)");
+        let removed = cleanup::clean_scratch(&scratch, &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
+        if removed > 0 {
+            eprintln!("cleanup: removed {removed} unused scratch item(s)");
         }
     });
 }
@@ -539,7 +540,7 @@ fn load_session(app: AppHandle) -> Result<Option<String>, String> {
         if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
             allowed(&app).allow_note_folder(Path::new(folder));
         }
-        start_scratch_cleanup(&app_data, &mut parsed);
+        start_cleanup(app_data.join("scratch"), &mut parsed);
     }
 
     Ok(Some(raw))

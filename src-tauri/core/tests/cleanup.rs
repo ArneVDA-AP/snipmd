@@ -4,134 +4,159 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-const DAY: Duration = Duration::from_secs(86_400);
+const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 
-fn root(name: &str) -> PathBuf {
+fn now() -> SystemTime {
+    SystemTime::now()
+}
+
+fn scratch(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("snipmd-cleanup-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
 }
 
-fn age(p: &Path, by: Duration, now: SystemTime) {
-    File::open(p).unwrap().set_modified(now - by).unwrap();
+fn set_age(p: &Path, age: Duration) {
+    let t = now() - age;
+    File::options().write(true).open(p).unwrap().set_modified(t).unwrap();
 }
 
-fn item(scratch: &Path, tab: &str, name: &str, by: Duration, now: SystemTime) -> PathBuf {
-    let dir = scratch.join(tab);
+fn age_dir(p: &Path, age: Duration) {
+    File::open(p).unwrap().set_modified(now() - age).unwrap();
+}
+
+/// A tab folder with the given items, each at its own age; the folder itself gets `dir_age`.
+fn tab(root: &Path, id: &str, dir_age: Duration, items: &[(&str, Duration)]) -> PathBuf {
+    let dir = root.join(id);
     fs::create_dir_all(&dir).unwrap();
-    let p = dir.join(name);
-    fs::write(&p, b"x").unwrap();
-    age(&p, by, now);
-    p
+    for (name, age) in items {
+        let p = dir.join(name);
+        fs::write(&p, b"png").unwrap();
+        set_age(&p, *age);
+    }
+    age_dir(&dir, dir_age);
+    dir
 }
 
-fn age_dir(scratch: &Path, tab: &str, by: Duration, now: SystemTime) {
-    age(&scratch.join(tab), by, now);
-}
-
-fn live(pairs: &[(&str, Option<&str>)]) -> HashMap<String, Option<String>> {
-    pairs.iter().map(|(k, v)| (k.to_string(), v.map(String::from))).collect()
-}
-
-fn selected(s: &Path, l: &HashMap<String, Option<String>>, now: SystemTime) -> Vec<PathBuf> {
-    let mut v = select_for_cleanup(&scan_scratch(s).unwrap(), l, now, SCRATCH_GRACE);
+fn selected(root: &Path, live: &HashMap<String, Option<String>>) -> Vec<PathBuf> {
+    let mut v = select_for_cleanup(&scan_scratch(root).unwrap(), live, now(), SCRATCH_GRACE);
     v.sort();
     v
 }
 
-#[test]
-fn old_folder_of_a_dead_tab_is_selected_alone() {
-    let s = root("dead");
-    let now = SystemTime::now();
-    item(&s, "tab1", "a.png", 20 * DAY, now);
-    age_dir(&s, "tab1", 20 * DAY, now);
-    assert_eq!(selected(&s, &live(&[]), now), vec![s.join("tab1")]);
+fn live(pairs: &[(&str, Option<&str>)]) -> HashMap<String, Option<String>> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.map(str::to_string))).collect()
 }
 
 #[test]
-fn one_young_item_keeps_the_whole_folder() {
-    let s = root("young-item");
-    let now = SystemTime::now();
-    item(&s, "tab1", "a.png", 20 * DAY, now);
-    item(&s, "tab1", "b.png", DAY, now);
-    age_dir(&s, "tab1", 20 * DAY, now);
-    assert!(selected(&s, &live(&[]), now).is_empty());
+fn grace_is_fourteen_days() {
+    assert_eq!(SCRATCH_GRACE, 14 * DAY);
+}
+
+#[test]
+fn old_folder_of_a_dead_tab_is_selected_alone() {
+    let root = scratch("deadold");
+    let dir = tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY), ("b.png", 15 * DAY)]);
+    assert_eq!(selected(&root, &live(&[])), vec![dir]);
+}
+
+#[test]
+fn dead_folder_with_one_young_item_is_kept() {
+    let root = scratch("deadyoung");
+    tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY), ("b.png", 2 * DAY)]);
+    assert!(selected(&root, &live(&[])).is_empty());
+}
+
+#[test]
+fn young_dead_folder_is_kept() {
+    let root = scratch("deadyoungdir");
+    tab(&root, "t1", DAY, &[("a.png", 20 * DAY)]);
+    assert!(selected(&root, &live(&[])).is_empty());
 }
 
 #[test]
 fn old_folder_of_a_live_tab_is_kept() {
-    let s = root("live-folder");
-    let now = SystemTime::now();
-    fs::create_dir_all(s.join("tab1")).unwrap();
-    age_dir(&s, "tab1", 20 * DAY, now);
-    assert!(selected(&s, &live(&[("tab1", Some(""))]), now).is_empty());
+    let root = scratch("liveold");
+    tab(&root, "t1", 20 * DAY, &[]);
+    assert!(selected(&root, &live(&[("t1", Some(""))])).is_empty());
+    assert!(selected(&root, &live(&[("t1", None)])).is_empty());
 }
 
 #[test]
-fn unreferenced_old_item_is_selected_referenced_ones_are_kept() {
-    let s = root("refs");
-    let now = SystemTime::now();
-    let gone = item(&s, "tab1", "gone.png", 20 * DAY, now);
-    item(&s, "tab1", "named.png", 20 * DAY, now);
-    item(&s, "tab1", "with space.png", 20 * DAY, now);
-    item(&s, "tab1", "other space.png", 20 * DAY, now);
-    let text = "![](tab1/named.png) ![](with%20space.png) ![](other space.png)";
-    assert_eq!(selected(&s, &live(&[("tab1", Some(text))]), now), vec![gone]);
+fn unreferenced_old_item_of_a_tab_with_text_is_selected() {
+    let root = scratch("unref");
+    let dir = tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY), ("lab shot.png", 20 * DAY), ("c.png", 20 * DAY)]);
+    let text = "![](t1/a.png) and ![](t1/lab%20shot.png)";
+    assert_eq!(selected(&root, &live(&[("t1", Some(text))])), vec![dir.join("c.png")]);
+    let plain = "![](t1/a.png) ![](<t1/lab shot.png>) ![](t1/c.png)";
+    assert!(selected(&root, &live(&[("t1", Some(plain))])).is_empty());
 }
 
 #[test]
-fn tab_without_known_text_keeps_every_item() {
-    let s = root("none");
-    let now = SystemTime::now();
-    item(&s, "tab1", "a.png", 30 * DAY, now);
-    assert!(selected(&s, &live(&[("tab1", None)]), now).is_empty());
+fn items_of_a_tab_without_known_text_are_kept() {
+    let root = scratch("none");
+    tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY), ("b.png", 30 * DAY)]);
+    assert!(selected(&root, &live(&[("t1", None)])).is_empty());
 }
 
 #[test]
 fn young_and_future_items_are_kept() {
-    let s = root("young");
-    let now = SystemTime::now();
-    item(&s, "tab1", "young.png", 13 * DAY, now);
-    let f = item(&s, "tab1", "future.png", Duration::ZERO, now);
-    File::open(&f).unwrap().set_modified(now + DAY).unwrap();
-    assert!(selected(&s, &live(&[("tab1", Some(""))]), now).is_empty());
+    let root = scratch("young");
+    let dir = tab(&root, "t1", 20 * DAY, &[("young.png", 13 * DAY)]);
+    let future = dir.join("future.png");
+    fs::write(&future, b"png").unwrap();
+    File::options().write(true).open(&future).unwrap().set_modified(now() + 30 * DAY).unwrap();
+    age_dir(&dir, 20 * DAY);
+    assert!(selected(&root, &live(&[("t1", Some(""))])).is_empty());
+    // A dead folder holding a future item is kept as well.
+    assert!(selected(&root, &live(&[])).is_empty());
 }
 
 #[test]
-fn loose_files_and_invalid_folder_ids_are_not_listed() {
-    let s = root("scan");
-    let now = SystemTime::now();
-    fs::write(s.join("loose.png"), b"x").unwrap();
-    item(&s, "bad id!", "a.png", 20 * DAY, now);
-    item(&s, "tab1", "a.png", 20 * DAY, now);
-    fs::create_dir_all(s.join("tab1/deeper")).unwrap();
-    fs::write(s.join("tab1/deeper/c.png"), b"x").unwrap();
-    let mut paths: Vec<_> = scan_scratch(&s).unwrap().into_iter().map(|e| e.path).collect();
+fn loose_files_and_invalid_folder_names_are_never_listed() {
+    let root = scratch("loose");
+    let loose = root.join("loose.png");
+    fs::write(&loose, b"png").unwrap();
+    set_age(&loose, 30 * DAY);
+    tab(&root, "not valid", 30 * DAY, &[("a.png", 30 * DAY)]);
+    tab(&root, "CON", 30 * DAY, &[("a.png", 30 * DAY)]);
+    let entries = scan_scratch(&root).unwrap();
+    assert!(entries.is_empty(), "{entries:?}");
+    assert_eq!(clean_scratch(&root, &live(&[]), now(), SCRATCH_GRACE), 0);
+    assert!(loose.exists() && root.join("not valid/a.png").exists());
+}
+
+#[test]
+fn scan_lists_folder_and_direct_items_only() {
+    let root = scratch("scan");
+    let dir = tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY)]);
+    fs::create_dir_all(dir.join("sub")).unwrap();
+    fs::write(dir.join("sub/deep.png"), b"png").unwrap();
+    let mut paths: Vec<_> = scan_scratch(&root).unwrap().into_iter().map(|e| (e.path, e.is_dir)).collect();
     paths.sort();
-    assert_eq!(paths, vec![s.join("tab1"), s.join("tab1/a.png"), s.join("tab1/deeper")]);
-    assert!(scan_scratch(&s).unwrap().iter().all(|e| e.tab_id == "tab1"));
+    assert_eq!(paths, vec![(dir.clone(), true), (dir.join("a.png"), false), (dir.join("sub"), false)]);
 }
 
 #[test]
 fn clean_removes_exactly_the_selected_paths() {
-    let s = root("clean");
-    let now = SystemTime::now();
-    item(&s, "dead", "a.png", 20 * DAY, now);
-    age_dir(&s, "dead", 20 * DAY, now);
-    let gone = item(&s, "alive", "gone.png", 20 * DAY, now);
-    let kept = item(&s, "alive", "kept.png", 20 * DAY, now);
-    let young = item(&s, "alive", "young.png", DAY, now);
-    fs::write(s.join("loose.txt"), b"x").unwrap();
-    let l = live(&[("alive", Some("kept.png"))]);
-    assert_eq!(clean_scratch(&s, &l, now, SCRATCH_GRACE), 2);
-    assert!(!s.join("dead").exists() && !gone.exists());
-    assert!(kept.exists() && young.exists() && s.join("loose.txt").exists());
+    let root = scratch("clean");
+    let dead = tab(&root, "dead", 20 * DAY, &[("a.png", 20 * DAY)]);
+    let kept = tab(&root, "deadyoung", 20 * DAY, &[("a.png", DAY)]);
+    let alive = tab(&root, "alive", 20 * DAY, &[("used.png", 20 * DAY), ("unused.png", 20 * DAY)]);
+    let unknown = tab(&root, "disk", 20 * DAY, &[("x.png", 20 * DAY)]);
+    let l = live(&[("alive", Some("![](alive/used.png)")), ("disk", None)]);
+    assert_eq!(clean_scratch(&root, &l, now(), SCRATCH_GRACE), 2);
+    assert!(!dead.exists());
+    assert!(kept.join("a.png").exists());
+    assert!(alive.join("used.png").exists() && !alive.join("unused.png").exists());
+    assert!(unknown.join("x.png").exists());
 }
 
 #[test]
 fn missing_scratch_gives_zero_and_creates_nothing() {
-    let s = root("missing").join("nope");
-    assert_eq!(clean_scratch(&s, &live(&[]), SystemTime::now(), SCRATCH_GRACE), 0);
-    assert!(!s.exists());
+    let root = scratch("missing").join("nope");
+    assert!(scan_scratch(&root).unwrap().is_empty());
+    assert_eq!(clean_scratch(&root, &live(&[]), now(), SCRATCH_GRACE), 0);
+    assert!(!root.exists());
 }
