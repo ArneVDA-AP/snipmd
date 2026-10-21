@@ -14,21 +14,21 @@ All of SPEC.md v1 is built and on `main` with CI green. Before the tag:
    - **Window:** Mica on Windows 11, and no desktop showing through. F5, Ctrl+R, Ctrl+P and a right-click outside the text do nothing. F6 and the tab-strip keys work. Ctrl+H focuses Find when nothing is selected. No autofill popup. 150% and 200% scaling look right.
    - **Installed app:** Start menu, `.md` double-click and restart, all from the installer.
    - **Obsidian:** a note saved into a vault folder shows its screenshots in Obsidian. Editing it in both apps at once loses nothing.
-2. **Start budget.** Double-click to typing measures 690–730 ms on the owner's desktop, against a 300 ms target. About 620 ms passes before the page script runs, and SnipMD's own part is 60–70 ms. The `page` and `html` marks (measure.ps1) split those 620 ms. The owner decides on the budget once they are measured.
-3. **Release** (RELEASE-WIN11.md):
+2. **Release** (RELEASE-WIN11.md):
    - set version 1.0.0 and date the CHANGELOG;
    - tag `v1.0.0`;
    - smoke-test the published installer;
    - run a final whole-app review.
 
-Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21):
+Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on `main` e951acb):
 
 | Budget | Target | Measured |
 |---|---|---|
 | Ctrl+V of a 4K screenshot visible | < 150 ms | 62–70 ms |
 | Memory (5 tabs, 20 images, private working set) | < 120 MB | 98–104 MB |
 | Installer | < 10 MB | 1.37 MB |
-| Double-click to typing | < 300 ms | 690–730 ms, **open** |
+| SnipMD's own start (page load to typing) | < 150 ms | 131–139 ms |
+| Double-click to typing, cold start | < 1 s | 722–784 ms |
 
 ## macOS (phase 7, after v1.0.0)
 Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a and 7b went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs; 7c waits for nothing but #24 and #31, which are merged.
@@ -107,6 +107,7 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.
 - **Windows testing.** A tester session on the owner's PC tests and reports; the cloud session fixes. That keeps one writer for the code.
-- **v1.0.0** is tagged only after the Windows tests pass and the start budget is decided.
+- **v1.0.0** is tagged only after the Windows tests pass.
+- **Start budget** (owner, 2026-10-21). SPEC §9 budgets SnipMD's own start (< 150 ms) and the cold start (< 1 s) instead of one 300 ms target. WebView2's own start takes about 600 ms on the owner's desktop before any page loads (tester probes on `test/w11-20261021`). A broker process that keeps WebView2 warm reaches about 320 ms but crashes SnipMD's start when its options differ, so it is out. Keeping SnipMD warm in the background is `PROPOSALS.md` #4, for after v1.
 - **macOS** comes after v1.0.0 (SPEC §13); Linux stays out. Most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop the Windows release depends on. The window keeps the native macOS buttons and an opaque bar, since vibrancy needs `macOSPrivateApi`. Closing the window quits the app, and new notes use LF.
 - **macOS 13 Ventura or later, universal binary.** The owner wants Intel included; Ventura still runs on 2017 Intel Macs and its WebKit has everything the frontend uses. Without an Apple Developer account, builds are ad-hoc signed.
