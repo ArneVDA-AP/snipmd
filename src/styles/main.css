@@ -195,6 +195,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .read-pane:focus-visible { outline: none; }
 .editor-pane .cm-editor { height: 100%; background: var(--bg); color: var(--text); }
 .editor-pane .cm-editor.cm-focused { outline: none; }
+.editor-pane .cm-content:focus-visible { outline: none; } /* the caret shows where the keys go */
 .editor-pane .cm-scroller { font: var(--fs-body)/1.65 var(--font-ui); }
 .editor-pane .cm-content { max-width: 800px; margin: 0 auto; padding: var(--s6) var(--s6) 40vh; caret-color: var(--accent); }
 .editor-pane .cm-line { padding: 0; }

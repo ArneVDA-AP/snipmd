@@ -155,6 +155,7 @@ One row per phase, filled when its PR merges. "Later" counts defects found after
 | 4 | thin-standard | 8 / 216k / 5 build, then V1 + R1 as agents 2 / 159k / 10 (the run stopped at the disk gate on the Cargo.lock regeneration) | foundation (types, ipc, diskState, infobar body), contract, 12 review fixes, /simplify; not measured | 2 / 10 / 12 | open (Windows test) |
 | 5 | thin-standard (comparison, not merged) | 11 / 292k / 10; about $1.40: builders and V1 on Sonnet $0.47, gates on Haiku $0.01, R1 on Opus $0.93 | foundation (closed-tabs list in tabs.ts, clearTabInfo), contract | 0 / 3 / 11 | n/a |
 | 5 | solo, merged | 1 build + 1 R1 / 110k + 122k / 6 + 9; about $2.50: build $1.30 and R1 $1.20, both Opus | same foundation and contract; fixes for both reviews, /simplify; not measured | 0 / 4 / 8 | open (Windows test) |
+| 6 | solo, merged (PRs #8-#13) | 7 review agents (6a, 6b, whole app R1-R6), Opus; not measured | UI system, find and replace, bundle split, measuring, docs, all review fixes | 6a 0/3/14, 6b 0/3/10, R1 0/3/10, R2 0/1/6, R3 1/1/6, R4 0/1/4, R5 0/0/1, R6 0/0/2 | 2 so far: the first real-window screenshots (runner) showed every CodeMirror style blocked by Tauri's style-src nonces (no Markdown styling in the editor), and a focus ring around the editor text |
 
 Phase 5 comparison. Tokens are the final context per agent; dollars come from each turn's input, cache-write and cache-read tokens at list prices (Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50 per MTok in/out), with output estimated from the visible text and tool inputs. Thinking tokens are not in the transcripts, so both figures are low, the Opus-only solo run more so. Build quality came out about even: most majors in both reviews came from the shared foundation and contract (closed tabs losing late edits, unsaved closes not reported, the cleanup's reference test), so they applied to both builds. The thin build had one defect of its own (a repeated tab id dropped image references); the solo build joined the texts. Solo was cheaper in tokens (232k against 292k) and dearer in money (about 1.8x), because every token was Opus; the thin build ran its builders on Sonnet. The solo build was merged as the better of the two, because it had the fewest build defects; the thin run's review file (`review/phase5-R1.md`) stays as the record. Both reviews diffed against a stale local `main` (phase 1), so they read more than phase 5; their phase 5 findings stand.
 
@@ -171,9 +172,10 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
   |---|---|---|---|
   | Installer size | < 10 MB | 1.36 MB (NSIS); MSI 1.89 MB, bare exe 3.60 MB | Release workflow on `windows-latest`, 2026-10-21, phase 6c code |
   | Startup JS (first paint) | as small as the first paint needs | 397 KB (130 KB gzip); read mode 76 KB loaded later | `npm run build`, phase 6b |
-  | Double-click to typing | < 300 ms | open: `measure.ps1` on the Windows machine | |
-  | Ctrl+V to 4K screenshot visible | < 150 ms | open: `measure.ps1` | |
-  | Memory, 5 tabs and 20 images | < 120 MB | open: `measure.ps1` | |
+  | Double-click to typing | < 300 ms | runner: 568 ms median of later starts, 2.9 s first start; **owner's machine open** | `windows-run.yml` run 1 on a Windows Server 2025 runner (no GPU), 2026-10-21 |
+  | Ctrl+V to 4K screenshot visible | < 150 ms | runner: 66 ms median; owner's machine open | same run |
+  | Memory, 5 tabs and 20 images | < 120 MB | runner: 125 MB private bytes (upper bound of Task Manager's figure); owner's machine open | same run |
+  The runner is a server VM without a GPU, so its start time says little about a laptop; the start budget is the first thing to check on the Windows machine, and if it misses there, the first suspects are WebView2 start-up and the session read before the first paint.
 
 ## Decisions
 Autonomous runs add one line per decision: date, what, why.
@@ -189,6 +191,8 @@ Autonomous runs add one line per decision: date, what, why.
 - 2026-10-21. Budget marks stay in the shipped build but cost one IPC call at start when tracing is off; `SNIPMD_TRACE` and `SNIPMD_DATA_DIR` are developer switches, documented in ARCHITECTURE.md, not in the SPEC (they do not change what a note can reach).
 - 2026-10-21. A paste in the middle of a note leaves the cursor on an empty line below the image, adding one when the next line has text: the core loop is "paste, keep typing", and typing must not join the next paragraph.
 - 2026-10-21. WebView2's browser keys (reload, print, history) and its page menu are switched off in the page; the menu stays over text for spelling and clipboard. Tauri 2.12 does not expose the WebView2 setting, and a reload loses undo history and in-flight screenshots.
+- 2026-10-21. Tauri leaves `style-src` as the config states (`dangerousDisableAssetCspModification: ["style-src"]`). Tauri adds nonces to `style-src` in a release build, which makes the browser ignore `'unsafe-inline'`; CodeMirror injects its styles as `<style>` tags without a nonce, so the editor lost all Markdown styling on Windows. Scripts keep their nonces; SPEC §8 forbids inline scripts, not inline styles.
+- 2026-10-21. A manual workflow (`windows-run.yml`) measures the budgets and screenshots the real window on a Windows runner. It found the two defects above within one run; its numbers are a reference, the owner's machine stays the judge.
 - 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
 
 ## Handoff
