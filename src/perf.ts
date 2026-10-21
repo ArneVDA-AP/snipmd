@@ -10,11 +10,23 @@ export function markStep(name: 'script' | 'session'): void {
   void perfMark(name).catch(() => {});
 }
 
-/** Double-click to typing: called once the first tab can take keys; marks after that frame is painted. */
+/** Double-click to typing: called once the first tab can take keys; marks after that frame is painted.
+ *  With tracing on, it then adds where the page load began and when its HTML arrived, so a slow
+ *  start splits into WebView2 start-up, HTML, and loading the script. */
 export function markReady(): void {
   requestAnimationFrame(() =>
-    setTimeout(() => void perfMark('ready').then((on) => (tracing = on), () => {}), 0)
+    setTimeout(() => void perfMark('ready').then((on) => {
+      tracing = on;
+      if (on) markPageLoad();
+    }, () => {}), 0)
   );
+}
+
+function markPageLoad(): void {
+  const origin = performance.timeOrigin;
+  const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined;
+  void perfMark('page', undefined, origin).catch(() => {});
+  if (nav) void perfMark('html', undefined, origin + nav.responseEnd).catch(() => {});
 }
 
 /** Longest a paste is followed; a slower one is logged with this time, so it reads as a failed budget. */

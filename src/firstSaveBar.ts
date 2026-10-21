@@ -78,6 +78,7 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     input.className = 'firstsave-name';
     input.value = proposeName(text);
     input.spellcheck = false;
+    input.autocomplete = 'off'; // no WebView2 "Saved info" popup with earlier names
     input.setAttribute('aria-label', 'File name');
     const save = button('primary', 'Save', 'Save', () => submit());
     save.disabled = true;

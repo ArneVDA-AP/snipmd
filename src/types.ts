@@ -36,7 +36,7 @@ export interface ClosedTab {
   closedAt: number;
 }
 
-/** Shape of %APPDATA%/snip-md/session.json. */
+/** Shape of %APPDATA%/com.snipmd.desktop/session.json. */
 export interface SessionFile {
   version: 3;
   activeTabId: string;

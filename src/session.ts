@@ -1,4 +1,4 @@
-// Session persistence: %APPDATA%/snip-md/session.json is the only store (SPEC §7).
+// Session persistence: %APPDATA%/com.snipmd.desktop/session.json is the only store (SPEC §7).
 import type { ClosedTab, DiskStamp, SessionFile, TabState, TextFormat } from './types';
 import { loadSessionRaw, saveSessionRaw } from './ipc';
 import { clearInfo, showError } from './infobar';
