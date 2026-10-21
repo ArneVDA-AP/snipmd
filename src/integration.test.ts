@@ -130,6 +130,16 @@ describe('startup, restore and reopen', () => {
     expect(vi.mocked(saveSessionRaw).mock.calls.at(-1)![0]).toContain('draft');
   });
 
+  it('a hung read of a file from the command line does not stop session writes', async () => {
+    await restore(session([tab({ id: 'c1', content: 'draft' })]));
+    tabsMod.startSessionWrites();
+    vi.mocked(readNote).mockReturnValue(new Promise(() => {}));
+    void tabsMod.openPaths(['C:/n/hung.md']);
+    reg.applyToTab('c1', { changes: { from: 5, insert: ' typed' } });
+    await flushDirty();
+    expect(vi.mocked(saveSessionRaw).mock.calls.at(-1)![0]).toContain('draft typed');
+  });
+
   it('an id in both lists of an old session keeps both texts and edits of the open tab survive its close', async () => {
     const s = session([tab({ id: 'dup', content: 'live' }), tab({ id: 'k', content: 'k' })]);
     s.closedTabs = [{ tab: tab({ id: 'dup', content: 'old' }), closedAt: Date.now() - 1000 }];
