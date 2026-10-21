@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SnipMDProbe",
+  "version": "0.1.0",
+  "identifier": "com.snipmd.probe",
+  "build": { "frontendDist": "./dist" },
+  "app": { "windows": [], "security": { "csp": null } },
+  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+}
