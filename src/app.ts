@@ -5,6 +5,7 @@ import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
+import { markReady } from './perf';
 import { openFind } from './editor/search';
 import { getView } from './editor/registry';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
@@ -20,6 +21,7 @@ import {
   newUntitled,
   openPath,
   openPaths,
+  preloadReader,
   restore,
   snapshot,
   toggleMode
@@ -127,7 +129,9 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   await openPaths(cliFiles);
+  markReady();
   startExternalWatch(saveTab);
+  preloadReader();
 
   await Promise.all([
     // A hung note write (drive removed) must not keep the window open; the session was written first.

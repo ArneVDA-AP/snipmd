@@ -177,6 +177,8 @@ Autonomous runs add one line per decision: date, what, why.
 - 2026-10-21. Dimmed Markdown marks (`#`, `**`, link URLs) are held to 3:1, not 4.5:1. Why: they repeat what the styling already shows (size, weight, colour); WCAG treats such text as incidental. All other text is 4.5:1 or more.
 - 2026-10-21. Windows 11 Mica behind the top bar: Rust applies it at startup when the build is 22000 or later and tells the page through `window_backdrop`; only then does the bar go transparent. The window is `transparent: true`; the page itself stays opaque, so Windows 10 looks as before. Why: the goal asks for Mica where Tauri offers it, and a wrong guess must never show the desktop through the window.
 - 2026-10-21. Keyboard: F6 / Shift+F6 cycle page, info bar and tab strip (Windows convention); the tab strip has one tab stop with arrows, Home, End, Enter and Delete; Esc dismisses a non-sticky bar; window buttons are not tab stops (Alt+Space and Alt+F4 reach them). Ctrl+F or Ctrl+H in read mode switches to writing and opens the panel.
+- 2026-10-21. The editor parses GFM without embedded HTML, CSS or JavaScript (bundle 658 to 398 KB). HTML tag completion and auto-closing tags go with it; SnipMD notes are Markdown, and SPEC §5 asks for neither. An image's target is found after its `(` mark, because GFM makes URLs in alt text nodes of their own.
+- 2026-10-21. Budget marks stay in the shipped build but cost one IPC call at start when tracing is off; `SNIPMD_TRACE` and `SNIPMD_DATA_DIR` are developer switches, documented in ARCHITECTURE.md, not in the SPEC (they do not change what a note can reach).
 - 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
 
 ## Handoff

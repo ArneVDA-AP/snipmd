@@ -16,7 +16,6 @@ import {
   textOf as editorText,
   visibleTabId
 } from './editor/registry';
-import { renderRead } from './preview/render';
 import { readNote } from './ipc';
 import { setConflict } from './diskState';
 import { scheduleSessionSave } from './session';
@@ -189,6 +188,15 @@ function mountEditor(tab: TabState): void {
   });
 }
 
+/** Read mode loads on first use: marked and DOMPurify are not needed for the first paint (SPEC §9). */
+const loadReader = () => import('./preview/render');
+
+/** Loads read mode in the background once the window is idle, so the first Ctrl+E does not wait. */
+export function preloadReader(): void {
+  const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+  idle(() => void loadReader().catch(() => {}));
+}
+
 /** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. */
 const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs');
 
@@ -203,6 +211,14 @@ export async function activate(id: string): Promise<void> {
   if (tab.mode === 'edit') {
     mountEditor(tab);
   } else {
+    let renderRead: Awaited<ReturnType<typeof loadReader>>['renderRead'];
+    try {
+      ({ renderRead } = await loadReader());
+    } catch (err) {
+      showError('open read mode', err);
+      return;
+    }
+    if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
     await renderRead(panes.read, tab.id, textOf(tab));
     requestAnimationFrame(() => {
       panes.read.scrollTop = tab.scrollTop;

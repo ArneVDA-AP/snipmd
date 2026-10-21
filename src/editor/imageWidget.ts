@@ -9,6 +9,7 @@ import { syntaxTree } from '@codemirror/language';
 import { resolveAssetPath, toAssetUrl } from '../ipc';
 import { applyToTab, filePathFor, tabIdFacet } from './registry';
 import { isWebUrl } from '../paths';
+import { imageTarget } from './imageUrl';
 
 /**
  * One entry per cache key: the URL, a lookup in flight (with the tabs to redraw when it ends), or a failure.
@@ -128,7 +129,7 @@ function placeholder(text: string): HTMLElement {
 
 /** Link target of an Image node: its URL child without <...> brackets. */
 function imageLink(state: EditorState, node: SyntaxNode): string | null {
-  const url = node.getChild('URL');
+  const url = imageTarget(state.doc, node);
   if (!url) return null;
   let rel = state.sliceDoc(url.from, url.to).trim();
   if (rel.startsWith('<') && rel.endsWith('>')) rel = rel.slice(1, -1).trim();
