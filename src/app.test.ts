@@ -140,9 +140,7 @@ describe('keyboard table (SPEC §10)', () => {
     ['Ctrl+Alt+S', 's', { altKey: true }],
     ['plain S', 's', { ctrlKey: false }],
     ['Ctrl+V', 'v', {}],
-    ['Ctrl+Shift+V', 'V', { shiftKey: true }],
-    ['Ctrl+F', 'f', {}],
-    ['Ctrl+H', 'h', {}]
+    ['Ctrl+Shift+V', 'V', { shiftKey: true }]
   ] as const)('%s is not handled', (_name, key, init) => {
     const e = press(key, init);
     expect(e.defaultPrevented).toBe(false);
@@ -212,5 +210,48 @@ describe('F6 moves between page, info bar and tab strip', () => {
     f6();
     expect(m.focusPage).toHaveBeenCalledTimes(1);
     header.remove();
+  });
+});
+
+describe('WebView2 browser keys and menu', () => {
+  it.each([
+    ['F5', {}], ['F3', {}], ['F7', {}], ['r', { ctrlKey: true }], ['R', { ctrlKey: true, shiftKey: true }], ['p', { ctrlKey: true }],
+    ['j', { ctrlKey: true }], ['u', { ctrlKey: true }], ['ArrowLeft', { altKey: true }], ['BrowserBack', {}]
+  ] as const)('%s %o does nothing', (key, init) => {
+    const e = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    calledOnly(undefined as never);
+  });
+
+  it('the browser menu opens only over text', () => {
+    const at = (cls: string) => {
+      const el = document.createElement('div');
+      el.className = cls;
+      document.body.append(el);
+      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      el.remove();
+      return e.defaultPrevented;
+    };
+    expect(at('titlebar')).toBe(true);
+    expect(at('workspace')).toBe(true);
+    expect(at('cm-content')).toBe(false);
+  });
+});
+
+describe('find in edit mode', () => {
+  it.each([['f'], ['h']])('Ctrl+%s is CodeMirror\'s inside the note, ours outside it (no browser find bar)', (key) => {
+    const ed = document.createElement('div');
+    ed.className = 'cm-editor';
+    const field = document.createElement('input');
+    ed.append(field);
+    document.body.append(ed);
+    field.focus();
+    expect(press(key).defaultPrevented).toBe(false);
+    field.blur();
+    expect(press(key).defaultPrevented).toBe(true);
+    ed.remove();
+    calledOnly(undefined as never);
   });
 });

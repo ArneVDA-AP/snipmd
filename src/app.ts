@@ -51,6 +51,11 @@ async function findInRead(replace: boolean): Promise<void> {
   if (view) requestAnimationFrame(() => openFind(view, replace));
 }
 
+function findInEdit(replace: boolean): void {
+  const view = getView();
+  if (view) openFind(view, replace);
+}
+
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
@@ -69,7 +74,10 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 's': return onActive(saveTab);
     case 'w': return onActive(closeTabWithRestore);
     case 'e': return toggleMode;
-    case 'f': case 'h': return getActiveTab()?.mode === 'read' ? () => findInRead(key === 'h') : undefined;
+    case 'f': case 'h':
+      if (getActiveTab()?.mode === 'read') return () => findInRead(key === 'h');
+      // Outside the note (tab strip, a bar) CodeMirror does not see the key; open its panel here.
+      return document.activeElement?.closest('.cm-editor') ? undefined : () => findInEdit(key === 'h');
   }
   return undefined;
 }
@@ -85,8 +93,31 @@ function cycleRegion(titlebar: Titlebar, back: boolean): void {
   }
 }
 
+/**
+ * WebView2's own browser keys: reload (F5, Ctrl+R) would drop undo history and any image still
+ * saving; print, history, downloads, source and caret browsing open things SnipMD does not have.
+ */
+function isBrowserKey(e: KeyboardEvent): boolean {
+  const k = e.key.toLowerCase();
+  if (k === 'f3' || k === 'f5' || k === 'f7' || k === 'browserback' || k === 'browserforward' || k === 'browserrefresh') return true;
+  if (e.altKey && (k === 'arrowleft' || k === 'arrowright')) return true;
+  const ctrl = e.ctrlKey || e.metaKey;
+  return ctrl && !e.altKey && ['r', 'p', 'j', 'u'].includes(k);
+}
+
+/** The browser menu (Back, Reload, Print) only where text is: the note, inputs and selected read-mode text. */
+function allowContextMenu(e: MouseEvent): boolean {
+  const target = e.target as Element | null;
+  if (target?.closest('.cm-content, input, textarea')) return true;
+  return !!target?.closest('.read-view') && !!window.getSelection()?.toString();
+}
+
 function registerKeys(titlebar: Titlebar): void {
+  window.addEventListener('contextmenu', (e) => {
+    if (!allowContextMenu(e)) e.preventDefault();
+  });
   window.addEventListener('keydown', (e) => {
+    if (isBrowserKey(e)) return e.preventDefault();
     if (e.key === 'F6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       if (!e.repeat) cycleRegion(titlebar, e.shiftKey);

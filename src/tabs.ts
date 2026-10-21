@@ -4,8 +4,10 @@
 import { EditorView } from '@codemirror/view';
 import type { ClosedTab, DiskStamp, SessionFile, TabState } from './types';
 import { createEditorState } from './editor/setup';
+import type { EditorState } from '@codemirror/state';
 import { redrawImages } from './editor/imageWidget';
 import {
+  applyToTab,
   bindChangeListener,
   bindFilePathLookup,
   dropState,
@@ -14,7 +16,8 @@ import {
   setState,
   setView,
   textOf as editorText,
-  visibleTabId
+  visibleTabId,
+  imageSavesRunning
 } from './editor/registry';
 import { readNote } from './ipc';
 import { setConflict } from './diskState';
@@ -78,6 +81,26 @@ export const getTab = (id: string): TabState | undefined => tabs.find((t) => t.i
 export const getActiveTab = (): TabState | undefined => getTab(activeId) ?? tabs[0];
 /** Current text of a tab. */
 export const textOf = (tab: TabState): string => editorText(tab.id) ?? tab.content;
+
+/**
+ * Puts text read from its file into a tab: only the changed middle, so cursor, scroll and undo stay.
+ * A tab whose editor was never created takes it as its content. The one way file text enters a tab
+ * (reload, restore), so the text a tab shows and writes always matches the stamp stored with it.
+ */
+export function loadText(tab: TabState, text: string): void {
+  const old = editorText(tab.id);
+  if (old === undefined) {
+    tab.content = text;
+    return;
+  }
+  let from = 0;
+  const max = Math.min(old.length, text.length);
+  while (from < max && old[from] === text[from]) from++;
+  let tail = 0;
+  while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
+  if (from === old.length - tail && from === text.length - tail) return;
+  applyToTab(tab.id, { changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) } });
+}
 export const getLastFolder = (): string | null => lastFolder;
 
 /** SPEC §7: the last 20 closed tabs or 14 days, whichever is shorter. */
@@ -114,15 +137,18 @@ export function setLastFolder(folder: string): void {
   lastFolder = folder;
 }
 
-/** Stores the visible editor's state, cursor and scroll back into its tab. */
+/**
+ * Stores the visible editor's state, cursor and scroll back into its tab, also a closed one: a
+ * screenshot that landed in a closed tab the view still held must survive the view moving on.
+ */
 function captureVisible(): void {
   const view = getView();
-  const tab = getTab(visibleTabId() ?? '');
+  const tab = findTab(visibleTabId() ?? '');
   if (view && tab) {
     setState(tab.id, view.state);
     if (tab.mode === 'edit') {
       tab.cursor = view.state.selection.main.head;
-      tab.scrollTop = view.scrollDOM.scrollTop;
+      if (!panes.editor.hidden) tab.scrollTop = view.scrollDOM.scrollTop; // a hidden pane reads 0
     }
   }
   const active = getActiveTab();
@@ -167,12 +193,21 @@ export async function restore(s: SessionFile): Promise<void> {
   await activate(s.activeTabId);
 }
 
-function mountEditor(tab: TabState): void {
+/**
+ * A tab's EditorState, created from its content on first use. Every shown tab has one, also in read
+ * mode, so a drop, a reload or a link rewrite always has a document to land in.
+ */
+function ensureState(tab: TabState): EditorState {
   let state = getState(tab.id);
   if (!state) {
     state = createEditorState(tab.id, tab.content);
     setState(tab.id, state);
   }
+  return state;
+}
+
+function mountEditor(tab: TabState): void {
+  const state = ensureState(tab);
   let view = getView();
   if (!view) {
     view = new EditorView({ state, parent: panes.editor });
@@ -205,6 +240,7 @@ export async function activate(id: string): Promise<void> {
   captureVisible();
   const tab = getTab(id) ?? tabs[0];
   activeId = tab.id;
+  ensureState(tab);
   panes.editor.hidden = tab.mode !== 'edit';
   panes.read.hidden = tab.mode !== 'read';
   changed();
@@ -227,7 +263,13 @@ export async function activate(id: string): Promise<void> {
   }
 }
 
-async function addTab(title: string, filePath: string | null, content: string, extra?: Partial<TabState>): Promise<void> {
+async function addTab(
+  title: string,
+  filePath: string | null,
+  content: string,
+  extra?: Partial<TabState>,
+  after?: string
+): Promise<void> {
   const tab: TabState = {
     id: crypto.randomUUID(),
     title,
@@ -241,7 +283,9 @@ async function addTab(title: string, filePath: string | null, content: string, e
     format: null,
     ...extra
   };
-  tabs.push(tab);
+  const at = after ? tabs.findIndex((t) => t.id === after) : -1;
+  if (at === -1) tabs.push(tab);
+  else tabs.splice(at + 1, 0, tab);
   await activate(tab.id);
   changed({ immediate: true });
 }
@@ -250,9 +294,9 @@ export function newUntitled(): Promise<void> {
   return addTab(`Untitled-${untitledCounter++}`, null, '');
 }
 
-/** A new untitled tab in read mode holding `text`: the disk version of a note in conflict. */
-export function openCopy(title: string, text: string): Promise<void> {
-  return addTab(title, null, text, { mode: 'read' });
+/** A new untitled tab in read mode holding `text` (the disk version of a note in conflict), next to tab `after`. */
+export function openCopy(title: string, text: string, after?: string): Promise<void> {
+  return addTab(title, null, text, { mode: 'read' }, after);
 }
 
 export async function openPath(path: string): Promise<void> {
@@ -285,8 +329,8 @@ export async function closeTab(id: string): Promise<TabState | undefined> {
   const [closing] = tabs.splice(idx, 1);
   closing.content = textOf(closing);
   const now = Date.now();
-  // An empty untitled tab has nothing to bring back.
-  const keep = closing.filePath !== null || closing.content !== '';
+  // An empty untitled tab has nothing to bring back, unless a screenshot is still saving into it.
+  const keep = closing.filePath !== null || closing.content !== '' || imageSavesRunning(id);
   if (keep) closedTabs = recent([{ tab: closing, closedAt: now }, ...closedTabs], now);
   else dropState(id);
   if (tabs.length === 0) await newUntitled();
@@ -317,15 +361,15 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     const text = textOf(tab);
     dropState(tab.id);
     await activate(open.id);
-    if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text);
+    if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text, open.id);
     changed({ immediate: true });
     return undefined;
   }
   if (diskIsSource(tab)) {
     try {
       const note = await readNote(tab.filePath!);
-      if (note.text !== textOf(tab)) dropState(tab.id); // the editor is created again from the file
-      Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format });
+      loadText(tab, note.text); // also when the hidden editor view still holds this tab
+      Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format, dirty: false });
     } catch {
       // Kept as closed; a missing file shows up as the "no longer on disk" bar.
     }
@@ -380,5 +424,5 @@ export function markSaved(id: string, written: { text: string; stamp: DiskStamp;
   }
   tab.disk = written.stamp;
   if (textOf(tab) === written.text) tab.dirty = false;
-  changed();
+  changed({ immediate: true }); // SPEC §7: the session is written right after a save
 }

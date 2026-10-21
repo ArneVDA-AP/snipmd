@@ -23,6 +23,20 @@ async function render(md: string): Promise<HTMLElement> {
 }
 
 describe('renderRead sanitizing', () => {
+  it('drops data-* attributes a note writes (no drag regions, no borrowed state)', async () => {
+    const el = await render('<div data-tauri-drag-region class="x" data-foo="1">y</div>');
+    expect(el.querySelector('[data-tauri-drag-region]')).toBeNull();
+    expect(el.innerHTML).not.toContain('data-foo');
+    expect(el.textContent).toContain('y');
+  });
+
+  it('a middle-click on a link does nothing in the webview', async () => {
+    const el = await render('[x](https://example.org)');
+    const e = new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true });
+    el.querySelector('a')!.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+  });
+
   it('drops onerror handlers', async () => {
     const el = await render('<img src=x onerror=alert(1)>');
     expect(el.innerHTML).not.toContain('onerror');

@@ -21,6 +21,7 @@ vi.mock('./tabs', () => ({
   markSaved: m.markSaved,
   markDirty: (id: string) => void (m.tabs.find((t) => t.id === id).dirty = true),
   openCopy: m.openCopy,
+  loadText: (t: any, text: string) => m.docs.set(t.id, text),
   textOf: (t: any) => m.docs.get(t.id)
 }));
 vi.mock('./saving', () => ({ saveTab: m.saveTab }));
@@ -74,11 +75,10 @@ describe('checkTabs', () => {
     expect(m.markSaved).not.toHaveBeenCalled();
   });
 
-  it('reloads a changed clean tab, replacing only the middle, and marks it saved', async () => {
+  it('reloads a changed clean tab and marks it saved', async () => {
     const tab = addTab('a');
     m.statNote.mockResolvedValue(S2);
     await checkTabs();
-    expect(m.applyToTab).toHaveBeenCalledWith('a', { changes: { from: 6, to: 6, insert: 'brave ' } });
     expect(m.docs.get('a')).toBe('hello brave world');
     expect(m.markSaved).toHaveBeenCalledWith('a', { text: 'hello brave world', stamp: S2 });
     expect(tab.format).toEqual(fmt);
@@ -129,7 +129,7 @@ describe('checkTabs', () => {
     await checkTabs();
     action('Open disk version').run();
     await flush();
-    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world');
+    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world', 'a');
     expect(m.showInfo).toHaveBeenCalledTimes(1); // the action keeps its bar open
     expect(lastBar().actions!.every((a) => a.keepOpen)).toBe(true);
     expect(lastBar().key).toBe('external:a');

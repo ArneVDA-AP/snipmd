@@ -8,9 +8,9 @@ vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
 import { clearTabInfo, showError } from './infobar';
-import { closeTab, initTabs, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
+import { closeTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
-import { applyToTab, getState, getView } from './editor/registry';
+import { applyToTab, getState, getView, trackImageSave } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
@@ -51,7 +51,7 @@ describe('snapshot', () => {
 describe('restore', () => {
   it('takes the text of a clean disk tab from readNote, not from the session', async () => {
     vi.mocked(readNote).mockResolvedValue(note('fresh'));
-    await restore(session([tab({ id: 'c', filePath: 'C:/n/c.md', content: 'stale' })]));
+    await restore(session([tab({ id: 'fresh-c', filePath: 'C:/n/c.md', content: 'stale' })]));
     expect(textOf(getTabs()[0])).toBe('fresh');
   });
 
@@ -93,6 +93,27 @@ describe('closeTab', () => {
     await closeTab('a');
     expect(getTabs().map((t) => t.id)).toEqual(['b']);
     expect(textOf(closing)).toBe('typed');
+  });
+
+  it('keeps an empty untitled tab while a screenshot is still saving into it, so the link lands and Restore brings it back', async () => {
+    await restore(session([tab({ id: 'e', mode: 'edit' }), tab({ id: 'f', mode: 'edit', content: 'other' })]));
+    let land!: () => void;
+    void trackImageSave('e', new Promise<void>((r) => (land = r)));
+    expect(await closeTab('e')).toBeDefined();
+    applyToTab('e', { changes: { from: 0, insert: '![snip](untitled.assets/a.png)\n' } });
+    land();
+    expect(snapshot().closedTabs.find((c) => c.tab.id === 'e')?.tab.content).toBe('![snip](untitled.assets/a.png)\n');
+  });
+
+  it('a tab restored in read mode has a document, so a drop or reload lands in it', async () => {
+    await restore(session([tab({ id: 'read-r', mode: 'read', content: 'text' })]));
+    expect(applyToTab('read-r', { changes: { from: 4, insert: '\n![snip](x.png)' } })).toBe(true);
+    expect(textOf(getTabs()[0])).toBe('text\n![snip](x.png)');
+  });
+
+  it('drops an empty untitled tab with nothing saving', async () => {
+    await restore(session([tab({ id: 'empty-g', mode: 'edit' }), tab({ id: 'empty-h', mode: 'edit', content: 'x' })]));
+    expect(await closeTab('empty-g')).toBeUndefined();
   });
 });
 
@@ -202,5 +223,57 @@ describe('a closed tab is a tab without a view', () => {
     await reopenClosed('cf');
     expect(inConflict('cf')).toBe(false);
     expect(clearTabInfo).toHaveBeenCalledWith('cf');
+  });
+});
+
+describe('loadText', () => {
+  it('replaces only the changed middle of a tab with an editor', async () => {
+    await restore(session([tab({ id: 'lt-a', mode: 'edit', content: 'hello world' })]));
+    const view = getView()!;
+    view.dispatch({ selection: { anchor: 11 } });
+    loadText(getTabs()[0], 'hello brave world');
+    expect(textOf(getTabs()[0])).toBe('hello brave world');
+    expect(view.state.selection.main.head).toBe(17); // the cursor moved with the text after it
+  });
+
+  it('a restored tab never shown takes the file text, so its next write cannot undo an outside edit', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('B original\n'));
+    await restore(session([
+      tab({ id: 'lt-shown', mode: 'edit', content: 'x' }),
+      tab({ id: 'lt-hidden', title: 'b.md', filePath: 'C:/n/b.md' })
+    ]));
+    const hidden = getTabs()[1];
+    expect(getState('lt-hidden')).toBeUndefined();
+    loadText(hidden, 'B original\nLINE ADDED OUTSIDE\n');
+    expect(textOf(hidden)).toBe('B original\nLINE ADDED OUTSIDE\n');
+  });
+
+  it('restoring a closed tab whose file changed shows the new text, even when the hidden view still holds it', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('A original\n'));
+    await restore(session([
+      tab({ id: 'lt-A', title: 'a.md', filePath: 'C:/n/a.md', mode: 'edit' }),
+      tab({ id: 'lt-R', mode: 'read', content: 'reading' })
+    ]));
+    await closeTab('lt-A'); // the next tab is in read mode: the view keeps A's state
+    vi.mocked(readNote).mockResolvedValue(note('A original\nADDED OUTSIDE\n'));
+    const back = await reopenClosed('lt-A');
+    expect(textOf(back!)).toBe('A original\nADDED OUTSIDE\n');
+    expect(back!.dirty).toBe(false);
+  });
+});
+
+describe('a closed tab the hidden view still holds', () => {
+  it('keeps a screenshot that lands after the close when another tab is shown', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('A\n'));
+    await restore(session([
+      tab({ id: 'cv-A', title: 'a.md', filePath: 'C:/n/a.md', mode: 'edit' }),
+      tab({ id: 'cv-R', mode: 'read', content: 'reading' }),
+      tab({ id: 'cv-E', mode: 'edit', content: 'edit' })
+    ]));
+    await closeTab('cv-A'); // the read-mode neighbour becomes active; the view keeps A
+    applyToTab('cv-A', { changes: { from: 2, insert: '![snip](a.assets/s.png)\n' } }); // the save lands late
+    const { activate } = await import('./tabs');
+    await activate('cv-E');
+    expect(getState('cv-A')?.doc.toString()).toBe('A\n![snip](a.assets/s.png)\n');
   });
 });

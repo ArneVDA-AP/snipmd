@@ -29,6 +29,9 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
   USE_PROFILES: { html: true },
   FORBID_TAGS: ['style', 'form'],
   FORBID_ATTR: ['style', 'id', 'srcset', 'poster', 'background', 'action', 'formaction'],
+  // No data-* from a note: data-tauri-drag-region would turn read-mode text into a window drag area.
+  ALLOW_DATA_ATTR: false,
+  ADD_ATTR: ['data-own'], // the app's own mark for images it resolves (filled in after sanitizing)
   RETURN_DOM_FRAGMENT: true
 };
 
@@ -74,6 +77,10 @@ export async function renderRead(container: HTMLElement, tabId: string, content:
     if (!href || href.startsWith('#')) return;
     e.preventDefault();
     openLink(href).catch((err) => showError('open the link', err));
+  });
+  // A middle-click on a link would ask the webview for a new window; links only open through openLink.
+  article.addEventListener('auxclick', (e) => {
+    if ((e.target as Element).closest('a')) e.preventDefault();
   });
   container.replaceChildren(article);
 }

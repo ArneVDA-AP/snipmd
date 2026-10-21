@@ -550,15 +550,20 @@ fn load_session(app: AppHandle) -> Result<Option<String>, String> {
     let raw = fs::read_to_string(&session_path)
         .map_err(|e| format!("Failed to read session.json: {e}"))?;
 
-    if let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) {
-        for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
-            allow_note(&app, Path::new(p));
-        }
-        if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
-            allowed(&app).allow_note_folder(Path::new(folder));
-        }
+    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else {
+        // Unreadable: keep it aside (its untitled text may be recoverable by hand) instead of letting
+        // the fresh session overwrite it. Never deleted.
+        let secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        let aside = app_data.join(format!("session.unreadable-{secs}.json"));
+        fs::rename(&session_path, &aside).map_err(|e| format!("session.json cannot be read and could not be kept aside: {e}"))?;
+        return Ok(None);
+    };
+    for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
+        allow_note(&app, Path::new(p));
     }
-
+    if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
+        allowed(&app).allow_note_folder(Path::new(folder));
+    }
     Ok(Some(raw))
 }
 
