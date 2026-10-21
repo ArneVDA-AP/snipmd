@@ -150,8 +150,9 @@ fn file_path(tab: &Value) -> Option<&str> {
 /// `%APPDATA%/snip-md`, or the absolute folder in `SNIPMD_DATA_DIR` (measuring and tests run there,
 /// so they never touch the user's session).
 pub(crate) fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Some(dir) = std::env::var_os("SNIPMD_DATA_DIR").map(PathBuf::from).filter(|d| d.is_absolute()) {
-        return Ok(dir);
+    if let Some(dir) = std::env::var_os("SNIPMD_DATA_DIR").map(PathBuf::from) {
+        // A bad value must never fall back to the real session.
+        return if dir.is_absolute() { Ok(dir) } else { Err(format!("SNIPMD_DATA_DIR is not an absolute path: {}", dir.display())) };
     }
     app.path().app_data_dir().map_err(|e| format!("Failed to resolve app_data_dir: {e}"))
 }

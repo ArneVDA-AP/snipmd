@@ -3,6 +3,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import type { ChangeSpec, EditorState } from '@codemirror/state';
 import type { PrefixMove } from '../types';
 import { applyToTab, getState } from './registry';
+import { imageTarget } from './imageUrl';
 
 /** Every Markdown image URL that starts with exactly `move.from`, as a change to `move.to`. */
 function prefixChanges(state: EditorState, move: PrefixMove): ChangeSpec[] {
@@ -11,7 +12,7 @@ function prefixChanges(state: EditorState, move: PrefixMove): ChangeSpec[] {
   tree?.iterate({
     enter(node) {
       if (node.name !== 'Image') return;
-      const url = node.node.getChild('URL');
+      const url = imageTarget(state.doc, node.node);
       if (url && state.doc.sliceString(url.from, url.to).startsWith(move.from)) {
         changes.push({ from: url.from, to: url.from + move.from.length, insert: move.to });
       }

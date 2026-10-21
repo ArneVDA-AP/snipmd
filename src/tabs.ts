@@ -211,7 +211,13 @@ export async function activate(id: string): Promise<void> {
   if (tab.mode === 'edit') {
     mountEditor(tab);
   } else {
-    const { renderRead } = await loadReader();
+    let renderRead: Awaited<ReturnType<typeof loadReader>>['renderRead'];
+    try {
+      ({ renderRead } = await loadReader());
+    } catch (err) {
+      showError('open read mode', err);
+      return;
+    }
     if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
     await renderRead(panes.read, tab.id, textOf(tab));
     requestAnimationFrame(() => {
