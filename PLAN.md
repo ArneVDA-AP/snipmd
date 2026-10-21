@@ -180,13 +180,18 @@ Autonomous runs add one line per decision: date, what, why.
 - 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
 
 ## Handoff
-- Branches: `main` has phases 0-4 (phase 5 on `claude/phase-5`): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout, the security layer, the storage foundation, images and paste, saving flows. Phase 5 runs on `claude/phase-5`.
-- Phases 1-5 run as thin-standard (Workflow tool, name `thin-standard`). Args per phase live in `.claude/runs/`; `phase-1.args.json` is the template (its `root` is the cloud checkout; change it for a local run). Write `phase-<n>.args.json` from the phase table and show it for approval before the run.
-- Rust: a local Windows session compiles everything; in the cloud only `snipmd-core` compiles and CI checks the Tauri crate. Releases publish only from version tags.
-- Browser smoke test without Tauri: `npx vite`, then a Playwright page with a mocked `window.__TAURI_INTERNALS__` (see CLAUDE.md Verification). Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions.
+- State (2026-10-21, autonomous run): `main` has phases 0-5 and the v1 goal (PR #7). Phase 6 is three stacked branches: `claude/phase-6a` (UI system, find and replace, Markdown styling; PR #8), `claude/phase-6b` (bundle split, budget marks, `tools/measure/measure.ps1`), `claude/phase-6c` (docs and release workflow). Merge in that order; each gets its own PR once the one below is merged.
+- **Next Windows window (04:30-09:00, computer use on the Windows machine)**, in this order:
+  1. `git pull`, `npm ci`, `npm run tauri dev` on the newest merged `main`. Run every open Windows test in Status (phases 1-5) and the phase 6a test in PR #8; fix what fails, count each defect in the run log's "Later" column.
+  2. Screenshots of the real app into `findings/ui/windows/` (same scenes as `findings/ui/README.md`, light and dark, 100/150/200% scaling); judge them against Goal item 2 and fix what looks wrong.
+  3. `npx tauri build`, then `tools\measure\measure.ps1 -Exe src-tauri\target\release\snip-md.exe`; record the values under Status (phase 6). Over budget: fix before v1 (paste: show the image from a blob URL before the save ends; start: look at what blocks the first paint).
+  4. When everything holds: version 1.0.0 in `package.json`, `tauri.conf.json`, `Cargo.toml`, CHANGELOG dated, merge, tag `v1.0.0`; smoke-test the published installer from a clean install (RELEASE-WIN11.md); then the final thin-review of the whole app (Goal item 6).
+- Phases 1-5 ran as thin-standard (Workflow tool, name `thin-standard`); args per phase live in `.claude/runs/`.
+- Rust: a local Windows session compiles everything; in the cloud only `snipmd-core` compiles and CI checks the Tauri crate. Releases publish only from version tags; a manual run of *Release Windows* builds the files and checks the installer size.
+- Browser smoke test without Tauri: `npx vite`, then `tools/ui-tour/tour.cjs` (needs `playwright-core`; Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions).
 - Open items outside the phases:
-  - Bundle 583 KB: `@codemirror/lang-markdown` pulls in lang-html/javascript and autocomplete. Phase 6.
-  - README, CHANGELOG, RELEASE-WIN11.md, ARCHITECTURE.md and the build scripts still partly describe the prototype.
+  - Done in phase 6b: startup bundle 658 KB to 398 KB (GFM language without embedded parsers; read mode loaded on first use).
+  - Done in phase 6c: README, CHANGELOG, RELEASE-WIN11.md, ARCHITECTURE.md, CONTRIBUTING, SECURITY and the build scripts describe the v1 app.
 - Deferred review findings, by phase:
   - Phase 1: `escapeAttr` in `src/preview/render.ts` becomes part of the sanitizer work.
   - Phase 6 (from phase 5, /simplify skips): one tab store where a closed tab is an entry with `closedAt`, instead of `findTab` next to `getTab` (external.ts still sees only open tabs); the save, conflict and "not on disk" bars of a closed tab could be one owner's bar with Restore instead of clearTabInfo plus a third bar; the screenshot count uses a regex, not the syntax tree (a parse on the close path can block); a first save is cancelled through the bar's onClose plus a guard in firstSaveBar, not by saving.ts.
