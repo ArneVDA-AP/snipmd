@@ -17,15 +17,25 @@ const m = vi.hoisted(() => {
     saveAs: fn(),
     pickFileToOpen: vi.fn(async () => 'C:/n/picked.md'),
     closeTabWithRestore: fn(),
-    restoreClosedTab: fn()
+    restoreClosedTab: fn(),
+    flushDirty: fn(),
+    openPaths: fn(),
+    newUntitledAtStart: 0,
+    menu: null as null | ((name: string) => void),
+    beforeClose: null as null | (() => Promise<void>),
+    beforeQuit: null as null | (() => Promise<void>)
   };
 });
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => [],
-  onCloseRequested: async () => {},
+  onCloseRequested: async (f: () => Promise<void>) => void (m.beforeClose = f),
+  onQuitRequested: async (f: () => Promise<void>) => void (m.beforeQuit = f),
+  onMenuCommand: async (f: (name: string) => void) => void (m.menu = f),
+  onOpenedNotes: async () => {},
   onFilesDropped: async () => {},
   onForwardedFiles: async () => {},
   pickFileToOpen: m.pickFileToOpen,
+  takeOpenedNotes: async () => ['/Users/x/finder.md'],
   windowBackdrop: async () => false
 }));
 vi.mock('./tabs', () => ({
@@ -38,13 +48,13 @@ vi.mock('./tabs', () => ({
   initTabs: () => {},
   newUntitled: m.newUntitled,
   openPath: m.openPath,
-  openPaths: async () => {},
+  openPaths: m.openPaths,
   preloadReader: () => {},
   restore: async () => {},
   snapshot: () => ({}),
   toggleMode: m.toggleMode
 }));
-vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
+vi.mock('./saving', () => ({ flushDirty: m.flushDirty, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
 vi.mock('./session', () => ({ bindSessionSource: () => {}, loadSession: async () => null }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
@@ -79,8 +89,11 @@ const calledOnly = (f: (typeof commands)[number]) => {
   for (const c of commands) expect(c).toHaveBeenCalledTimes(c === f ? 1 : 0);
 };
 
+let startupOpened: unknown[][] = [];
 beforeAll(async () => {
   await startApp(document.createElement('div'));
+  startupOpened = m.openPaths.mock.calls.slice();
+  m.newUntitledAtStart = m.newUntitled.mock.calls.length;
 });
 
 beforeEach(() => {
@@ -253,5 +266,36 @@ describe('find in edit mode', () => {
     expect(press(key).defaultPrevented).toBe(true);
     ed.remove();
     calledOnly(undefined as never);
+  });
+});
+
+describe('macOS (SPEC §13)', () => {
+  it('a note Finder handed over before the page listened opens at start, without an empty tab', () => {
+    expect(startupOpened).toEqual([[['/Users/x/finder.md']]]);
+    expect(m.newUntitledAtStart).toBe(0);
+  });
+
+  it.each([
+    ['new-tab', () => m.newUntitled, undefined],
+    ['save', () => m.saveTab, 'a'],
+    ['save-as', () => m.saveAs, 'a'],
+    ['close-tab', () => m.closeTabWithRestore, 'a'],
+    ['reopen-tab', () => m.restoreClosedTab, undefined],
+    ['read-mode', () => m.toggleMode, undefined]
+  ] as const)('the menu item %s runs the same command as its key', (name, f, arg) => {
+    m.menu!(name);
+    calledOnly(f());
+    if (arg !== undefined) expect(f()).toHaveBeenCalledWith(arg);
+  });
+
+  it('an unknown menu id does nothing', () => {
+    m.menu!('nope');
+    calledOnly(undefined as never);
+  });
+
+  it('a quit flushes the same way as closing the window', async () => {
+    expect(m.beforeQuit).toBe(m.beforeClose);
+    await m.beforeQuit!();
+    expect(m.flushDirty).toHaveBeenCalledTimes(1);
   });
 });

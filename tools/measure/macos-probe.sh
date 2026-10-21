@@ -101,20 +101,48 @@ else
   report finder-open FAIL "the note is not in session.json (RunEvent::Opened not handled, PLAN phase 7 item 2)"
 fi
 
-echo "== Typing, then quit at once (the Cmd+Q flush)"
-start type
+# Types $2 in a fresh app (data folder $1), runs $3 to quit at once, and reports whether the text
+# reached session.json. Typing and the quit share one System Events call, so they are milliseconds apart.
+typed_then_quit() {
+  start "$1"
+  osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
+  sleep 1
+  if ! osascript -e "tell application \"System Events\" to keystroke \"$2\"" -e "$3" 2>/dev/null; then
+    quit_app
+    report "$1" BLOCKED "no keystrokes without Accessibility"
+    return
+  fi
+  for _ in $(seq 1 20); do kill -0 "$PID" 2>/dev/null || break; sleep 0.5; done
+  if kill -0 "$PID" 2>/dev/null; then
+    kill "$PID"
+    report "$1" FAIL "still running 10 s after the quit"
+  elif session | grep -q "$2"; then
+    report "$1" PASS "text typed just before the quit is in session.json"
+  else
+    report "$1" FAIL "text typed just before the quit is missing (PLAN phase 7 item 1)"
+  fi
+}
+
+echo "== Typing, then quit at once (SPEC §13: a quit flushes like a close)"
+typed_then_quit quit-flush-cmdq flushcmdq 'tell application "System Events" to keystroke "q" using command down'
+typed_then_quit quit-flush-dock flushdock "tell application id \"$ID\" to quit"
+
+echo "== Cmd+W closes the tab, not the window (the menu bar)"
+start close-tab
 osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
 sleep 1
-if osascript -e 'tell application "System Events" to keystroke "flushcheck"' 2>/dev/null; then
-  quit_app
-  if session | grep -q 'flushcheck'; then
-    report quit-flush PASS "text typed just before quit is in session.json"
+if osascript -e 'tell application "System Events" to keystroke "w" using command down' 2>/dev/null; then
+  sleep 2
+  if kill -0 "$PID" 2>/dev/null; then
+    report close-tab PASS "the app still runs after Cmd+W"
   else
-    report quit-flush FAIL "text typed just before quit is missing (PLAN phase 7 item 1)"
+    report close-tab FAIL "Cmd+W ended the app"
   fi
+  shot 04-close-tab >/dev/null
+  quit_app
 else
   quit_app
-  report quit-flush BLOCKED "no keystrokes without Accessibility"
+  report close-tab BLOCKED "no keystrokes without Accessibility"
 fi
 
 echo "== Paste a screenshot (Cmd+V with only a PNG on the clipboard)"
