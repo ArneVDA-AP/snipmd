@@ -29,7 +29,7 @@ export function rewrittenText(tabId: string, move: PrefixMove): string {
   return state.update({ changes: prefixChanges(state, move) }).state.doc.toString();
 }
 
-/** T12. Applies the rewrite to the tab's current text in one transaction (one undo step). Returns the number of links changed. */
+/** Applies the rewrite to the tab's current text in one transaction (one undo step). Returns the number of links changed. */
 export function rewriteImagePrefix(tabId: string, move: PrefixMove): number {
   const state = getState(tabId);
   if (!state) return 0;

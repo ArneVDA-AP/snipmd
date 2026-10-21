@@ -1,5 +1,4 @@
 //! SnipMD logic without Tauri, so it builds and tests on any machine.
-//! contract.shared: module declarations and shared types live here; the main session owns this file.
 
 use std::fmt;
 use std::path::PathBuf;

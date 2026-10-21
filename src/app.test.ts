@@ -40,22 +40,21 @@ vi.mock('./ipc', () => ({
 }));
 vi.mock('./tabs', () => ({
   activate: m.activate,
-  bindEditListener: () => {},
   cycle: m.cycle,
   focusActive: m.focusPage,
   getActiveTab: () => m.tabs[0],
   getTabs: () => m.tabs,
   initTabs: () => {},
+  startSessionWrites: () => {},
   newUntitled: m.newUntitled,
   openPath: m.openPath,
   openPaths: m.openPaths,
   preloadReader: () => {},
   restore: async () => {},
-  snapshot: () => ({}),
   toggleMode: m.toggleMode
 }));
 vi.mock('./saving', () => ({ flushDirty: m.flushDirty, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
-vi.mock('./session', () => ({ bindSessionSource: () => {}, loadSession: async () => null }));
+vi.mock('./session', () => ({ loadSession: async () => null }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));

@@ -35,11 +35,7 @@ const PHRASES = {
   'by word': 'Whole word',
   replace: 'Replace',
   'replace all': 'Replace all',
-  close: 'Close (Esc)',
-  'current match': 'current match',
-  'replaced match on line $': 'replaced match on line $',
-  'replaced $ matches': 'replaced $ matches',
-  'on line': 'on line'
+  close: 'Close (Esc)'
 };
 
 export function findExtension(): Extension {

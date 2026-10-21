@@ -2,12 +2,13 @@
 
 ## Ground truth
 - `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, raise it and update the spec first.
-- `PLAN.md` is the cleanup plan from the prototype to `SPEC.md` v1. Do one phase at a time, on its own branch, and only the phase that was asked for.
+- `ROADMAP.md` holds what is open and the decisions in force. Rewrite its sections when they change; don't append history. Deferred findings are GitHub issues.
 - `ARCHITECTURE.md` explains the code layout as it is now; keep it current when the layout changes.
 
 ## Workflow
-- Work on a branch, never directly on `main`. Commit and open PRs only when asked.
-- **Autonomous runs.** When the owner has handed over authority (a run toward the PLAN.md Goal while they are away), the session decides: it commits, opens PRs and merges each once CI is green and its review has no open blocker or major. thin-standard args are written to `.claude/runs/` and used, not held for approval. Every decision gets a line in PLAN.md "Decisions"; the session ends with a PLAN.md hand-off a cold session can continue from. The guardrails, the public-repo commit rules and "never rewrite `main`, never delete user data, never widen permissions" still hold.
+- Work on a branch, never directly on `main`. Commit and open PRs only when asked, or in an autonomous run.
+- **Autonomous runs.** When the owner has handed over authority, the session decides: it commits, opens PRs and merges each once CI is green and its review has no open blocker or major. thin-standard args are written to `.claude/runs/` and used, not held for approval. Every decision gets a line in ROADMAP.md "Decisions in force"; the session ends with ROADMAP.md current, so a cold session can continue. The guardrails, the public-repo commit rules and "never rewrite `main`, never delete user data, never widen permissions" still hold.
+- **Process records stay off `main` once their work is merged.** Reviews (`review/`), findings (`findings/`) and run args (`.claude/runs/`) live on the working branch; at each milestone they move to an archive branch (`archive/v1-process` holds v1). Screenshots for a review are workflow artifacts or files on a `test/` branch, not commits to `main`.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
@@ -38,36 +39,21 @@
 13. No modal dialogs, toasts or `alert()`. All messages and choices go through the info bar (SPEC §4).
 14. Nothing outside the v1 scope (SPEC §12) without agreement.
 
-## Code conventions (apply them so later reviews find less)
-- **One source of truth.** A tab's text lives in its CodeMirror `EditorState`; read it with `textOf(tab)` (`src/tabs.ts`). `TabState.content` is only filled by `snapshot()` for the session and used to create the editor on restore. Never mirror derived state.
-- **Nothing O(document) per keystroke.** The change listener only marks dirty and schedules; work that needs the text runs at save or session-write time. Expensive work goes on debounce or idle, never on the typing or paste path.
-- **One path per concern.** Tab-list changes end in `changed()` in `src/tabs.ts` (tab strip + session save). Image redraws go through `redrawImages(tabId)`. Errors go through `showError(what, err)` (`src/infobar.ts`). Don't sprinkle `scheduleSessionSave`, re-renders or hand-formatted error strings across call sites.
-- **Async work is bound to a tab id**, applied through `applyToTab` (`src/editor/registry.ts`), never to "the active tab" at completion time.
-- **Normalize at the edge.** Paths are normalized once where they enter (open, save target, session restore) with `src/paths.ts`; compare with `samePath`. No ad-hoc `replace(/\\/g, '/')`.
-- **Reuse the shared helpers**: `src/paths.ts` (paths, web URLs), `src/dom.ts` (`button`), `showError`. One constant for any list used twice. Prefer what the library already does (CodeMirror facets/effects, marked `walkTokens`, `crypto.randomUUID`).
-- **Thin layers stay thin.** `src/ipc.ts` only wraps commands and raw events; policy (which dropped files open, what happens on close) lives in `src/app.ts` or the feature module.
-- **No magic payloads, no dead exports.** Effects carry data only when someone reads it. Export only what another module imports. Delete code instead of leaving it for later.
-- **Independent I/O runs in parallel** (`Promise.all` / `allSettled`); one failure never blocks the rest.
-- **No retry loops by accident.** A failure path must not trigger the same work again (e.g. no redraw after a failed image lookup).
-- **Security checks parse like the consumer.** Decide on URLs and paths with the same parser the webview or OS uses (`new URL`, `Url::parse`, one lexical walk in `snipmd_core::paths`), never with a prefix match; `:80`, `\\`, a newline or a trailing dot/space disguises a prefix. The same holds for deleting: the scratch cleanup counts an image as used when the note names it decoded and case folded the way the resolver and Windows read it (`percent_decode_lossy`).
-- **Trust is applied after sanitizing.** Content the app vouches for (resolved image URLs) is set on the clean DOM, never recognized from a string or attribute the note could have written.
-- **File-system commands run off the main thread.** Every Tauri command that touches the disk is `#[tauri::command(async)]` (or `async fn`); a plain sync command runs on the main thread, so a removed drive freezes the window.
-- **Lasting messages are keyed.** An error that holds until its cause is fixed uses `showError(what, err, key)` and `clearInfo(key)` (`src/infobar.ts`); the info bar keeps it under newer messages. No module-level map of dismiss handles.
-- **A closed tab is a tab without a view.** A closed-tabs entry keeps its TabState and its EditorState, so a paste, a link rewrite or a write that ends after the close lands in the entry. Code that must reach any tab (saving, markSaved, the change listener) uses `findTab` / `allTabs`; code about what the user sees uses `getTab` / `getTabs`. Don't capture text at call time to work around a close.
-- **Unwritten edits never go silently.** A limited list (closed tabs) keeps every entry whose edits are not on disk past its limits, and a close that could not write says so in a lasting bar with Restore.
-- **A tab's bars carry its id.** Every bar that belongs to a tab has a key ending in `:<tab id>`, so `clearTabInfo(id)` removes them all on close and restore.
-- **Repeated work merges.** Saves of one tab run one at a time and a save asked for during a write joins the one queued behind it; it reads the newest text when it starts.
-- **One landing point per effect.** Saved images enter a tab only through `placeImages` (`src/editor/paste.ts`): it primes the cache, inserts all links in one transaction and asks for the immediate session write. Paste and drop call it; neither repeats those steps.
-- **One state per key.** A cache keeps one tagged entry per key (`ok` / `pending` / `failed`), not parallel maps and sets that each need clearing.
-- **Decide once per command.** A Rust command resolves its target once into a type (`ImageHome`: note or untitled tab) and asks that type for folder, link prefix, name and resolver; no repeated `Option` checks down the call chain.
-- **Capabilities are as narrow as the event.** A grant from a user action (dropped files) covers that action only: each drop replaces the set, and the asset scope only ever gets single image files.
-- **Write first, then move the pointers.** A first save or Save As writes the new file before images move and links are rewritten; until that write succeeds the tab, its links and the original stay as they were. A folder move goes file by file and can be called again to finish.
-- **Writes carry what they expect.** A note write sends the stamp the tab last saw; Rust refuses it when the file changed or went away, and the external-change module decides what happens. No write path skips that check except a new file the user just chose.
-- **One owner per state, wired from the root.** Conflict state and its bars belong to `src/external.ts`; others call `resolveConflict` / `handleRefusedWrite`. When two modules need each other, `app.ts` passes the function in (`startExternalWatch(saveTab)`); no late-bound hooks with silent no-op defaults.
-- **Bars report their own end.** A bar that stands for a pending choice uses `onClose` (fires for every way it goes) and `keepOpen` actions; nothing reaches into the info bar's DOM.
-- **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button. Startup work in Rust (the scratch cleanup) runs from `.setup()` on its own thread, not from a command the webview happens to call first.
-- **A held key acts once.** Only moving between tabs (Ctrl+Tab, Ctrl+1..9) repeats; every other command ignores `e.repeat`.
-- Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
+## Code conventions
+Few rules, each general. A rule that a type, test or lint now enforces is deleted from this list; module details belong in ARCHITECTURE.md.
+
+1. **One source of truth.** A tab's text lives in its CodeMirror `EditorState`; read it with `textOf`. `TabState.content` only feeds the session and a restore. Never mirror derived state; a cache keeps one tagged entry per key (`ok` / `pending` / `failed`).
+2. **Nothing O(document) per keystroke.** The change listener only marks dirty and schedules; work that needs the text runs at save or session-write time, on debounce or idle.
+3. **One path per concern.** Tab-list changes end in `changed()` (`src/tabs.ts`), image redraws in `redrawImages`, saved images enter a tab only through `placeImages`, errors go through `showError`. Reuse `src/paths.ts` and `src/dom.ts`; prefer what CodeMirror, marked or the platform already offer.
+4. **Async work is bound to a tab id**, applied through `applyToTab`, never to "the active tab" at completion. A closed tab is a tab without a view: `getTab` finds it, so late work lands in it; `openTab` / `getTabs` are for what the user sees.
+5. **Parse like the consumer, trust after sanitizing.** Paths are normalized once where they enter (`src/paths.ts`, `samePath`); URLs and paths are judged with the parser the webview or OS uses, never a prefix match. Content the app vouches for is set on the clean DOM.
+6. **Writes are safe by construction.** Every write carries the stamp it expects and Rust refuses a stale one; a first save or Save As writes the new file before images move or links change; saves of one tab run one at a time and merge.
+7. **Nothing is lost silently.** Unwritten edits outlive every limit and are reported in a lasting, keyed bar with Restore; a tab's bars have keys ending in `:<tab id>`.
+8. **Wired once, from the root.** Each state has one owner module (conflicts: `src/external.ts`). Modules that need each other get the function passed in at init (`initTabs`, `initRegistry`, `startExternalWatch`); an unwired hook throws. Lifecycle work hangs on the window's close event and Rust's `.setup()`.
+9. **Rust commands.** Every command that touches the disk is async; a command resolves its target once into a type (`ImageHome`); a capability is as narrow as the user action that granted it.
+10. **Plain code.** Thin layers stay thin (`src/ipc.ts` only wraps); no dead exports or payloads nobody reads; independent I/O runs in parallel and one failure never blocks the rest; a failure never triggers the same work again; a held key acts once (only tab switching repeats). Comments say why, never which plan step, review or phase produced the code.
+
+Before finishing a change, run `/simplify`. A recurring lesson goes into an existing rule above or into a test, not into a new bullet.
 
 ## Verification
 - Frontend: `npm run lint` (`tsc --noEmit`), `npm test` (Vitest, jsdom) and `npm run build`.

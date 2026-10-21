@@ -11,8 +11,23 @@ export const tabIdFacet = Facet.define<string, string>({
 
 const states = new Map<string, EditorState>();
 let view: EditorView | null = null;
-let filePathLookup: (tabId: string) => string | null = () => null;
-let changeListener: (tabId: string) => void = () => {};
+interface RegistryHooks {
+  /** The note a tab belongs to, also for a closed tab; null for an untitled one. */
+  filePathOf: (tabId: string) => string | null;
+  /** Called on every document change. Cheap on purpose: the text is read only when needed (textOf). */
+  onChange: (tabId: string) => void;
+}
+let hooks: RegistryHooks | null = null;
+
+/** Wired once from tabs.ts. Using the registry before that is a wiring error and throws. */
+export function initRegistry(h: RegistryHooks): void {
+  hooks = h;
+}
+
+function wired(): RegistryHooks {
+  if (!hooks) throw new Error('editor registry used before initRegistry');
+  return hooks;
+}
 
 /** Image saves (paste, drop) still running, per tab, until their links have landed. */
 const imageSaves = new Map<string, Set<Promise<unknown>>>();
@@ -38,9 +53,10 @@ export function imageSavesRunning(tabId: string): boolean {
   return (imageSaves.get(tabId)?.size ?? 0) > 0;
 }
 
-/** Settles when every image save running now has landed or failed. */
-export function imageSavesSettled(): Promise<unknown> {
-  return Promise.allSettled([...imageSaves.values()].flatMap((s) => [...s]));
+/** Settles when every image save running now (of one tab, or of all) has landed or failed. */
+export function imageSavesSettled(tabId?: string): Promise<unknown> {
+  const sets = tabId === undefined ? [...imageSaves.values()] : [imageSaves.get(tabId) ?? new Set()];
+  return Promise.allSettled(sets.flatMap((s) => [...s]));
 }
 
 export function setView(v: EditorView): void {
@@ -69,21 +85,12 @@ export function dropState(tabId: string): void {
   states.delete(tabId);
 }
 
-export function bindFilePathLookup(fn: (tabId: string) => string | null): void {
-  filePathLookup = fn;
-}
-
 export function filePathFor(tabId: string): string | null {
-  return filePathLookup(tabId);
+  return wired().filePathOf(tabId);
 }
 
-export function bindChangeListener(fn: (tabId: string) => void): void {
-  changeListener = fn;
-}
-
-/** Called on every document change. Cheap on purpose: the text is read only when it is needed (textOf). */
 export function notifyChange(tabId: string): void {
-  changeListener(tabId);
+  wired().onChange(tabId);
 }
 
 /** Current text of a tab's editor, or undefined when the tab has no editor state yet. */

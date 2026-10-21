@@ -28,4 +28,4 @@ On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\co
 7. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
 ## Measuring the budgets
-`tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values in `PLAN.md`.
+`tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values in `ROADMAP.md`.

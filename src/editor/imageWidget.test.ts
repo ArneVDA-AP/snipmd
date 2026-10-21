@@ -8,7 +8,7 @@ vi.mock('../ipc', () => ({
 }));
 
 import { resolveAssetPath } from '../ipc';
-import { bindFilePathLookup, getState, setState } from './registry';
+import { getState, initRegistry, setState } from './registry';
 import { createEditorState } from './setup';
 import { imageWidgetField, primeAssetCache } from './imageWidget';
 
@@ -35,7 +35,7 @@ function open(id: string, doc: string): EditorState {
 
 beforeEach(() => {
   resolve.mockReset();
-  bindFilePathLookup(() => '/notes/a.md');
+  initRegistry({ filePathOf: () => '/notes/a.md', onChange: () => {} });
 });
 
 describe('imageWidget', () => {
@@ -70,7 +70,7 @@ describe('imageWidget', () => {
   });
 
   it('looks up untitled tabs separately with their own tab ids', async () => {
-    bindFilePathLookup(() => null);
+    initRegistry({ filePathOf: () => null, onChange: () => {} });
     resolve.mockResolvedValue('/scratch/x.png');
     const a = newId();
     const b = newId();

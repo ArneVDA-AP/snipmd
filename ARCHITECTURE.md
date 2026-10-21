@@ -35,8 +35,9 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `SNIPMD_DATA_DIR` points the app at another data folder and `SNIPMD_TRACE` writes budget marks to `perf.log` there; `tools/measure/measure.ps1` uses both.
 
 ## Tests
-- `npm test`: Vitest with jsdom, one test file per module.
+- `npm test`: Vitest with jsdom: a test file per feature module, and `src/integration.test.ts`, which runs tabs, the editor registry, paste and saving together with only the Rust side stubbed.
 - `cargo test -p snipmd-core`: the Rust logic, on any OS.
 - CI on `windows-latest` runs both, builds the frontend and checks the Tauri crate on every push; a `macos-latest` job checks the crate for Apple Silicon and Intel.
-- `macos-run.yml` (manual) builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W and paste.
-- `tools/ui-tour/tour.cjs`: screenshots of every UI state in light and dark, at 100-200% scaling, with a mocked backend.
+- `tools/ui-tour/tour.cjs`: screenshots of every UI state in light and dark (the write scene also at 150% and 200%) in a browser with a mocked backend. It runs without Tauri's CSP, so check style or script changes in the real window too.
+- `.github/workflows/windows-run.yml` (manual): builds the release app on a Windows runner, measures the SPEC §9 budgets and screenshots the real window; the results are a workflow artifact.
+- `.github/workflows/macos-run.yml` (manual): builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W and paste; the results are in the log and a workflow artifact.
