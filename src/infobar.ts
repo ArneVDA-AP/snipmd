@@ -112,6 +112,13 @@ export function clearInfo(key: string): void {
   }
 }
 
+/** Removes every bar of a tab. A tab's bar keys end in `:<tab id>` (`save:`, `images:`, `external:`, `firstsave:`). */
+export function clearTabInfo(id: string): void {
+  for (const pos of ['top', 'bottom'] as const) {
+    for (const entry of stacks[pos].filter((e) => e.msg.key?.endsWith(`:${id}`))) remove(pos, entry);
+  }
+}
+
 /** Readable text for anything thrown or rejected; Rust commands reject with strings. */
 export function errorText(err: unknown): string {
   if (typeof err === 'string') return err;

@@ -32,6 +32,7 @@ let tabs: TabState[] = [];
 let activeId = '';
 let untitledCounter = 1;
 let lastFolder: string | null = null;
+/** Most recent first. Entries hold the closed TabState itself, so a write still queued for it lands there. */
 let closedTabs: ClosedTab[] = [];
 let panes: Panes;
 let titlebar: Titlebar;
@@ -75,6 +76,15 @@ export const getActiveTab = (): TabState | undefined => getTab(activeId) ?? tabs
 export const textOf = (tab: TabState): string => editorText(tab.id) ?? tab.content;
 export const getLastFolder = (): string | null => lastFolder;
 
+/** SPEC §7: the last 20 closed tabs or 14 days, whichever is shorter. */
+const CLOSED_MAX = 20;
+const CLOSED_MS = 14 * 24 * 60 * 60 * 1000;
+const recent = (list: ClosedTab[], now: number): ClosedTab[] =>
+  list.filter((c) => now - c.closedAt < CLOSED_MS).slice(0, CLOSED_MAX);
+
+/** An open tab, or else a closed one (a write that ends after the close updates its entry). */
+const findTab = (id: string): TabState | undefined => getTab(id) ?? closedTabs.find((c) => c.tab.id === id)?.tab;
+
 export function setLastFolder(folder: string): void {
   lastFolder = folder;
 }
@@ -101,7 +111,9 @@ const diskIsSource = (t: TabState): boolean => t.filePath !== null && !t.dirty;
 export function snapshot(): SessionFile {
   captureVisible();
   const copies = tabs.map((t) => ({ ...t, content: diskIsSource(t) ? '' : textOf(t) }));
-  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs: copies, closedTabs };
+  // Closed tabs keep their text, also when clean: the file may be gone by the time one is restored.
+  const closed = closedTabs.map((c) => ({ tab: { ...c.tab }, closedAt: c.closedAt }));
+  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs: copies, closedTabs: closed };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
@@ -125,7 +137,7 @@ export async function restore(s: SessionFile): Promise<void> {
   tabs = kept;
   untitledCounter = s.untitledCounter;
   lastFolder = s.lastFolder;
-  closedTabs = s.closedTabs;
+  closedTabs = recent([...s.closedTabs].sort((a, b) => b.closedAt - a.closedAt), Date.now());
   if (tabs.length === 0) return newUntitled();
   await activate(s.activeTabId);
 }
@@ -211,16 +223,57 @@ export async function openPaths(paths: string[]): Promise<void> {
   for (const p of paths) await openPath(p);
 }
 
-export async function closeTab(id: string): Promise<void> {
+/**
+ * Closes a tab and puts it at the front of the closed-tabs list with its latest text, cursor and
+ * scroll. Returns the closed tab. Saving, bars and the restore bar are the caller's (closedTabs.ts).
+ */
+export async function closeTab(id: string): Promise<TabState | undefined> {
   const idx = tabs.findIndex((t) => t.id === id);
-  if (idx === -1) return;
+  if (idx === -1) return undefined;
   captureVisible();
   const [closing] = tabs.splice(idx, 1);
   closing.content = textOf(closing); // a write still queued for this tab reads it from here
+  const now = Date.now();
+  closedTabs = recent([{ tab: closing, closedAt: now }, ...closedTabs], now);
   dropState(id);
-  if (tabs.length === 0) return newUntitled();
-  if (activeId === id) await activate(tabs[Math.min(idx, tabs.length - 1)].id);
+  if (tabs.length === 0) await newUntitled();
+  else if (activeId === id) await activate(tabs[Math.min(idx, tabs.length - 1)].id);
   changed({ immediate: true });
+  return closing;
+}
+
+/**
+ * Takes a tab off the closed-tabs list (the most recent without `id`) and opens it again with its
+ * id, so its scratch images and queued work still match. A clean disk tab is read from its file;
+ * when that fails it keeps the text it closed with and the external watch reports the file. A note
+ * that is open meanwhile is activated instead; edits the closed one had open in a read-only copy.
+ * Returns the reopened tab, or undefined.
+ */
+export async function reopenClosed(id?: string): Promise<TabState | undefined> {
+  const i = id === undefined ? 0 : closedTabs.findIndex((c) => c.tab.id === id);
+  const entry = closedTabs[i];
+  if (!entry) return undefined;
+  closedTabs = closedTabs.filter((c) => c !== entry);
+  const tab = entry.tab;
+  const open = tab.filePath ? tabs.find((t) => t.filePath && samePath(t.filePath, tab.filePath!)) : undefined;
+  if (open) {
+    await activate(open.id);
+    if (tab.dirty && tab.content !== textOf(open)) await openCopy(`${tab.title} (closed)`, tab.content);
+    changed({ immediate: true });
+    return undefined;
+  }
+  if (diskIsSource(tab)) {
+    try {
+      const note = await readNote(tab.filePath!);
+      Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format });
+    } catch {
+      // Kept as closed; a missing file shows up as the "no longer on disk" bar.
+    }
+  }
+  tabs.push(tab);
+  await activate(tab.id);
+  changed({ immediate: true });
+  return tab;
 }
 
 export async function toggleMode(): Promise<void> {
@@ -247,10 +300,10 @@ export function markDirty(id: string): void {
 
 /**
  * After a write or reload: stores the file's stamp, marks the tab clean if its text still equals
- * `text`, and sets the path after a first save or Save As.
+ * `text`, and sets the path after a first save or Save As. Also for a tab closed during the write.
  */
 export function markSaved(id: string, written: { text: string; stamp: DiskStamp; path?: string }): void {
-  const tab = getTab(id);
+  const tab = findTab(id);
   if (!tab) return;
   if (written.path) {
     tab.filePath = normPath(written.path);

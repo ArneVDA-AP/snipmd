@@ -39,7 +39,7 @@ const CLOSE_WAIT_MS = 3000;
 function closeAndSave(id: string): Promise<void> {
   const tab = getTab(id);
   if (tab?.dirty && tab.filePath) void saveTab(id);
-  return closeTab(id);
+  return closeTab(id).then(() => {});
 }
 
 function registerKeys(): void {
