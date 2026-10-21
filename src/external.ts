@@ -26,7 +26,8 @@ function save(id: string): Promise<boolean> {
  */
 async function reload(tab: TabState, onlyIfClean: boolean): Promise<void> {
   const file = await readNote(tab.filePath!);
-  if (onlyIfClean && tab.dirty) return raiseChanged(tab, file.stamp);
+  // A tab closed during the read gets no conflict bar; its close write reports what did not reach the disk.
+  if (onlyIfClean && tab.dirty) return openTab(tab.id) ? raiseChanged(tab, file.stamp) : undefined;
   loadText(tab, file.text);
   tab.format = file.format;
   markSaved(tab.id, { text: file.text, stamp: file.stamp });

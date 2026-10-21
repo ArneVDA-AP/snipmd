@@ -31,7 +31,7 @@ export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
   }, DEBOUNCE_MS);
 }
 
-/** T2b. Cancels a pending debounce, writes the current snapshot now and resolves when every queued write is done. Never rejects. */
+/** Cancels a pending debounce, writes the current snapshot now and resolves when every queued write is done. Never rejects. */
 export function flushSession(): Promise<void> {
   if (timer) clearTimeout(timer);
   timer = null;
@@ -111,7 +111,7 @@ export function parseSession(raw: string | null): SessionFile | null {
   const closedTabs: ClosedTab[] = (Array.isArray(d.closedTabs) ? d.closedTabs : []).flatMap((c: unknown) => {
     const rec = c as { tab?: unknown; closedAt?: unknown } | null;
     const tab = rec ? parseTab(rec.tab) : null;
-    return tab ? [{ tab, closedAt: num(rec!.closedAt) }] : [];
+    return tab ? [{ tab, closedAt: Math.min(num(rec!.closedAt), Date.now()) }] : []; // a future stamp would outlive the 14 days
   });
   const active = str(d.activeTabId, '');
   return {

@@ -48,7 +48,12 @@ export function initTabs(p: Panes, t: Titlebar, onEdit: (id: string) => void): v
   titlebar = t;
   editListener = onEdit;
   initRegistry({ filePathOf: (id) => getTab(id)?.filePath ?? null, onChange: onDocChange });
+}
+
+/** Starts writing the session. Called once the startup tabs are in place: a write before that would store an empty list over the real session. */
+export function startSessionWrites(): void {
   bindSessionSource(snapshot);
+  scheduleSessionSave();
 }
 
 /** Every change to the tab list or a tab ends here: redraw the tab strip, persist the session. */
@@ -125,9 +130,9 @@ function pruneClosed(now: number): void {
   tabs = tabs.filter((t) => !gone.has(t));
 }
 
-/** The open (or closed) tab of the note at `path`. */
+/** The open tab, or else the most recently closed one, of the note at `path`. */
 const byPath = (path: string, open: boolean): TabState | undefined =>
-  tabs.find((t) => isOpen(t) === open && t.filePath !== null && samePath(t.filePath, path));
+  (open ? getTabs() : closedTabs()).find((t) => t.filePath !== null && samePath(t.filePath, path));
 
 export function setLastFolder(folder: string): void {
   lastFolder = folder;
@@ -181,7 +186,11 @@ export async function restore(s: SessionFile): Promise<void> {
     kept.push(t);
   });
   if (failed.length > 0) showError(`reopen ${failed.join(', ')}`, reason);
-  tabs = [...kept, ...s.closedTabs.map((c) => ({ ...c.tab, closedAt: c.closedAt }))];
+  // An id in both lists (an old session) would make two tabs share one editor state: the closed
+  // copy gets a new id, so its text is kept and dropping it never touches the open tab.
+  const ids = new Set(kept.map((t) => t.id));
+  const closed = s.closedTabs.map((c) => ({ ...c.tab, id: ids.has(c.tab.id) ? crypto.randomUUID() : c.tab.id, closedAt: c.closedAt }));
+  tabs = [...kept, ...closed];
   untitledCounter = s.untitledCounter;
   lastFolder = s.lastFolder;
   pruneClosed(Date.now());
@@ -363,18 +372,18 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     changed({ immediate: true });
     return undefined;
   }
+  // Open again at once, at the end of the strip, so a second Ctrl+Shift+T during the read below takes the next one.
+  tabs = [...tabs.filter((t) => t !== tab), tab];
+  delete tab.closedAt;
   if (diskIsSource(tab)) {
     try {
       const note = await readNote(tab.filePath!);
       loadText(tab, note.text); // also when the hidden editor view still holds this tab
       Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format, dirty: false });
     } catch {
-      // Kept as closed; a missing file shows up as the "no longer on disk" bar.
+      // Keeps the text it closed with; a missing file shows up as the "no longer on disk" bar.
     }
   }
-  // Back at the end of the strip.
-  tabs = [...tabs.filter((t) => t !== tab), tab];
-  delete tab.closedAt;
   await activate(tab.id);
   changed({ immediate: true });
   return tab;

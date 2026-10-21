@@ -35,12 +35,12 @@ vi.mock('./tabs', () => ({
   getActiveTab: () => m.tabs[0],
   getTabs: () => m.tabs,
   initTabs: () => {},
+  startSessionWrites: () => {},
   newUntitled: m.newUntitled,
   openPath: m.openPath,
   openPaths: async () => {},
   preloadReader: () => {},
   restore: async () => {},
-  snapshot: () => ({}),
   toggleMode: m.toggleMode
 }));
 vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));

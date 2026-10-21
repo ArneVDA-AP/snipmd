@@ -17,6 +17,7 @@ import {
   getActiveTab,
   getTabs,
   initTabs,
+  startSessionWrites,
   newUntitled,
   openPath,
   openPaths,
@@ -145,7 +146,6 @@ export async function startApp(root: HTMLElement): Promise<void> {
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar, scheduleAutosave);
   registerKeys(titlebar);
-  window.addEventListener('blur', () => void flushDirty());
 
   const [session, cliFiles, mica] = await Promise.all([
     loadSession().catch(() => null),
@@ -157,8 +157,11 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   await openPaths(cliFiles);
-  markReady();
+  // Writes start only now: a blur or close during the restore must not store an empty session.
+  startSessionWrites();
   startExternalWatch(saveTab);
+  window.addEventListener('blur', () => void flushDirty());
+  markReady();
   preloadReader();
 
   await Promise.all([
