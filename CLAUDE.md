@@ -7,6 +7,7 @@
 
 ## Workflow
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked.
+- **Autonomous runs.** When the owner has handed over authority (a run toward the PLAN.md Goal while they are away), the session decides: it commits, opens PRs and merges each once CI is green and its review has no open blocker or major. thin-standard args are written to `.claude/runs/` and used, not held for approval. Every decision gets a line in PLAN.md "Decisions"; the session ends with a PLAN.md hand-off a cold session can continue from. The guardrails, the public-repo commit rules and "never rewrite `main`, never delete user data, never widen permissions" still hold.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
@@ -81,7 +82,7 @@
 - Before a large task (audit, analysis, build, plan), state in one or two lines the deliverable ("done is when I see ...") and the scale, and match the process weight to the stakes.
 - The main session owns design and integration. Subagents get a narrow brief: named files, a stated output, nothing open-ended. Prefer the `thin-*` agents when one fits; the built-in read-only agents (Explore, Plan) are fine for search.
 - Contract first (file-ownership map plus exact interface signatures) before parallel writers; build the shared foundation yourself; one integrator makes it cohere.
-- Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the `args` for approval before each run. A bespoke script only when the standard cannot express the task; show it first.
+- Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the `args` for approval before each run (in an autonomous run: record them, see Workflow). A bespoke script only when the standard cannot express the task; show it first.
 - Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and pick one; then write the contract.
 - Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); see `.claude/workflows-tests/thin-standard/CONCLUSION.md`.
 - Every session or task card you propose states: recommended model, effort, worktree yes/no, local or cloud, with a one-line reason.
