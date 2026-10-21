@@ -15,7 +15,11 @@ interface Entry {
 const hosts: Record<Pos, HTMLElement | null> = { top: null, bottom: null };
 const stacks: Record<Pos, Entry[]> = { top: [], bottom: [] };
 
-export function mountInfobar(top: HTMLElement, bottom: HTMLElement): void {
+/** Where focus goes when a bar that holds it goes away (the active note). */
+let returnFocus: () => void;
+
+export function mountInfobar(top: HTMLElement, bottom: HTMLElement, focusPage: () => void): void {
+  returnFocus = focusPage;
   hosts.top = top;
   hosts.bottom = bottom;
   for (const stack of Object.values(stacks)) {
@@ -43,8 +47,10 @@ function remove(pos: Pos, entry: Entry): void {
   const i = stacks[pos].indexOf(entry);
   if (i === -1) return; // already replaced or dismissed
   stacks[pos].splice(i, 1);
+  const hadFocus = !!entry.el?.contains(document.activeElement);
   closed(entry);
   render(pos);
+  if (hadFocus) returnFocus();
 }
 
 function barFor(pos: Pos, entry: Entry): HTMLElement {
@@ -81,16 +87,8 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
     if (e.key !== 'Escape' || msg.sticky || e.defaultPrevented) return;
     e.preventDefault();
     dismiss();
-    returnFocus();
   });
   return bar;
-}
-
-let returnFocus: () => void = () => {};
-
-/** F6 support: where focus goes when a bar is dismissed from the keyboard. */
-export function bindReturnFocus(fn: () => void): void {
-  returnFocus = fn;
 }
 
 /** F6 support: the newest bar's first control, top bar first. False when no bar has one. */

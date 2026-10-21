@@ -38,7 +38,7 @@ async function open(text: string): Promise<{ p: Promise<FirstSaveChoice> }> {
 
 beforeEach(() => {
   top = document.createElement('div');
-  mountInfobar(top, document.createElement('div'));
+  mountInfobar(top, document.createElement('div'), () => {});
   vi.mocked(getLastFolder).mockReturnValue('C:/Notes/Work');
   vi.mocked(defaultNoteFolder).mockResolvedValue('C:/Users/me/Documents/SnipMD');
   vi.mocked(noteNameFree).mockResolvedValue(true);

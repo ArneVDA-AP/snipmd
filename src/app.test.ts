@@ -49,7 +49,7 @@ vi.mock('./session', () => ({ bindSessionSource: () => {}, loadSession: async ()
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, bindReturnFocus: () => {}, focusInfobar: m.focusInfobar }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
     constructor(_root: HTMLElement, h: typeof m.handlers) {

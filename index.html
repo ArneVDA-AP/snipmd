@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SnipMD</title>
+    <!-- Paints before main.css loads, so the transparent window never shows the desktop. -->
+    <style>html { background: #fff; } @media (prefers-color-scheme: dark) { html { background: #272727; } }</style>
   </head>
   <body>
     <div id="app"></div>

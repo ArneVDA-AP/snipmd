@@ -2,7 +2,7 @@
 // the replace field and labels written the way the rest of the app writes them.
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search';
+import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
 
 /** Opens the panel and focuses its find field, or its replace field for Ctrl+H. */
 export function openFind(view: EditorView, replace: boolean): boolean {
@@ -36,8 +36,7 @@ const PHRASES = {
 export function findExtension(): Extension {
   return [
     search({ top: true }),
-    highlightSelectionMatches({ minSelectionLength: 2 }),
     EditorState.phrases.of(PHRASES),
-    keymap.of([{ key: 'Mod-h', run: (v) => openFind(v, true), preventDefault: true }, ...searchKeymap])
+    keymap.of([{ key: 'Mod-h', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
   ];
 }

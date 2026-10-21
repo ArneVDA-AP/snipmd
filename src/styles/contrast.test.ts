@@ -32,7 +32,7 @@ const PAIRS: [string, string, number][] = [
   ['link', 'bg', 4.5], ['code', 'bg', 4.5], ['on-accent', 'accent', 4.5], ['on-accent', 'accent-hover', 4.5],
   ['text', 'info-bg', 4.5], ['text', 'warn-bg', 4.5], ['text', 'error-bg', 4.5],
   ['text-muted', 'info-bg', 4.5], ['text-muted', 'warn-bg', 4.5], ['text-muted', 'error-bg', 4.5],
-  ['error-fg', 'bg', 4.5], ['syntax', 'bg', 3], ['accent', 'bg', 3],
+  ['error-fg', 'bg', 4.5], ['text', 'match', 4.5], ['text', 'match-current', 4.5], ['syntax', 'bg', 3], ['accent', 'bg', 3],
   ['info-fg', 'info-bg', 3], ['warn-fg', 'warn-bg', 3], ['error-fg', 'error-bg', 3],
   ['focus', 'bg', 3], ['focus', 'chrome', 3], ['focus', 'info-bg', 3], ['focus', 'warn-bg', 3], ['focus', 'error-bg', 3]
 ];

@@ -3,12 +3,14 @@ import { clearInfo, mountInfobar, showInfo } from './infobar';
 
 let top: HTMLElement;
 let bottom: HTMLElement;
+let back: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   top = document.createElement('div');
   bottom = document.createElement('div');
-  mountInfobar(top, bottom);
+  back = vi.fn<() => void>();
+  mountInfobar(top, bottom, back);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -98,17 +100,29 @@ describe('keyed messages', () => {
 });
 
 describe('keyboard', () => {
-  it('Esc in a bar dismisses it and returns focus; a sticky bar stays', async () => {
-    const { bindReturnFocus } = await import('./infobar');
-    const back = vi.fn();
-    bindReturnFocus(back);
+  it('Esc in a bar dismisses it and returns focus; a sticky bar stays', () => {
+    document.body.append(top);
     showInfo({ kind: 'info', text: 'x', actions: [{ label: 'Do', run: () => {} }] });
+    top.querySelector('button')!.focus();
     top.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(top.children.length).toBe(0);
     expect(back).toHaveBeenCalledTimes(1);
     showInfo({ kind: 'warning', text: 'y', sticky: true, actions: [{ label: 'Do', run: () => {} }] });
     top.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(top.children.length).toBe(1);
+    top.remove();
+  });
+
+  it('a bar that goes while it holds focus gives focus back to the page, however it goes', () => {
+    document.body.append(top);
+    showInfo({ kind: 'info', text: 'x', key: 'k', actions: [{ label: 'Do', run: () => {} }] });
+    top.querySelector('button')!.focus();
+    clearInfo('k');
+    expect(back).toHaveBeenCalledTimes(1);
+    showInfo({ kind: 'info', text: 'y', key: 'k' });
+    clearInfo('k'); // focus was not in it
+    expect(back).toHaveBeenCalledTimes(1);
+    top.remove();
   });
 
   it('focusInfobar focuses the newest bar\'s first control, top first, and says when there is none', async () => {

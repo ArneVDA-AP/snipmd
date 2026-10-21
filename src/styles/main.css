@@ -56,6 +56,8 @@
   --error-fg: #c42b1c;
   --danger: #c42b1c;
   --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --match: #ffe08a;
+  --match-current: #ffb547;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -87,11 +89,13 @@
     --error-fg: #ff99a4;
     --danger: #c42b1c;
     --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --match: #5c4a12;
+    --match-current: #7a4a00;
     color-scheme: dark;
   }
 }
 /* Windows 11: the top bar shows the window's Mica backdrop (set in Rust, see lib.rs). */
-:root.mica { --chrome: transparent; }
+:root.mica { --chrome: transparent; background: transparent; }
 :root.mica body { background: transparent; }
 :root.mica .workspace, :root.mica .infobar-host { background: var(--bg); }
 
@@ -203,7 +207,6 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .editor-pane .md-code-last { border-radius: 0 0 var(--r-md) var(--r-md); padding-bottom: var(--s1); }
 .editor-pane .md-code-first.md-code-last { border-radius: var(--r-md); }
 .editor-pane .md-quote-line { border-left: 3px solid var(--line-strong); padding-left: var(--s3); color: var(--text-muted); }
-.editor-pane .md-hr { color: var(--syntax); letter-spacing: 0.2em; }
 
 /* Empty state: shown in an empty tab; teaches the core loop (SPEC §2). */
 .editor-pane .cm-placeholder { color: var(--text-muted); font-family: var(--font-ui); }
@@ -259,9 +262,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .editor-pane .cm-search [name='close'] { position: absolute; top: var(--s2); right: var(--s2); width: 28px; height: 28px; padding: 0; border-radius: var(--r-sm); color: var(--text-muted); font-size: 16px; line-height: 1; }
 .editor-pane .cm-search [name='close']:hover { background: var(--hover); color: var(--text); }
 .editor-pane .cm-search input[type='checkbox'] { margin: 0; accent-color: var(--accent); }
-.editor-pane .cm-searchMatch { background: rgba(255, 196, 0, 0.35); border-radius: 2px; }
-.editor-pane .cm-searchMatch-selected { background: rgba(255, 140, 0, 0.55); }
-.editor-pane .cm-selectionMatch { background: transparent; }
+.editor-pane .cm-searchMatch { background: var(--match); border-radius: 2px; }
+.editor-pane .cm-searchMatch-selected { background: var(--match-current); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
