@@ -78,6 +78,7 @@ mod mac {
                         &PredefinedMenuItem::cut(app, None)?,
                         &PredefinedMenuItem::copy(app, None)?,
                         &PredefinedMenuItem::paste(app, None)?,
+                        &cmd(PASTE_PLAIN, "Paste as Plain Text", "CmdOrCtrl+Shift+V")?,
                         &PredefinedMenuItem::select_all(app, None)?,
                         &sep()?,
                         &cmd("find", "Find", "CmdOrCtrl+F")?,
@@ -100,9 +101,27 @@ mod mac {
         )
     }
 
-    /// A custom menu item runs the page command of the same name.
+    const PASTE_PLAIN: &str = "paste-plain";
+
+    /// A custom menu item runs the page command of the same name. Paste as Plain Text is the
+    /// exception: WKWebView only pastes through the Edit menu's own Paste, so Rust reads the
+    /// clipboard's text for this one click or key and hands it to the page (SPEC §6.3, §13).
     fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
-        let _ = app.emit("menu-command", event.id().as_ref());
+        let id = event.id().as_ref();
+        if id == PASTE_PLAIN {
+            if let Some(text) = clipboard_text() {
+                let _ = app.emit("paste-text", text);
+            }
+            return;
+        }
+        let _ = app.emit("menu-command", id);
+    }
+
+    fn clipboard_text() -> Option<String> {
+        use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
+        // SAFETY: an AppKit constant that is set before the app runs.
+        let text_type = unsafe { NSPasteboardTypeString };
+        NSPasteboard::generalPasteboard().stringForType(text_type).map(|s| s.to_string())
     }
 
     /// `RunEvent::Opened`: Finder's notes are allowed, queued for the page, and the page is told.

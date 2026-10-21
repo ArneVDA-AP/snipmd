@@ -8,7 +8,8 @@ const m = vi.hoisted(() => ({
   onFilesDropped: vi.fn(async () => {}),
   onQuitRequested: vi.fn(async () => {}),
   onOpenedNotes: vi.fn(async () => {}),
-  onMenuCommand: vi.fn(async () => {})
+  onMenuCommand: vi.fn(async () => {}),
+  onPasteText: vi.fn(async () => {})
 }));
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => ['C:/n/hung.md'],
@@ -18,6 +19,7 @@ vi.mock('./ipc', () => ({
   onQuitRequested: m.onQuitRequested,
   onOpenedNotes: m.onOpenedNotes,
   onMenuCommand: m.onMenuCommand,
+  onPasteText: m.onPasteText,
   pickFileToOpen: async () => null,
   takeOpenedNotes: async () => ['/Users/x/hung.md'],
   windowBackdrop: async () => false
@@ -58,4 +60,5 @@ it('a hung read of a command-line or Finder file leaves session writes, the clos
   expect(m.onQuitRequested).toHaveBeenCalled();
   expect(m.onOpenedNotes).toHaveBeenCalled();
   expect(m.onMenuCommand).toHaveBeenCalled();
+  expect(m.onPasteText).toHaveBeenCalled();
 });

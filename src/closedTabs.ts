@@ -2,6 +2,7 @@
 import { clearInfo, clearTabInfo, showInfo } from './infobar';
 import { saveTab } from './saving';
 import { closeTab, openTab, reopenClosed, textOf } from './tabs';
+import { keys } from './platform';
 
 const BAR_KEY = 'closed';
 const BAR_MS = 8000;
@@ -30,7 +31,7 @@ function closedText(title: string, n: number): string {
 
 function shortcut(): HTMLElement {
   const kbd = document.createElement('kbd');
-  kbd.textContent = 'Ctrl+Shift+T';
+  kbd.textContent = keys('Ctrl+Shift+T');
   return kbd;
 }
 

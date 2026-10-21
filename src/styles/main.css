@@ -147,6 +147,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .mode-chip { display: flex; align-items: center; gap: 6px; align-self: center; height: 24px; margin-right: var(--s2); padding: 0 var(--s2); border-radius: var(--r-sm); color: var(--text-muted); font-size: var(--fs-caption); }
 .mode-chip:hover { background: var(--hover); color: var(--text); }
 .win-controls { display: flex; align-self: stretch; }
+/* macOS: the system's close, minimize and zoom buttons sit here (trafficLightPosition in tauri.macos.conf.json). */
+.traffic-lights { flex: none; width: 78px; align-self: stretch; }
 .win-btn { display: grid; place-items: center; width: 46px; color: var(--text); transition: background-color var(--t-fast) var(--ease); }
 .win-btn svg { width: 10px; height: 10px; }
 .win-btn:hover { background: var(--hover); }

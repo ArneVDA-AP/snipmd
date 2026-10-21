@@ -7,6 +7,7 @@ import { showError } from '../infobar';
 import { applyToTab, filePathFor, getState, tabIdFacet, trackImageSave } from './registry';
 import { primeAssetCache } from './imageWidget';
 import { markPasteVisible } from '../perf';
+import { IS_MAC } from '../platform';
 
 /** One `![snip](link)` line per link, as one block below the line holding `at` (default: the cursor), in one transaction. */
 function insertLinks(tabId: string, links: string[], at?: number): void {
@@ -50,7 +51,9 @@ export function pasteExtension() {
   let plainPaste = false;
   return EditorView.domEventHandlers({
     keydown(event) {
-      plainPaste = (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyV';
+      // On macOS this key never ends in a paste event (pastePlainText does it), so the flag would
+      // linger and make the next paste from the menu skip its image.
+      plainPaste = !IS_MAC && (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyV';
       return false;
     },
     paste(event, view) {
@@ -67,4 +70,17 @@ export function pasteExtension() {
       return true;
     }
   });
+}
+
+/**
+ * macOS Paste as Plain Text (SPEC §13): Rust read the clipboard's text, and it goes where the
+ * cursor is, as Ctrl+Shift+V does on Windows: the note, or a field such as Find.
+ */
+export function pastePlainText(view: EditorView | null, text: string): void {
+  const at = document.activeElement;
+  if (at instanceof HTMLInputElement || at instanceof HTMLTextAreaElement) {
+    document.execCommand('insertText', false, text);
+  } else if (view && at === view.contentDOM) {
+    view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: true });
+  }
 }

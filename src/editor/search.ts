@@ -4,6 +4,10 @@
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { openSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
+import { IS_MAC } from '../platform';
+
+/** Replace: Ctrl+H on Windows; Cmd+Option+F on macOS, where Cmd+H hides the app (SPEC §13). */
+const REPLACE_KEY = IS_MAC ? 'Mod-Alt-f' : 'Mod-h';
 
 /** Opens the panel on its find field. Ctrl+H goes on to the replace field when the find field
  *  already holds a term (from the selection or an earlier search); with nothing to find, typing
@@ -43,6 +47,6 @@ export function findExtension(): Extension {
     search({ top: true }),
     noAutofill,
     EditorState.phrases.of(PHRASES),
-    keymap.of([{ key: 'Mod-h', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
+    keymap.of([{ key: REPLACE_KEY, run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
   ];
 }

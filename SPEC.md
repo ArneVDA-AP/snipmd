@@ -54,7 +54,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ### 6.1 Note on disk
 - **Autosave**: a dirty disk-backed tab is written 1 second after the last keystroke, and immediately on window blur and app close. `Ctrl+S` works but is never required.
 - **Atomic writes**: write to a temp file in the same directory, flush, then rename over the target. Never truncate-then-write.
-- **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM.
+- **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM (LF on macOS, §13).
 - **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
   - Tab clean → reload silently, keep cursor and scroll position.
   - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view is v1.1. Autosave pauses for that tab until the user chooses Reload or Keep mine.

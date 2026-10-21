@@ -20,7 +20,7 @@ export function importImage(tabId: string, notePath: string | null, src: string)
 }
 
 /**
- * Writes a note in `format` (null: the format of the file on disk, or CRLF for a new one). With
+ * Writes a note in `format` (null: the format of the file on disk, or the system's for a new one: CRLF on Windows, LF on macOS). With
  * `expected`, Rust refuses when the file's stamp differs (changed or gone outside SnipMD) and says so.
  */
 export function writeNote(path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<WriteOutcome> {
@@ -144,6 +144,11 @@ export async function onOpenedNotes(callback: (paths: string[]) => void): Promis
 /** A menu bar item (macOS) asks for the page command with this name. */
 export async function onMenuCommand(callback: (name: string) => void): Promise<void> {
   await listen<string>('menu-command', (e) => callback(e.payload));
+}
+
+/** macOS Paste as Plain Text: the clipboard's text, read by Rust for that menu item or its key. */
+export async function onPasteText(callback: (text: string) => void): Promise<void> {
+  await listen<string>('paste-text', (e) => callback(e.payload));
 }
 
 /** A quit (macOS: Cmd+Q, the Dock, logout) waits for `beforeQuit`, then Rust lets it go on. */

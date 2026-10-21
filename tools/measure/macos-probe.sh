@@ -1,6 +1,7 @@
 #!/bin/bash
-# Phase 7a spike (PLAN.md): what a macOS runner can drive in the real SnipMD app, and how today's
-# build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED - <detail>" and the
+# The macOS acceptance probes (#30): what a macOS runner can drive in the real SnipMD app, and how
+# the build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED|SEE - <detail>"
+# (SEE: judge the named screenshot) and the
 # script always finishes, so one blocked permission never hides the other answers.
 # Every launch uses its own data folder (SNIPMD_DATA_DIR); screenshots go to <out>.
 # Exits 1 only when the harness itself is broken (no app, the app does not start); a probe that
@@ -172,6 +173,83 @@ else
   quit_app
   report paste BLOCKED "could not put a PNG on the clipboard"
 fi
+
+# Sends System Events lines to the app after activating it; false without Accessibility.
+keys_to_app() {
+  osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
+  sleep 1
+  local args=()
+  for line in "$@"; do args+=(-e "$line"); done
+  osascript "${args[@]}" 2>/dev/null
+}
+
+# "<open> <closed>" tab counts from session.json.
+tab_counts() {
+  session | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("tabs",[])), len(d.get("closedTabs",[])))' 2>/dev/null
+}
+
+echo "== Top bar (SPEC §13: system window buttons, room for them, macOS key labels in the hint)"
+start topbar
+osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
+sleep 1
+shot 05-topbar >/dev/null
+screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
+report topbar SEE "05-topbar.png and 05-topbar-zoom.png: traffic lights left of the first tab, no own buttons, ⌘ keys in the hint"
+quit_app
+
+echo "== Cmd+W closes exactly one tab (the page and the menu must not both run it)"
+start close-once
+if keys_to_app 'tell application "System Events" to keystroke "t" using command down' 'delay 0.5' \
+  'tell application "System Events" to keystroke "closeonce"' 'delay 0.3' \
+  'tell application "System Events" to keystroke "w" using command down'; then
+  sleep 1.5
+  quit_app
+  counts=$(tab_counts)
+  if [ "$counts" = "2 1" ]; then
+    report close-once PASS "three tabs, Cmd+W on one with text: two open, one closed"
+  else
+    report close-once FAIL "open/closed after three tabs and one Cmd+W: ${counts:-no session}"
+  fi
+else
+  quit_app
+  report close-once BLOCKED "no keystrokes without Accessibility"
+fi
+
+echo "== Paste as Plain Text (Cmd+Shift+V, through the menu and Rust's clipboard read)"
+start paste-plain
+osascript -e 'set the clipboard to "plainpasteprobe"' 2>/dev/null
+if keys_to_app 'tell application "System Events" to keystroke "v" using {command down, shift down}'; then
+  sleep 1.5
+  quit_app
+  if session | grep -q plainpasteprobe; then
+    report paste-plain PASS "the clipboard text is in the note"
+  else
+    report paste-plain FAIL "the clipboard text did not reach the note"
+  fi
+else
+  quit_app
+  report paste-plain BLOCKED "no keystrokes without Accessibility"
+fi
+
+echo "== Replace is Cmd+Option+F; Cmd+H hides the app (SPEC §13)"
+start replace
+if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3' \
+  'tell application "System Events" to keystroke "f" using {command down, option down}'; then
+  sleep 1
+  shot 06-replace >/dev/null
+  report replace SEE "06-replace.png: the find panel with its Replace field"
+  keys_to_app 'tell application "System Events" to keystroke "h" using command down' >/dev/null
+  sleep 1
+  visible=$(osascript -e "tell application \"System Events\" to get visible of (first process whose unix id is $PID)" 2>/dev/null)
+  if [ "$visible" = "false" ]; then
+    report cmd-h PASS "Cmd+H hid the app"
+  else
+    report cmd-h FAIL "the app is still visible after Cmd+H (visible: ${visible:-unknown})"
+  fi
+else
+  report replace BLOCKED "no keystrokes without Accessibility"
+fi
+quit_app
 
 echo "== Logs"
 for f in "$WORK"/*.log; do echo "-- $(basename "$f")"; tail -20 "$f"; done

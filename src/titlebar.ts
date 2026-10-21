@@ -1,8 +1,10 @@
-// The 34px top bar: tabs, +, drag region, read-mode chip, window controls (SPEC §4).
+// The 34px top bar: tabs, +, drag region, read-mode chip, window controls (SPEC §4). On macOS the
+// system draws the window buttons at the left of the bar (SPEC §13).
 // Tabs are kept per id and updated in place, so focus and hover survive a redraw.
 import { appWindow } from './ipc';
 import { button } from './dom';
 import { icon } from './icons';
+import { IS_MAC, keys } from './platform';
 import type { TabState } from './types';
 
 export interface TitlebarHandlers {
@@ -20,10 +22,47 @@ interface TabEl {
   close: HTMLButtonElement;
 }
 
+function setMaximized(maxBtn: HTMLButtonElement, max: boolean): void {
+  const label = max ? 'Restore' : 'Maximize';
+  if (maxBtn.title === label) return;
+  maxBtn.title = label;
+  maxBtn.setAttribute('aria-label', label);
+  maxBtn.replaceChildren(icon(max ? 'restore' : 'maximize'));
+}
+
+/** Minimize, maximize/restore and close, drawn by SnipMD on Windows. */
+function windowControls(): HTMLElement {
+  // Window buttons are not tab stops: Windows reaches them with Alt+Space and Alt+F4.
+  const winBtn = (cls: string, label: string, name: Parameters<typeof icon>[0], run: () => void) => {
+    const b = button(`win-btn ${cls}`, '', label, run);
+    b.tabIndex = -1;
+    b.append(icon(name));
+    return b;
+  };
+  const maxBtn = winBtn('max', 'Maximize', 'maximize', () => void appWindow.toggleMaximize());
+  const controls = document.createElement('div');
+  controls.className = 'win-controls';
+  controls.append(
+    winBtn('min', 'Minimize', 'minimize', () => void appWindow.minimize()),
+    maxBtn,
+    // Goes through the window's close-requested handler (app.ts), like Alt+F4.
+    winBtn('close', 'Close', 'close', () => void appWindow.close())
+  );
+  let pending = false;
+  window.addEventListener('resize', () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      void appWindow.isMaximized().then((max) => setMaximized(maxBtn, max), () => {});
+    });
+  });
+  return controls;
+}
+
 export class Titlebar {
   private strip: HTMLElement;
   private chip: HTMLButtonElement;
-  private maxBtn: HTMLButtonElement;
   private els = new Map<string, TabEl>();
   private order: string[] = [];
   private activeId = '';
@@ -45,52 +84,26 @@ export class Titlebar {
       { passive: false }
     );
 
-    const newTab = button('new-tab', '', 'New tab (Ctrl+T)', () => this.h.newTab());
+    const newTab = button('new-tab', '', `New tab (${keys('Ctrl+T')})`, () => this.h.newTab());
     newTab.append(icon('plus'));
 
     const drag = document.createElement('div');
     drag.className = 'drag-region';
     drag.setAttribute('data-tauri-drag-region', '');
 
-    this.chip = button('mode-chip', '', 'Back to writing (Ctrl+E)', () => this.h.toggleMode());
+    this.chip = button('mode-chip', '', `Back to writing (${keys('Ctrl+E')})`, () => this.h.toggleMode());
     this.chip.append(icon('book'), document.createTextNode('Reading'));
     this.chip.hidden = true;
 
-    // Window buttons are not tab stops: Windows reaches them with Alt+Space and Alt+F4.
-    const winBtn = (cls: string, label: string, name: Parameters<typeof icon>[0], run: () => void) => {
-      const b = button(`win-btn ${cls}`, '', label, run);
-      b.tabIndex = -1;
-      b.append(icon(name));
-      return b;
-    };
-    this.maxBtn = winBtn('max', 'Maximize', 'maximize', () => void appWindow.toggleMaximize());
-    const controls = document.createElement('div');
-    controls.className = 'win-controls';
-    controls.append(
-      winBtn('min', 'Minimize', 'minimize', () => void appWindow.minimize()),
-      this.maxBtn,
-      // Goes through the window's close-requested handler (app.ts), like Alt+F4.
-      winBtn('close', 'Close', 'close', () => void appWindow.close())
-    );
-    let pending = false;
-    window.addEventListener('resize', () => {
-      if (pending) return;
-      pending = true;
-      requestAnimationFrame(() => {
-        pending = false;
-        void appWindow.isMaximized().then((max) => this.setMaximized(max), () => {});
-      });
-    });
-
-    root.replaceChildren(this.strip, newTab, drag, this.chip, controls);
-  }
-
-  private setMaximized(max: boolean): void {
-    const label = max ? 'Restore' : 'Maximize';
-    if (this.maxBtn.title === label) return;
-    this.maxBtn.title = label;
-    this.maxBtn.setAttribute('aria-label', label);
-    this.maxBtn.replaceChildren(icon(max ? 'restore' : 'maximize'));
+    if (IS_MAC) {
+      // Room for the system's close, minimize and zoom buttons; the window drags from there too.
+      const lights = document.createElement('div');
+      lights.className = 'traffic-lights';
+      lights.setAttribute('data-tauri-drag-region', '');
+      root.replaceChildren(lights, this.strip, newTab, drag, this.chip);
+    } else {
+      root.replaceChildren(this.strip, newTab, drag, this.chip, windowControls());
+    }
   }
 
   private create(id: string): TabEl {
@@ -135,7 +148,7 @@ export class Titlebar {
       const tip = tab.filePath ?? `${tab.title} (not saved yet)`;
       if (t.el.title !== tip) t.el.title = tip;
       t.el.setAttribute('aria-selected', String(active));
-      t.close.title = `Close ${tab.title} (Ctrl+W)`;
+      t.close.title = `Close ${tab.title} (${keys('Ctrl+W')})`;
       t.close.setAttribute('aria-label', `Close ${tab.title}${tab.dirty ? ', unsaved changes' : ''}`);
       return t.el;
     });

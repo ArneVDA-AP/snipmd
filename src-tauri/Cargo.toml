@@ -24,8 +24,11 @@ snipmd-core = { path = "core" }
 tauri-plugin-opener = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# applicationShouldTerminate: (src/macos.rs); already in the tree through tao.
+# applicationShouldTerminate: and the clipboard for Paste as Plain Text (src/macos.rs). All three are
+# already in the tree through tao, with these features on, so they add nothing to the build.
 objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
 
 [workspace]
 members = ["core"]

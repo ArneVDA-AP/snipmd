@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => {
   const fn = () => vi.fn(async () => {});
@@ -22,6 +22,8 @@ const m = vi.hoisted(() => {
     openPaths: fn(),
     newUntitledAtStart: 0,
     menu: null as null | ((name: string) => void),
+    pasteText: null as null | ((text: string) => void),
+    mac: false,
     beforeClose: null as null | (() => Promise<void>),
     beforeQuit: null as null | (() => Promise<void>)
   };
@@ -32,6 +34,7 @@ vi.mock('./ipc', () => ({
   onQuitRequested: async (f: () => Promise<void>) => void (m.beforeQuit = f),
   onMenuCommand: async (f: (name: string) => void) => void (m.menu = f),
   onOpenedNotes: async () => {},
+  onPasteText: async (f: (text: string) => void) => void (m.pasteText = f),
   onFilesDropped: async () => {},
   onForwardedFiles: async () => {},
   pickFileToOpen: m.pickFileToOpen,
@@ -67,6 +70,11 @@ vi.mock('./titlebar', () => ({
     focus() {
       m.focusBar();
     }
+  }
+}));
+vi.mock('./platform', () => ({
+  get IS_MAC() {
+    return m.mac;
   }
 }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: m.closeTabWithRestore, restoreClosedTab: m.restoreClosedTab }));
@@ -296,5 +304,34 @@ describe('macOS (SPEC §13)', () => {
     expect(m.beforeQuit).toBe(m.beforeClose);
     await m.beforeQuit!();
     expect(m.flushDirty).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('macOS keys (SPEC §13)', () => {
+  beforeEach(() => void (m.mac = true));
+  afterEach(() => void (m.mac = false));
+  const cmd = { metaKey: true, ctrlKey: false };
+
+  it.each([
+    ['s', cmd, () => m.saveTab],
+    ['w', cmd, () => m.closeTabWithRestore],
+    ['Tab', { ctrlKey: true }, () => m.cycle]
+  ] as const)('%s %o runs its command', (key, init, f) => {
+    expect(press(key, init).defaultPrevented).toBe(true);
+    calledOnly(f());
+  });
+
+  it.each([
+    ['e', { ctrlKey: true }, 'Control keeps its text bindings (end of line)'],
+    ['p', { ctrlKey: true }, 'Control+P is previous line, not print'],
+    ['h', cmd, 'Cmd+H hides the app, through the menu'],
+    ['Tab', cmd, 'Cmd+Tab belongs to the system']
+  ] as const)('%s %o is left alone: %s', (key, init, _why) => {
+    expect(press(key, init).defaultPrevented).toBe(false);
+    calledOnly(undefined as never);
+  });
+
+  it('Cmd+R does not reload', () => {
+    expect(press('r', cmd).defaultPrevented).toBe(true);
   });
 });
