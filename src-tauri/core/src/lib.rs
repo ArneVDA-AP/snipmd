@@ -58,7 +58,7 @@ impl fmt::Display for TextError {
 
 impl std::error::Error for TextError {}
 
-/// One item in `%APPDATA%/snip-md/scratch/`: a tab folder (`is_dir`) or an item directly inside one.
+/// One item in `%APPDATA%/com.snipmd.desktop/scratch/`: a tab folder (`is_dir`) or an item directly inside one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScratchEntry {
     pub path: PathBuf,

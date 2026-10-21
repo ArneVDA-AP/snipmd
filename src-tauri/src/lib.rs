@@ -147,7 +147,7 @@ fn file_path(tab: &Value) -> Option<&str> {
     tab.get("filePath").and_then(Value::as_str)
 }
 
-/// `%APPDATA%/snip-md`, or the absolute folder in `SNIPMD_DATA_DIR` (measuring and tests run there,
+/// `%APPDATA%/com.snipmd.desktop`, or the absolute folder in `SNIPMD_DATA_DIR` (measuring and tests run there,
 /// so they never touch the user's session).
 pub(crate) fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(dir) = std::env::var_os("SNIPMD_DATA_DIR").map(PathBuf::from) {
