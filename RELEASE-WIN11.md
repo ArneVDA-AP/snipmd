@@ -18,7 +18,7 @@ Requires Node.js 22, Rust stable with the MSVC toolchain, and the Visual Studio 
 It runs `npm ci`, the typecheck, the tests and the release build, and copies the files to `release-win11\`.
 
 ## Smoke test of an installer
-On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\snip-md`):
+On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\com.snipmd.desktop`):
 1. Run the setup. It installs without admin rights; the Start menu has SnipMD.
 2. Start SnipMD: one empty tab with the core-loop hint, in the Windows theme.
 3. `Win+Shift+S`, `Ctrl+V`: the screenshot shows below the cursor; type on.

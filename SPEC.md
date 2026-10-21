@@ -72,7 +72,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ### 6.3 Images
 - **Location**: each note has its own folder `<note-stem>.assets/` next to it. `labo-04.md` → `labo-04.assets/`.
   - Tested on Windows 11: Explorer only moves a companion folder for `.htm` files, not `.md`, whatever the suffix. SnipMD itself must keep note and folder together (§6.4).
-- **Untitled tabs** store images in `%APPDATA%/snip-md/scratch/<tab-id>/` and link them as `untitled.assets/<file>`. That prefix resolves to the tab's scratch folder.
+- **Untitled tabs** store images in `%APPDATA%/com.snipmd.desktop/scratch/<tab-id>/` and link them as `untitled.assets/<file>`. That prefix resolves to the tab's scratch folder.
 - **Filename**: `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` (local time to the millisecond + 4 random lowercase hex chars). Created with `OpenOptions::new().write(true).create_new(true)`, retrying with a new suffix on `AlreadyExists`. Never overwrites.
 - **Link format**: relative, `![snip](labo-04.assets/snip-20261020-142211-087-3fa9.png)`. Percent-encode spaces and `( ) # % &` in the path so GitHub and Obsidian read it.
 - **Paste rules**:
@@ -90,13 +90,13 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - Only links that start with the exact old prefix are rewritten.
 
 ### 6.5 Cleanup
-- Only at startup. Only inside `%APPDATA%/snip-md/scratch/`. Never touches image folders next to disk notes.
+- Only at startup. Only inside `%APPDATA%/com.snipmd.desktop/scratch/`. Never touches image folders next to disk notes.
 - A scratch folder is deleted when its tab is neither in the session nor in the closed-tabs list, **and** it is older than 14 days.
 - Inside a live scratch folder, an image is deleted when no tab buffer and no closed-tab entry references it **and** its mtime is older than 14 days.
 
 ## 7. Session and recovery
 
-- **One store**: `%APPDATA%/snip-md/session.json`. No localStorage.
+- **One store**: `%APPDATA%/com.snipmd.desktop/session.json`. No localStorage.
 - Contents: open tabs (id, file path or null, content for untitled and dirty tabs, cursor, scroll, mode), active tab, last-used folder, closed-tabs list.
 - Written atomically, debounced to at most every 500 ms while typing, and immediately after: a paste, opening/closing a tab, a save, window blur, app close.
 - On startup: restore all tabs. For disk-backed tabs that were clean, read the file from disk (never trust the cached copy). For dirty ones, compare with disk and show the conflict bar if the file changed meanwhile.
@@ -108,7 +108,7 @@ Opening a Markdown file from someone else must never run code or touch files.
 
 - Read mode HTML is sanitized (DOMPurify or equivalent): no scripts, no event handlers, no iframes, no `javascript:` URLs. Images only from the note's own folders or `http(s)`.
 - Strict CSP in `tauri.conf.json` (no `unsafe-inline` scripts, `connect-src` none beyond IPC).
-- Rust commands only read or write paths inside an **allowed set**: files the user opened (dialog, CLI, drag-drop, single-instance forward, session restore), their `<stem>.assets/` folders, and `%APPDATA%/snip-md/`. Relative image paths are resolved and checked to stay inside the note's folder (no `..`, no absolute paths).
+- Rust commands only read or write paths inside an **allowed set**: files the user opened (dialog, CLI, drag-drop, single-instance forward, session restore), their `<stem>.assets/` folders, and `%APPDATA%/com.snipmd.desktop/`. Relative image paths are resolved and checked to stay inside the note's folder (no `..`, no absolute paths).
 - Asset protocol scope is extended at runtime per allowed folder, not `**/*`.
 - No `tauri-plugin-fs`; all file access goes through the scoped commands.
 
