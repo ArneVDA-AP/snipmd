@@ -7,6 +7,8 @@ import type { TabState } from './types';
 
 export interface TitlebarHandlers {
   select: (id: string) => void;
+  /** Enter in the strip: show the tab and move focus into it. */
+  open: (id: string) => void;
   close: (id: string) => void;
   newTab: () => void;
   toggleMode: () => void;
@@ -105,9 +107,8 @@ export class Titlebar {
     close.addEventListener('click', (e) => e.stopPropagation());
     el.append(mode, title, close);
     el.addEventListener('click', () => this.h.select(id));
-    el.addEventListener('mousedown', (e) => {
-      if (e.button === 1) e.preventDefault(); // no autoscroll cursor on middle-click
-    });
+    // A click never puts focus on the tab (the note keeps it); middle-click shows no autoscroll cursor.
+    el.addEventListener('mousedown', (e) => e.preventDefault());
     el.addEventListener('auxclick', (e) => {
       if (e.button === 1) {
         e.preventDefault();
@@ -143,6 +144,7 @@ export class Titlebar {
     if (ids.join('\n') !== this.order.join('\n')) {
       this.strip.replaceChildren(...list);
       this.order = ids;
+      if (focusedId && live.has(focusedId)) this.els.get(focusedId)?.el.focus(); // a move drops focus
     }
     const moved = this.activeId !== activeId;
     this.activeId = activeId;
@@ -160,6 +162,7 @@ export class Titlebar {
   private onKey(e: KeyboardEvent): void {
     const id = (e.target as HTMLElement).closest<HTMLElement>('.tab')?.dataset.id;
     if (!id || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.repeat && (e.key === 'Delete' || e.key === 'Enter' || e.key === ' ')) return e.preventDefault(); // a held key acts once
     const i = this.order.indexOf(id);
     const move = (j: number): void => {
       const next = this.els.get(this.order[(j + this.order.length) % this.order.length]);
@@ -173,7 +176,7 @@ export class Titlebar {
       case 'ArrowLeft': move(i - 1); break;
       case 'Home': move(0); break;
       case 'End': move(this.order.length - 1); break;
-      case 'Enter': case ' ': this.h.select(id); break;
+      case 'Enter': case ' ': this.h.open(id); break;
       case 'Delete': this.h.close(id); break;
       default: return;
     }

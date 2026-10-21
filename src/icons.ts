@@ -14,7 +14,7 @@ const PATHS = {
   book: 'M8 4c-1.6-1.2-3.6-1.5-6-1.2v10c2.4-.3 4.4 0 6 1.2c1.6-1.2 3.6-1.5 6-1.2v-10c-2.4-.3-4.4 0-6 1.2zM8 4v10'
 } as const;
 
-export type IconName = keyof typeof PATHS;
+type IconName = keyof typeof PATHS;
 
 export function icon(name: IconName): SVGSVGElement {
   const svg = document.createElementNS(NS, 'svg');

@@ -33,9 +33,11 @@ Everything in this spec serves these three steps. If they don't feel instant, no
   - Tab strip: `filename.md` or `Untitled-N`. A dot marks unsaved changes. Middle-click closes. Tabs shrink and truncate; the strip scrolls horizontally when full.
   - `+` button (new tab).
   - Drag region (`data-tauri-drag-region`) filling the remaining space.
+  - In read mode only: a small "Reading" chip that switches back to writing (`Ctrl+E`).
   - Window controls: minimize, maximize/restore, close.
+- An empty tab shows a short hint for the core loop (§2) until the first character is typed.
 - **Info bar**: a single thin bar directly below the top bar (or at the bottom for undo notices). It is the only way the app shows information or choices. No modals, no toasts, no `alert()`. Used for: first save, closed-tab restore, external-change conflict, errors (e.g. a file could not be written).
-- Follows the Windows light/dark setting. No other theming in v1.
+- Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
 - System fonts (Segoe UI, Cascadia Mono / Consolas). No web fonts, no network access at runtime.
 
 ## 5. Editor
@@ -43,7 +45,7 @@ Everything in this spec serves these three steps. If they don't feel instant, no
 - CodeMirror 6, raw Markdown with light styling: headings larger, Markdown syntax characters dimmed, bold/italic rendered. No live preview (hiding syntax) in v1.
 - **Inline images:** every image link `![alt](path)` that points to a local image gets a block widget directly below its line. Max height 360px, max width 100%, `border-radius: 6px`. Clicking toggles full height. Missing files show a clear "image not found: <path>" placeholder, never a perpetual "loading".
 - Images inside fenced code blocks are not rendered.
-- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search).
+- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). In read mode they switch to writing first.
 - Undo history survives tab switches and the first save of an untitled tab.
 - **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). No split view.
 
@@ -138,6 +140,11 @@ Measured on an ordinary Windows 11 laptop. Every release is checked against this
 | `Ctrl+E` | Toggle read mode |
 | `Ctrl+F` / `Ctrl+H` | Find / replace |
 | `Ctrl+V` / `Ctrl+Shift+V` | Paste (rules in §6.3) / paste plain text |
+| `F6` / `Shift+F6` | Move focus between the note, the info bar and the tab strip |
+| In the tab strip: arrows, `Home`, `End` / `Enter` / `Delete` | Move between tabs / open / close |
+| `Esc` in an info bar | Dismiss it (a pending choice, such as a conflict, stays) |
+
+A held key acts once, except moving between tabs.
 
 ## 11. Opening files
 

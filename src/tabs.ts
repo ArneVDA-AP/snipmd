@@ -184,7 +184,7 @@ function mountEditor(tab: TabState): void {
   v.dispatch({ selection: { anchor: Math.min(tab.cursor, v.state.doc.length) } });
   requestAnimationFrame(() => {
     v.scrollDOM.scrollTop = tab.scrollTop;
-    v.focus();
+    if (!stripHasFocus()) v.focus();
   });
 }
 
@@ -196,6 +196,9 @@ export function preloadReader(): void {
   const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
   idle(() => void loadReader().catch(() => {}));
 }
+
+/** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. */
+const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs');
 
 export async function activate(id: string): Promise<void> {
   if (tabs.length === 0) return;
@@ -213,7 +216,7 @@ export async function activate(id: string): Promise<void> {
     await renderRead(panes.read, tab.id, textOf(tab));
     requestAnimationFrame(() => {
       panes.read.scrollTop = tab.scrollTop;
-      panes.read.focus({ preventScroll: true });
+      if (!stripHasFocus()) panes.read.focus({ preventScroll: true });
     });
   }
 }
