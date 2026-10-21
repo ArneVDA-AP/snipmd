@@ -11,7 +11,8 @@
              session from the run before (the first run has none). Process start to the first tab
              taking keys (perf mark 'ready'), and the same from Start-Process (includes loading the
              exe). The first run is reported alone; the others as a median. The WebView2 profile is
-             the user's own, as in normal use.
+             the user's own, as in normal use. SnipMD's own part (page load start to 'ready') is the
+             median over all runs.
   - paste:   a 3840x2160 PNG on the clipboard, Ctrl+V into an untitled tab, to the image decoded and
              painted (perf mark 'paste'), median of -Pastes.
   - memory:  5 notes with 4 screenshots each open in tabs, every tab visited once; private working
@@ -135,12 +136,13 @@ $shell = New-Object -ComObject WScript.Shell
 $startNote = Join-Path $notes 'start.md'
 [IO.File]::WriteAllText($startNote, "# Start`r`n`r`nA note opened by double-click.`r`n")
 $data = Join-Path $root 'start'
-$inside = @(); $outside = @()
+$inside = @(); $outside = @(); $own = @()
 for ($i = 1; $i -le $Runs; $i++) {
   $sw = [Diagnostics.Stopwatch]::StartNew()
   $p = Start-Snip $data @($startNote)
   $inside += Wait-Mark $data 'ready' $i
   $outside += $sw.Elapsed.TotalMilliseconds
+  $own += $inside[-1] - (Wait-Mark $data 'page' $i)
   Start-Sleep -Milliseconds 500
   Stop-Snip $p
 }
@@ -155,6 +157,8 @@ if ($Runs -gt 1) {
   $results['Double-click to typing, later starts (ms, median in process / from launch)'] =
     '{0} / {1:N0}' -f (Median $inside[1..($Runs - 1)]), (Median $outside[1..($Runs - 1)])
 }
+# The budgeted part: from the page load starting (WebView2 is up) to typing. Before it is WebView2's start.
+$results["SnipMD's own start, page to ready (ms, median of all starts)"] = '{0:N1}' -f (Median $own)
 
 # 2. Paste a 4K screenshot.
 $data = Join-Path $root 'paste'

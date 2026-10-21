@@ -118,12 +118,15 @@ Measured on an ordinary Windows 11 laptop. Every release is checked against this
 
 | Measure | Target |
 |---|---|
-| Double-click to typing | < 300 ms |
+| SnipMD's own start: page load begun to typing | < 150 ms |
+| Double-click to typing, cold start | < 1 s |
 | `Ctrl+V` to a 4K screenshot visible | < 150 ms |
 | Memory with 5 tabs and 20 images | < 120 MB |
 | Installer size | < 10 MB |
 | Data loss on crash, Alt+F4, power loss, pulled drive, accidental Ctrl+W | 0 |
 | Opening an unknown `.md` can run code or touch files | never |
+
+WebView2 takes about 0.6 s to start before any page loads, and an app cannot shorten that. So the cold-start target covers it, and SnipMD's own part has its own, tighter target. When SnipMD is already running, a double-click hands the file to the open window.
 
 ## 10. Keyboard
 
