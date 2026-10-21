@@ -3,12 +3,14 @@ import { clearInfo, mountInfobar, showInfo } from './infobar';
 
 let top: HTMLElement;
 let bottom: HTMLElement;
+let back: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   top = document.createElement('div');
   bottom = document.createElement('div');
-  mountInfobar(top, bottom);
+  back = vi.fn<() => void>();
+  mountInfobar(top, bottom, back);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -94,5 +96,51 @@ describe('keyed messages', () => {
     expect(top.textContent).toContain('b: gone');
     clearInfo('save:b');
     expect(top.textContent).toContain('a: still locked');
+  });
+});
+
+describe('keyboard', () => {
+  it('Esc in a bar dismisses it and returns focus; a sticky bar stays', () => {
+    document.body.append(top);
+    showInfo({ kind: 'info', text: 'x', actions: [{ label: 'Do', run: () => {} }] });
+    top.querySelector('button')!.focus();
+    top.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(top.children.length).toBe(0);
+    expect(back).toHaveBeenCalledTimes(1);
+    showInfo({ kind: 'warning', text: 'y', sticky: true, actions: [{ label: 'Do', run: () => {} }] });
+    top.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(top.children.length).toBe(1);
+    top.remove();
+  });
+
+  it('a bar that goes while it holds focus gives focus back to the page, however it goes', () => {
+    document.body.append(top);
+    showInfo({ kind: 'info', text: 'x', key: 'k', actions: [{ label: 'Do', run: () => {} }] });
+    top.querySelector('button')!.focus();
+    clearInfo('k');
+    expect(back).toHaveBeenCalledTimes(1);
+    showInfo({ kind: 'info', text: 'y', key: 'k' });
+    clearInfo('k'); // focus was not in it
+    expect(back).toHaveBeenCalledTimes(1);
+    top.remove();
+  });
+
+  it('focusInfobar focuses the newest bar\'s first control, top first, and says when there is none', async () => {
+    const { focusInfobar } = await import('./infobar');
+    document.body.append(top, bottom);
+    expect(focusInfobar()).toBe(false);
+    showInfo({ kind: 'info', text: 'b', position: 'bottom', actions: [{ label: 'Restore', run: () => {} }] });
+    expect(focusInfobar()).toBe(true);
+    expect(document.activeElement?.textContent).toBe('Restore');
+    showInfo({ kind: 'info', text: 't', actions: [{ label: 'Top', run: () => {} }] });
+    focusInfobar();
+    expect(document.activeElement?.textContent).toBe('Top');
+    top.remove();
+    bottom.remove();
+  });
+
+  it('every bar carries an icon for its kind', () => {
+    showInfo({ kind: 'error', text: 'e' });
+    expect(top.querySelector('.infobar-icon svg')).not.toBeNull();
   });
 });

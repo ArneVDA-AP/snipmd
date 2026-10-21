@@ -73,7 +73,7 @@ export async function renderRead(container: HTMLElement, tabId: string, content:
     const href = target.closest('a[href]')?.getAttribute('href');
     if (!href || href.startsWith('#')) return;
     e.preventDefault();
-    openLink(href).catch((err) => showError('Open link', err));
+    openLink(href).catch((err) => showError('open the link', err));
   });
   container.replaceChildren(article);
 }

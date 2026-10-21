@@ -185,9 +185,12 @@ function mountEditor(tab: TabState): void {
   v.dispatch({ selection: { anchor: Math.min(tab.cursor, v.state.doc.length) } });
   requestAnimationFrame(() => {
     v.scrollDOM.scrollTop = tab.scrollTop;
-    v.focus();
+    if (!stripHasFocus()) v.focus();
   });
 }
+
+/** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. */
+const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs');
 
 export async function activate(id: string): Promise<void> {
   if (tabs.length === 0) return;
@@ -201,7 +204,10 @@ export async function activate(id: string): Promise<void> {
     mountEditor(tab);
   } else {
     await renderRead(panes.read, tab.id, textOf(tab));
-    requestAnimationFrame(() => (panes.read.scrollTop = tab.scrollTop));
+    requestAnimationFrame(() => {
+      panes.read.scrollTop = tab.scrollTop;
+      if (!stripHasFocus()) panes.read.focus({ preventScroll: true });
+    });
   }
 }
 
@@ -312,6 +318,14 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   await activate(tab.id);
   changed({ immediate: true });
   return tab;
+}
+
+/** Puts keyboard focus in the active tab's page: the editor, or the read view so it scrolls by keyboard. */
+export function focusActive(): void {
+  const tab = getActiveTab();
+  if (!tab) return;
+  if (tab.mode === 'edit') getView()?.focus();
+  else panes.read.focus();
 }
 
 export async function toggleMode(): Promise<void> {
