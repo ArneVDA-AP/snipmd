@@ -7,12 +7,17 @@
   user's session and notes are never touched. SnipMD must not be running (single instance would
   forward to it).
 
-  - ready:   process start to the first tab taking keys (perf mark 'ready'), and the same from
-             Start-Process as seen outside (includes loading the exe), median of -Runs cold starts.
+  - ready:   double-click to typing, as SnipMD is normally started: with a note as argument and a
+             session from the run before (the first run has none). Process start to the first tab
+             taking keys (perf mark 'ready'), and the same from Start-Process (includes loading the
+             exe). The first run is reported alone; the others as a median. The WebView2 profile is
+             the user's own, as in normal use.
   - paste:   a 3840x2160 PNG on the clipboard, Ctrl+V into an untitled tab, to the image decoded and
              painted (perf mark 'paste'), median of -Pastes.
-  - memory:  5 notes with 4 screenshots each open in tabs, every tab visited once; private working
-             set of snip-md.exe plus its WebView2 processes.
+  - memory:  5 notes with 4 screenshots each open in tabs, every tab visited once; private bytes
+             of snip-md.exe plus its WebView2 processes (an upper bound of Task Manager's 'Memory').
+  The script puts images on the clipboard, so whatever was on it is gone afterwards. Keys are only
+  sent while SnipMD has the foreground; otherwise the script stops.
   - installer: size of the NSIS setup next to the exe, when there is one.
 
 .EXAMPLE
@@ -25,6 +30,15 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class Fg {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  public static uint Pid() { uint pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid); return pid; }
+}
+'@
 
 if (-not (Test-Path $Exe)) { throw "No SnipMD exe at $Exe" }
 if (Get-Process snip-md -ErrorAction SilentlyContinue) { throw 'Close SnipMD first: a running instance would take the launches.' }
@@ -48,7 +62,9 @@ function New-Shot([string]$path, [int]$w, [int]$h, [int]$seed) {
   for ($i = 0; $i -lt 40; $i++) {
     $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($rnd.Next(256), $rnd.Next(256), $rnd.Next(256)))
     $g.FillRectangle($brush, $rnd.Next($w), $rnd.Next($h), $rnd.Next(40, 400), $rnd.Next(20, 200))
+    $brush.Dispose()
   }
+  $font.Dispose()
   $g.Dispose()
   if ($path) { $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose(); return }
   return $bmp
@@ -82,6 +98,17 @@ function Stop-Snip($proc) {
   if (-not $proc.WaitForExit(5000)) { $proc.Kill() }
 }
 
+# Keys go to the foreground window, so they are only sent when that is SnipMD.
+function Focus-Snip($proc) {
+  for ($i = 0; $i -lt 20; $i++) {
+    $null = $script:shell.AppActivate($proc.Id)
+    Start-Sleep -Milliseconds 150
+    if ([Fg]::Pid() -eq $proc.Id) { return }
+  }
+  Stop-Snip $proc
+  throw 'SnipMD did not get the foreground; no keys were sent. Run the script from a desktop session.'
+}
+
 function Median([double[]]$xs) { $s = $xs | Sort-Object; $s[[int][Math]::Floor(($s.Count - 1) / 2)] }
 
 function Tree-Memory([int]$parentId) {
@@ -98,32 +125,37 @@ function Tree-Memory([int]$parentId) {
 
 $results = [ordered]@{}
 
-# 1. Cold start to typing.
+$shell = New-Object -ComObject WScript.Shell
+
+# 1. Double-click to typing: a note as argument, the session of the run before.
+$startNote = Join-Path $notes 'start.md'
+[IO.File]::WriteAllText($startNote, "# Start`r`n`r`nA note opened by double-click.`r`n")
+$data = Join-Path $root 'start'
 $inside = @(); $outside = @()
 for ($i = 1; $i -le $Runs; $i++) {
-  $data = Join-Path $root "start-$i"
   $sw = [Diagnostics.Stopwatch]::StartNew()
-  $p = Start-Snip $data @()
-  $inside += Wait-Mark $data 'ready' 1
+  $p = Start-Snip $data @($startNote)
+  $inside += Wait-Mark $data 'ready' $i
   $outside += $sw.Elapsed.TotalMilliseconds
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 500
   Stop-Snip $p
 }
-$results['Start to typing, in process (ms, median)'] = Median $inside
-$results['Start to typing, from launch incl. log poll (ms, median)'] = [Math]::Round((Median $outside), 0)
+$results['Double-click to typing, first start (ms, in process / from launch)'] = '{0} / {1:N0}' -f $inside[0], $outside[0]
+if ($Runs -gt 1) {
+  $results['Double-click to typing, later starts (ms, median in process / from launch)'] =
+    '{0} / {1:N0}' -f (Median $inside[1..($Runs - 1)]), (Median $outside[1..($Runs - 1)])
+}
 
 # 2. Paste a 4K screenshot.
 $data = Join-Path $root 'paste'
 $p = Start-Snip $data @()
 $null = Wait-Mark $data 'ready' 1
-$shell = New-Object -ComObject WScript.Shell
 $times = @()
 for ($i = 1; $i -le $Pastes; $i++) {
   $bmp = New-Shot $null 3840 2160 $i
   [System.Windows.Forms.Clipboard]::SetImage($bmp)
   $bmp.Dispose()
-  $null = $shell.AppActivate($p.Id)
-  Start-Sleep -Milliseconds 300
+  Focus-Snip $p
   $shell.SendKeys('^v')
   $times += Wait-Mark $data 'paste' $i
 }
@@ -147,8 +179,7 @@ for ($n = 1; $n -le 5; $n++) {
 $data = Join-Path $root 'memory'
 $p = Start-Snip $data $files
 $null = Wait-Mark $data 'ready' 1
-$null = $shell.AppActivate($p.Id)
-for ($n = 1; $n -le 5; $n++) { Start-Sleep -Milliseconds 600; $shell.SendKeys("^$n") }
+for ($n = 1; $n -le 5; $n++) { Start-Sleep -Milliseconds 600; Focus-Snip $p; $shell.SendKeys("^$n") }
 Start-Sleep -Seconds 3
 $results['Memory, 5 tabs and 20 images (MB private)'] = Tree-Memory $p.Id
 Stop-Snip $p
