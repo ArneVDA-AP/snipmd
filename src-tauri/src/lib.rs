@@ -8,8 +8,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WindowEvent};
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
+
+mod backdrop;
+mod links;
 
 type Allowed = Mutex<AllowedSet>;
 
@@ -588,42 +591,6 @@ fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
     open_args(&app, std::env::args().skip(1), &cwd)
 }
 
-/// Opens a web or mailto link from a note in the user's default app, never in the webview.
-#[tauri::command]
-fn open_link(app: AppHandle, url: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let parsed = Url::parse(&url).map_err(|e| format!("Invalid link {url}: {e}"))?;
-    let web = matches!(parsed.scheme(), "http" | "https")
-        && !APP_HOSTS.contains(&host(&parsed).as_str());
-    if !web && parsed.scheme() != "mailto" {
-        return Err(format!("Not a web or mail link: {url}"));
-    }
-    app.opener()
-        .open_url(parsed.as_str(), None::<&str>)
-        .map_err(|e| e.to_string())
-}
-
-/// Hosts the webview serves itself on Windows (the app, its files, IPC). Never a web link.
-const APP_HOSTS: &[&str] = &["asset.localhost", "tauri.localhost", "ipc.localhost"];
-
-/// The host as the webview resolves it: lower case, without trailing dots.
-fn host(url: &Url) -> String {
-    url.host_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase()
-}
-
-/// The webview only ever shows the app itself. A link in a note must not replace it with a
-/// remote page or a file from the asset scope.
-fn app_url(url: &Url) -> bool {
-    match url.scheme() {
-        "tauri" | "about" => true,
-        "http" | "https" => {
-            let h = host(url);
-            h == "tauri.localhost" || (cfg!(debug_assertions) && h == "localhost")
-        }
-        _ => false,
-    }
-}
-
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -639,13 +606,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("navigation-guard")
-                .on_navigation(|_, url| app_url(url))
+                .on_navigation(|_, url| links::app_url(url))
                 .build(),
         )
         .manage(Allowed::new(AllowedSet::new()))
         .manage(Dropped(Mutex::new(AllowedSet::new())))
         .setup(|app| {
             let handle = app.handle();
+            if let Some(window) = handle.get_webview_window("main") {
+                backdrop::apply(&window);
+            }
             if let Ok(dir) = handle.path().app_data_dir() {
                 allowed(handle).allow_dir(&dir);
                 start_cleanup(dir);
@@ -688,7 +658,8 @@ pub fn run() {
             get_cli_startup_files,
             pick_open,
             pick_save,
-            open_link
+            links::open_link,
+            backdrop::window_backdrop
         ])
         .run(tauri::generate_context!())
         .expect("error while running SnipMD tauri application");

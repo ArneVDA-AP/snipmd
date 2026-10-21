@@ -1,16 +1,19 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
-import { mountInfobar } from './infobar';
+import { bindReturnFocus, focusInfobar, mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
+import { openFind } from './editor/search';
+import { getView } from './editor/registry';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
-import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen } from './ipc';
+import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen, windowBackdrop } from './ipc';
 import {
   activate,
   bindEditListener,
   cycle,
+  focusActive,
   getActiveTab,
   getTabs,
   initTabs,
@@ -27,7 +30,7 @@ const SKELETON = `
   <div class="infobar-host" id="infoTop"></div>
   <main class="workspace">
     <div class="editor-pane" id="editorPane"></div>
-    <div class="read-pane" id="readPane" hidden></div>
+    <div class="read-pane" id="readPane" tabindex="-1" hidden></div>
   </main>
   <div class="infobar-host" id="infoBottom"></div>
 `;
@@ -38,7 +41,14 @@ const CLOSE_WAIT_MS = 3000;
 /** Ctrl+1..Ctrl+9 by key position, so AZERTY (where e.key of Ctrl+1 is `&`) works too. */
 const DIGIT = /^(?:Digit|Numpad)([1-9])$/;
 
-/** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F, Ctrl+V: CodeMirror, paste.ts). */
+/** Find in read mode goes back to writing first: the panel searches the text you can change. */
+async function findInRead(replace: boolean): Promise<void> {
+  await toggleMode();
+  const view = getView();
+  if (view) openFind(view, replace);
+}
+
+/** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
   if (digit) {
@@ -56,12 +66,28 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 's': return onActive(saveTab);
     case 'w': return onActive(closeTabWithRestore);
     case 'e': return toggleMode;
+    case 'f': case 'h': return getActiveTab()?.mode === 'read' ? () => findInRead(key === 'h') : undefined;
   }
   return undefined;
 }
 
-function registerKeys(): void {
+/** F6 / Shift+F6 move focus between the page, the info bar and the tab strip (Windows convention). */
+function cycleRegion(titlebar: Titlebar, back: boolean): void {
+  const regions: (() => boolean)[] = [() => (focusActive(), true), focusInfobar, () => (titlebar.focus(), true)];
+  const at = document.activeElement;
+  const current = at?.closest('.titlebar') ? 2 : at?.closest('.infobar-host') ? 1 : 0;
+  for (let step = 1; step < regions.length; step++) {
+    const i = (current + (back ? -step : step) + regions.length) % regions.length;
+    if (regions[i]()) return;
+  }
+}
+
+function registerKeys(titlebar: Titlebar): void {
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'F6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      return cycleRegion(titlebar, e.shiftKey);
+    }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     // A held key acts once (a held Ctrl+W would empty the window); only moving between tabs repeats.
     if (e.repeat && e.key !== 'Tab' && !DIGIT.test(e.code)) return e.preventDefault();
@@ -80,18 +106,22 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),
     close: (id) => void closeTabWithRestore(id),
-    newTab: () => void newUntitled()
+    newTab: () => void newUntitled(),
+    toggleMode: () => void toggleMode()
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar);
   bindSessionSource(snapshot);
   bindEditListener(scheduleAutosave);
-  registerKeys();
+  registerKeys(titlebar);
+  bindReturnFocus(focusActive);
   window.addEventListener('blur', () => void flushDirty());
 
-  const [session, cliFiles] = await Promise.all([
+  const [session, cliFiles, mica] = await Promise.all([
     loadSession().catch(() => null),
-    getCliStartupFiles().catch(() => [])
+    getCliStartupFiles().catch(() => []),
+    windowBackdrop().catch(() => false)
   ]);
+  document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   await openPaths(cliFiles);

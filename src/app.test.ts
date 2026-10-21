@@ -3,7 +3,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => {
   const fn = () => vi.fn(async () => {});
   return {
-    tabs: [] as { id: string }[],
+    tabs: [] as { id: string; mode?: string }[],
+    focusBar: vi.fn(),
+    focusPage: vi.fn(),
+    focusInfobar: vi.fn(() => false),
     handlers: null as null | { select: (id: string) => void; close: (id: string) => void; newTab: () => void },
     activate: fn(),
     cycle: fn(),
@@ -22,12 +25,14 @@ vi.mock('./ipc', () => ({
   onCloseRequested: async () => {},
   onFilesDropped: async () => {},
   onForwardedFiles: async () => {},
-  pickFileToOpen: m.pickFileToOpen
+  pickFileToOpen: m.pickFileToOpen,
+  windowBackdrop: async () => false
 }));
 vi.mock('./tabs', () => ({
   activate: m.activate,
   bindEditListener: () => {},
   cycle: m.cycle,
+  focusActive: m.focusPage,
   getActiveTab: () => m.tabs[0],
   getTabs: () => m.tabs,
   initTabs: () => {},
@@ -42,11 +47,14 @@ vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: m.saveAs, saveT
 vi.mock('./session', () => ({ bindSessionSource: () => {}, loadSession: async () => null }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {} }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, bindReturnFocus: () => {}, focusInfobar: m.focusInfobar }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
     constructor(_root: HTMLElement, h: typeof m.handlers) {
       m.handlers = h;
+    }
+    focus() {
+      m.focusBar();
     }
   }
 }));
@@ -153,5 +161,54 @@ describe('titlebar', () => {
     await flush();
     expect(w.defaultPrevented).toBe(true);
     calledOnly(m.cycle);
+  });
+});
+
+describe('find in read mode', () => {
+  it.each([['f'], ['h']])('Ctrl+%s in a read tab goes back to writing first', async (key) => {
+    m.tabs[0].mode = 'read';
+    const e = press(key);
+    expect(e.defaultPrevented).toBe(true);
+    await flush();
+    calledOnly(m.toggleMode);
+  });
+});
+
+describe('F6 moves between page, info bar and tab strip', () => {
+  const f6 = (shiftKey = false) => {
+    const e = new KeyboardEvent('keydown', { key: 'F6', shiftKey, cancelable: true });
+    window.dispatchEvent(e);
+    return e;
+  };
+
+  it('from the page, with no bar, goes to the tab strip', () => {
+    expect(f6().defaultPrevented).toBe(true);
+    expect(m.focusInfobar).toHaveBeenCalledTimes(1);
+    expect(m.focusBar).toHaveBeenCalledTimes(1);
+  });
+
+  it('from the page, with a bar, stops at the bar', () => {
+    m.focusInfobar.mockReturnValueOnce(true);
+    f6();
+    expect(m.focusBar).not.toHaveBeenCalled();
+  });
+
+  it('Shift+F6 from the page goes the other way, to the tab strip first', () => {
+    f6(true);
+    expect(m.focusBar).toHaveBeenCalledTimes(1);
+    expect(m.focusInfobar).not.toHaveBeenCalled();
+  });
+
+  it('from the tab strip, goes back to the page', () => {
+    const header = document.createElement('header');
+    header.className = 'titlebar';
+    const tab = document.createElement('div');
+    tab.tabIndex = 0;
+    header.append(tab);
+    document.body.append(header);
+    tab.focus();
+    f6();
+    expect(m.focusPage).toHaveBeenCalledTimes(1);
+    header.remove();
   });
 });

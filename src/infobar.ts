@@ -2,6 +2,7 @@
 // error that lasts until its cause is fixed) wait underneath and come back when the one on top goes.
 import type { InfoMessage } from './types';
 import { button } from './dom';
+import { icon } from './icons';
 
 type Pos = NonNullable<InfoMessage['position']>;
 
@@ -52,6 +53,10 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
   const bar = document.createElement('div');
   bar.className = `infobar ${msg.kind}`;
   bar.setAttribute('role', msg.kind === 'error' ? 'alert' : 'status');
+  const mark = document.createElement('span');
+  mark.className = 'infobar-icon';
+  mark.append(icon(msg.kind === 'info' ? 'info' : msg.kind));
+  bar.appendChild(mark);
   const text = document.createElement('span');
   text.className = 'infobar-text';
   text.textContent = msg.text;
@@ -65,8 +70,39 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
       })
     );
   }
-  if (!msg.sticky) bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
+  if (!msg.sticky) {
+    const close = button('infobar-close', '', 'Dismiss', dismiss);
+    close.title = 'Dismiss (Esc)';
+    close.append(icon('close'));
+    bar.appendChild(close);
+  }
+  // Esc inside a bar dismisses it (a sticky choice stays) and hands focus back to the page.
+  bar.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || msg.sticky || e.defaultPrevented) return;
+    e.preventDefault();
+    dismiss();
+    returnFocus();
+  });
   return bar;
+}
+
+let returnFocus: () => void = () => {};
+
+/** F6 support: where focus goes when a bar is dismissed from the keyboard. */
+export function bindReturnFocus(fn: () => void): void {
+  returnFocus = fn;
+}
+
+/** F6 support: the newest bar's first control, top bar first. False when no bar has one. */
+export function focusInfobar(): boolean {
+  for (const pos of ['top', 'bottom'] as const) {
+    const el = stacks[pos].at(-1)?.el?.querySelector<HTMLElement>('input, button:not(:disabled)');
+    if (el) {
+      el.focus();
+      return true;
+    }
+  }
+  return false;
 }
 
 /** A plain message that reads the same can keep its bar (no flicker). */

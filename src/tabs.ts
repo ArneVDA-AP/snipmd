@@ -201,7 +201,10 @@ export async function activate(id: string): Promise<void> {
     mountEditor(tab);
   } else {
     await renderRead(panes.read, tab.id, textOf(tab));
-    requestAnimationFrame(() => (panes.read.scrollTop = tab.scrollTop));
+    requestAnimationFrame(() => {
+      panes.read.scrollTop = tab.scrollTop;
+      panes.read.focus({ preventScroll: true });
+    });
   }
 }
 
@@ -312,6 +315,14 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   await activate(tab.id);
   changed({ immediate: true });
   return tab;
+}
+
+/** Puts keyboard focus in the active tab's page: the editor, or the read view so it scrolls by keyboard. */
+export function focusActive(): void {
+  const tab = getActiveTab();
+  if (!tab) return;
+  if (tab.mode === 'edit') getView()?.focus();
+  else panes.read.focus();
 }
 
 export async function toggleMode(): Promise<void> {

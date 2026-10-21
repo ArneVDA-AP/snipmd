@@ -102,9 +102,15 @@ export function openLink(url: string): Promise<void> {
   return invoke<void>('open_link', { url });
 }
 
+/** True when Rust gave the window Windows 11 Mica; the top bar may then be transparent. */
+export function windowBackdrop(): Promise<boolean> {
+  return invoke<boolean>('window_backdrop');
+}
+
 export const appWindow = {
   minimize: () => getCurrentWindow().minimize(),
   toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+  isMaximized: () => getCurrentWindow().isMaximized(),
   close: () => getCurrentWindow().close()
 };
 

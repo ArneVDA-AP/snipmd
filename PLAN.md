@@ -170,6 +170,15 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
 ## Decisions
 Autonomous runs add one line per decision: date, what, why.
 
+- 2026-10-21. Phase 6 runs as three PRs: 6a UI system with find and replace and the Markdown styling (the styling is part of the visual system, so one PR keeps it coherent), 6b bundle and measuring, 6c docs and release. Solo, as the run card says: the units share one stylesheet and one design.
+- 2026-10-21. This session has no computer use, so the Windows tests and the Windows screenshots wait for a session linked to the Windows machine (04:30-09:00). Cloud work is verified with unit tests, CI on `windows-latest` and the browser tour (`tools/ui-tour/`).
+- 2026-10-21. Visual system modelled on Windows 11 Fluent: neutral greys, the default Fluent accent (#005fb8 light, #60cdff dark), Fluent InfoBar colours, 4px spacing grid, radii 4/6/8, motion 80-140 ms off under reduced motion. Tokens live in `main.css`; `contrast.test.ts` checks every text and control pair for WCAG AA in both themes. Why: the app should look native next to Notepad and Explorer without a theme of its own (SPEC §4).
+- 2026-10-21. The editor writes in Segoe UI Variable, code in Cascadia Mono. Why: SnipMD is a notes app, not a code editor; raw Markdown in a proportional face reads like the note it is. SPEC §4 names both fonts.
+- 2026-10-21. Dimmed Markdown marks (`#`, `**`, link URLs) are held to 3:1, not 4.5:1. Why: they repeat what the styling already shows (size, weight, colour); WCAG treats such text as incidental. All other text is 4.5:1 or more.
+- 2026-10-21. Windows 11 Mica behind the top bar: Rust applies it at startup when the build is 22000 or later and tells the page through `window_backdrop`; only then does the bar go transparent. The window is `transparent: true`; the page itself stays opaque, so Windows 10 looks as before. Why: the goal asks for Mica where Tauri offers it, and a wrong guess must never show the desktop through the window.
+- 2026-10-21. Keyboard: F6 / Shift+F6 cycle page, info bar and tab strip (Windows convention); the tab strip has one tab stop with arrows, Home, End, Enter and Delete; Esc dismisses a non-sticky bar; window buttons are not tab stops (Alt+Space and Alt+F4 reach them). Ctrl+F or Ctrl+H in read mode switches to writing and opens the panel.
+- 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
+
 ## Handoff
 - Branches: `main` has phases 0-4 (phase 5 on `claude/phase-5`): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout, the security layer, the storage foundation, images and paste, saving flows. Phase 5 runs on `claude/phase-5`.
 - Phases 1-5 run as thin-standard (Workflow tool, name `thin-standard`). Args per phase live in `.claude/runs/`; `phase-1.args.json` is the template (its `root` is the cloud checkout; change it for a local run). Write `phase-<n>.args.json` from the phase table and show it for approval before the run.
