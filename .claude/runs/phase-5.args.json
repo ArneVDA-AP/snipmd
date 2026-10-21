@@ -51,6 +51,7 @@
  },
  "phases": [
   {
+   "title": "Build",
    "units": [
     {
      "id": "B1",
@@ -158,6 +159,7 @@
    ]
   },
   {
+   "title": "Tauri",
    "units": [
     {
      "id": "B2",
@@ -199,6 +201,7 @@
    ]
   },
   {
+   "title": "Verify",
    "units": [
     {
      "id": "V1",
@@ -245,6 +248,7 @@
    ]
   },
   {
+   "title": "Review",
    "units": [
     {
      "id": "R1",
