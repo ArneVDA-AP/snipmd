@@ -5,6 +5,11 @@ import { perfMark, toAssetUrl } from './ipc';
 
 let tracing = false;
 
+/** A point on the way to the first paint, timed from process start in Rust (script loaded, session read). */
+export function markStep(name: 'script' | 'session'): void {
+  void perfMark(name).catch(() => {});
+}
+
 /** Double-click to typing: called once the first tab can take keys; marks after that frame is painted. */
 export function markReady(): void {
   requestAnimationFrame(() =>

@@ -144,6 +144,9 @@ for ($i = 1; $i -le $Runs; $i++) {
   Start-Sleep -Milliseconds 500
   Stop-Snip $p
 }
+# Where the time of the last start went, from process start: script loaded, session read, ready.
+$steps = Get-Content (Join-Path $data 'perf.log') | Select-Object -Last 3
+$results['Last start: script / session / ready (ms from process start)'] = ($steps | ForEach-Object { $_.Split("`t")[1] }) -join ' / '
 $results['Double-click to typing, first start (ms, in process / from launch)'] = '{0} / {1:N0}' -f $inside[0], $outside[0]
 if ($Runs -gt 1) {
   $results['Double-click to typing, later starts (ms, median in process / from launch)'] =

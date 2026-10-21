@@ -5,7 +5,7 @@ import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
-import { markReady } from './perf';
+import { markReady, markStep } from './perf';
 import { openFind } from './editor/search';
 import { getView } from './editor/registry';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
@@ -156,6 +156,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     getCliStartupFiles().catch(() => []),
     windowBackdrop().catch(() => false)
   ]);
+  markStep('session');
   document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();

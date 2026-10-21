@@ -1,6 +1,7 @@
-Double-click to typing, first start (ms, in process / from launch) 3330 / 3,443
-Double-click to typing, later starts (ms, median in process / from launch) 680.4 / 697
-Ctrl+V to 4K screenshot visible (ms, median)               92.4
-Memory, 5 tabs and 20 images (MB, private working set / private bytes) 90.3 / 129.2
+Last start: script / session / ready (ms from process start) 461.8 / 465.9 / 520.7
+Double-click to typing, first start (ms, in process / from launch) 3276.5 / 3,371
+Double-click to typing, later starts (ms, median in process / from launch) 520.7 / 537
+Ctrl+V to 4K screenshot visible (ms, median)               89.7
+Memory, 5 tabs and 20 images (MB, private working set / private bytes) 89.9 / 127.3
 Installer (MB)                                             1.36
-Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-measure-a291b4ab (delete when done)
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-measure-27347fed (delete when done)

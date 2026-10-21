@@ -176,7 +176,7 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
   | Double-click to typing | < 300 ms | runner: 568 / 658 / 1126 / 680 ms median of later starts in four runs, 2.9-5.6 s first start; over budget on a GPU-less VM and too noisy to judge; **owner's machine open** | `windows-run.yml` runs 1-4 on Windows Server 2025 runners (no GPU), 2026-10-21; files in `findings/windows-ci/` |
   | Ctrl+V to 4K screenshot visible | < 150 ms | runner: 66 / 79 / 96 / 92 ms median in four runs, **within budget**; owner's machine to confirm | same runs |
   | Memory, 5 tabs and 20 images | < 120 MB | runner run 4: **90 MB private working set** (Task Manager's Memory), within budget; 129 MB private bytes; owner's machine to confirm | same runs |
-  The runner is a server VM without a GPU, so its start time says little about a laptop; the start budget is the first thing to check on the Windows machine, and if it misses there, the first suspects are WebView2 start-up and the session read before the first paint.
+  The runner is a server VM without a GPU, so its start time says little about a laptop. Run 5 split it: the page's first script ran 462 ms after process start (WebView2 start-up and loading the bundle), the session was read 4 ms later, and the first tab took keys 55 ms after that (521 ms in all). SnipMD's own work is about 60 ms; the budget therefore depends on how fast WebView2 starts on the owner's machine. If it misses there, the levers are WebView2's start (a warm-up at login is out of scope for v1) and the 398 KB bundle parse.
 
 ## Decisions
 Autonomous runs add one line per decision: date, what, why.
