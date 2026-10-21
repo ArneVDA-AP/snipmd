@@ -2,7 +2,7 @@
   "name": "snip-md",
   "private": true,
   "version": "0.1.0",
-  "description": "Frameless Windows 11 Markdown note-taking app with instant screenshot paste. Tauri v2 + CodeMirror 6.",
+  "description": "Windows notes app: paste a screenshot as easily as a sentence. Plain Markdown files.",
   "license": "MIT",
   "type": "module",
   "engines": {
