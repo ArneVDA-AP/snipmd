@@ -93,6 +93,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - Only at startup. Only inside `%APPDATA%/com.snipmd.desktop/scratch/`. Never touches image folders next to disk notes.
 - A scratch folder is deleted when its tab is neither in the session nor in the closed-tabs list, **and** it is older than 14 days.
 - Inside a live scratch folder, an image is deleted when no tab buffer and no closed-tab entry references it **and** its mtime is older than 14 days.
+- A session that cannot be read at startup is never overwritten: it is renamed to `session.unreadable-<time>.json`, a lasting bar names it, and an image whose name appears anywhere in its text is kept. If it can be neither read nor renamed, SnipMD writes no session that run.
 
 ## 7. Session and recovery
 

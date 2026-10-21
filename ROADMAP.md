@@ -2,23 +2,12 @@
 
 What is open, and the decisions still in force. Replace a section when it changes; history lives in git and in the `archive/v1-process` branch (the v1 plan, every review, findings and run args up to 2026-10-21).
 
-## v1.0.0: open
-All of SPEC.md v1 is built and on `main` with CI green. Before the tag:
+## v1.0.0: release
+All of SPEC.md v1 is on `main` with CI green, and the version is 1.0.0.
 
-1. **Windows tests on a real machine.** A tester session with computer use on the owner's PC runs them and reports on a `test/` branch, which is not merged. Done 2026-10-21: build, unit tests, budgets and screenshots at 100%. Open:
-   - **Security:** `fixtures/evil.md` in write and read mode. Nothing runs, nothing outside the note's folder loads, and links open in the browser.
-   - **Storage:** paste then Alt+F4 at once, then restart: the image and text are there. Pull a USB stick under an open note: an error bar shows, and the other tabs keep saving (owner).
-   - **Paste and drop:** cells copied from Excel paste as text. Ctrl+Shift+V with only an image on the clipboard does nothing. A dropped jpg lands on the drop line; two dropped images sit together.
-   - **Saving:** first save puts the note and its `.assets` folder side by side, with no hidden attribute. Edit the note in Notepad: a clean tab reloads, and a dirty tab shows the conflict bar. Save As to another drive copies the images.
-   - **Tabs:** Ctrl+W, restart, Ctrl+Shift+T brings the tab back with its images. A close with unwritten edits warns with Restore. Ctrl+1 works on AZERTY (owner). A held Ctrl+W closes one tab.
-   - **Window:** Mica on Windows 11, and no desktop showing through. F5, Ctrl+R, Ctrl+P and a right-click outside the text do nothing. F6 and the tab-strip keys work. Ctrl+H focuses Find when nothing is selected. No autofill popup. 150% and 200% scaling look right.
-   - **Installed app:** Start menu, `.md` double-click and restart, all from the installer.
-   - **Obsidian:** a note saved into a vault folder shows its screenshots in Obsidian. Editing it in both apps at once loses nothing.
-2. **Release** (RELEASE-WIN11.md):
-   - set version 1.0.0 and date the CHANGELOG;
-   - tag `v1.0.0`;
-   - smoke-test the published installer;
-   - run a final whole-app review.
+1. **Windows tests on the owner's PC: passed** (2026-10-21/22, report on the unmerged `test/w11-20261021` branch). Security with `fixtures/evil.md`, paste then Alt+F4, paste and drop, first save, external edits with the conflict bar, Save As to another drive, closed tabs, held Ctrl+W, browser keys off, F6 and the tab strip, Mica, the installed app, Obsidian both ways, and 100%, 150% and 200% scaling. Three defects were found and fixed: autofill over the find fields (#20), code blocks that did not wrap in read mode (#36), and a first window taller than the screen at high scaling (#37). Left for after the release: a pulled USB stick and Ctrl+1 on a real AZERTY keyboard (the code handles it), and the first window sitting 7 px above the screen when it is shrunk to fit.
+2. **Final whole-app review: done** (2026-10-22). Two blockers (a session that could not be read was overwritten; a note that crashed the read-mode renderer stopped every later startup) and four majors were fixed in #38, each with a test, over three review rounds. Minor findings are in #39.
+3. **Tag `v1.0.0`** (owner's go), then smoke-test the published installer (RELEASE-WIN11.md).
 
 Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on `main` e951acb):
 
@@ -119,7 +108,7 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.
 - **Windows testing.** A tester session on the owner's PC tests and reports; the cloud session fixes. That keeps one writer for the code.
-- **v1.0.0** is tagged only after the Windows tests pass.
+- **v1.0.0** is tagged after the Windows tests and a final review, on the owner's go.
 - **Start budget** (owner, 2026-10-21). SPEC §9 budgets SnipMD's own start (< 150 ms) and the cold start (< 1 s) instead of one 300 ms target. WebView2's own start takes about 600 ms on the owner's desktop before any page loads (tester probes on `test/w11-20261021`). A broker process that keeps WebView2 warm reaches about 320 ms but crashes SnipMD's start when its options differ, so it is out. Keeping SnipMD warm in the background is `PROPOSALS.md` #4, for after v1.
 - **macOS** comes after v1.0.0 (SPEC §13); Linux stays out. Most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop the Windows release depends on. The window keeps the native macOS buttons and an opaque bar, since vibrancy needs `macOSPrivateApi`. Closing the window quits the app, and new notes use LF.
 - **macOS keys.** Only Cmd is the app's modifier on macOS; Control keeps its text bindings (Control+E is end of line). The platform is read once from the engine's user agent, so the first paint is right. Paste as Plain Text goes through Rust's clipboard read, because WKWebView pastes only through the Edit menu.

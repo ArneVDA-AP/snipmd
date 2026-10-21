@@ -9,7 +9,13 @@ const m = vi.hoisted(() => ({
   onQuitRequested: vi.fn(async () => {}),
   onOpenedNotes: vi.fn(async () => {}),
   onMenuCommand: vi.fn(async () => {}),
-  onPasteText: vi.fn(async () => {})
+  onPasteText: vi.fn(async () => {}),
+  loadSession: vi.fn(async (): Promise<{ session: unknown; setAside: string | null }> => ({
+    session: { version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] },
+    setAside: null
+  })),
+  showError: vi.fn(),
+  showInfo: vi.fn()
 }));
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => ['C:/n/hung.md'],
@@ -40,11 +46,11 @@ vi.mock('./tabs', () => ({
   toggleMode: async () => {}
 }));
 vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: async () => {}, saveTab: async () => true, scheduleAutosave: () => {} }));
-vi.mock('./session', () => ({ loadSession: async () => ({ version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] }) }));
+vi.mock('./session', () => ({ loadSession: m.loadSession }));
 vi.mock('./external', () => ({ startExternalWatch: () => void m.order.push('watch') }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError, showInfo: m.showInfo }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClosedTab: async () => {} }));
 
@@ -61,4 +67,22 @@ it('a hung read of a command-line or Finder file leaves session writes, the clos
   expect(m.onOpenedNotes).toHaveBeenCalled();
   expect(m.onMenuCommand).toHaveBeenCalled();
   expect(m.onPasteText).toHaveBeenCalled();
+});
+
+it('a session that could not be read or kept aside is not overwritten: no session writes, and a lasting error', async () => {
+  m.order.length = 0;
+  m.loadSession.mockRejectedValueOnce('session.json cannot be read (locked) and could not be kept aside');
+  void startApp(document.createElement('div'));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(m.order).not.toContain('session writes');
+  expect(m.showError).toHaveBeenCalledWith(expect.stringContaining('session'), expect.anything(), 'session');
+});
+
+it('a session that was set aside is named in a lasting bar, and the new session is written', async () => {
+  m.order.length = 0;
+  m.loadSession.mockResolvedValueOnce({ session: null, setAside: 'C:/data/session.unreadable-1.json' });
+  void startApp(document.createElement('div'));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(m.order).toContain('session writes');
+  expect(m.showInfo).toHaveBeenCalledWith(expect.objectContaining({ key: 'session-aside', text: expect.stringContaining('session.unreadable-1.json') }));
 });

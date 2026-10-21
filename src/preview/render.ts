@@ -43,10 +43,10 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
 };
 
 /**
- * Renders a note into `container`. Images the app resolved through Rust are emitted without a
- * src and filled in after sanitizing, so no URL a note wrote itself can pass as one of them.
+ * Renders a note as an `<article>` for the read pane. Images the app resolved through Rust are
+ * emitted without a src and filled in after sanitizing, so no URL a note wrote itself can pass as one of them.
  */
-export async function renderRead(container: HTMLElement, tabId: string, content: string): Promise<void> {
+export async function renderRead(tabId: string, content: string): Promise<HTMLElement> {
   const own: string[] = [];
   const marked = new Marked({
     async: true,
@@ -89,5 +89,5 @@ export async function renderRead(container: HTMLElement, tabId: string, content:
   article.addEventListener('auxclick', (e) => {
     if ((e.target as Element).closest('a')) e.preventDefault();
   });
-  container.replaceChildren(article);
+  return article;
 }

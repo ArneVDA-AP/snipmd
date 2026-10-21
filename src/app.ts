@@ -1,6 +1,6 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
-import { focusInfobar, mountInfobar } from './infobar';
+import { focusInfobar, mountInfobar, showError, showInfo } from './infobar';
 import { loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
@@ -101,7 +101,8 @@ function commandKey(e: KeyboardEvent): boolean {
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
-  if (digit) {
+  // With NumLock off the numpad digits are End, arrows and Page Down: those stay editor keys.
+  if (digit && (e.code.startsWith('Digit') || e.key === digit[1])) {
     const tab = getTabs()[Number(digit[1]) - 1];
     return tab && (() => activate(tab.id));
   }
@@ -191,8 +192,12 @@ export async function startApp(root: HTMLElement): Promise<void> {
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar, scheduleAutosave);
   registerKeys(titlebar);
 
-  const [session, cliFiles, finderNotes, mica] = await Promise.all([
-    loadSession().catch(() => null),
+  let sessionUnread: unknown = null;
+  const [{ session, setAside }, cliFiles, finderNotes, mica] = await Promise.all([
+    loadSession().catch((err: unknown) => {
+      sessionUnread = err ?? 'unknown error';
+      return { session: null, setAside: null };
+    }),
     getCliStartupFiles().catch(() => []),
     takeOpenedNotes().catch(() => []),
     windowBackdrop().catch(() => false)
@@ -205,7 +210,13 @@ export async function startApp(root: HTMLElement): Promise<void> {
   // Writes start only now: a blur during the restore must not store an empty session over the real one.
   // Everything below is in place before the files from the command line or Finder are read, so a slow
   // or hung read of one never stops the session, the close and quit flush, forwarded files or drops.
-  startSessionWrites();
+  // A session Rust could neither read nor keep aside holds the only copy of the untitled notes:
+  // this run must not write over it.
+  if (sessionUnread === null) startSessionWrites();
+  else showError('read the session, so this run keeps no tabs for the next start', sessionUnread, 'session');
+  if (setAside) {
+    showInfo({ kind: 'error', key: 'session-aside', text: `The last session could not be read. It is kept as ${setAside}; its untitled notes can be copied out of it.` });
+  }
   startExternalWatch(saveTab);
   window.addEventListener('blur', () => void flushDirty());
   preloadReader();

@@ -17,11 +17,11 @@ vi.mock('./ipc', () => ({
   promoteUntitled: vi.fn(async () => null),
   copyAssets: vi.fn(async () => null),
   saveSessionRaw: vi.fn(async () => {}),
-  loadSessionRaw: vi.fn(async () => null),
+  loadSessionRaw: vi.fn(async () => ({ raw: null, setAside: null })),
   perfMark: vi.fn(async () => false)
 }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
-vi.mock('./preview/render', () => ({ renderRead: vi.fn() }));
+vi.mock('./preview/render', () => ({ renderRead: vi.fn(async () => document.createElement('article')) }));
 vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 
 import { claimNewNote, promoteUntitled, readNote, saveImage, saveSessionRaw, writeNote } from './ipc';

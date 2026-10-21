@@ -58,8 +58,9 @@ function enqueueWrite(): void {
   });
 }
 
-export async function loadSession(): Promise<SessionFile | null> {
-  return parseSession(await loadSessionRaw());
+export async function loadSession(): Promise<{ session: SessionFile | null; setAside: string | null }> {
+  const { raw, setAside } = await loadSessionRaw();
+  return { session: parseSession(raw), setAside };
 }
 
 const str = (v: unknown, fallback: string): string => (typeof v === 'string' ? v : fallback);

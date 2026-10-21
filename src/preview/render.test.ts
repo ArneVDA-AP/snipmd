@@ -18,7 +18,7 @@ import { renderRead } from './render';
 
 async function render(md: string): Promise<HTMLElement> {
   const el = document.createElement('div');
-  await renderRead(el, 't1', md);
+  el.append(await renderRead('t1', md));
   return el;
 }
 

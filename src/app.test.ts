@@ -57,11 +57,11 @@ vi.mock('./tabs', () => ({
   toggleMode: m.toggleMode
 }));
 vi.mock('./saving', () => ({ flushDirty: m.flushDirty, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
-vi.mock('./session', () => ({ loadSession: async () => null }));
+vi.mock('./session', () => ({ loadSession: async () => ({ session: null, setAside: null }) }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar, showError: vi.fn(), showInfo: vi.fn() }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
     constructor(_root: HTMLElement, h: typeof m.handlers) {
@@ -142,6 +142,14 @@ describe('keyboard table (SPEC §10)', () => {
     expect(e.defaultPrevented).toBe(true);
     calledOnly(m.activate);
     expect(m.activate).toHaveBeenCalledWith('a');
+  });
+
+  it('Ctrl+End and Ctrl+Left on the numpad with NumLock off stay editor keys', () => {
+    for (const [key, code] of [['End', 'Numpad1'], ['ArrowLeft', 'Numpad4']]) {
+      const e = press(key, { code });
+      expect(e.defaultPrevented).toBe(false);
+    }
+    calledOnly(undefined as never);
   });
 
   it('Ctrl+5 with three tabs does nothing', () => {

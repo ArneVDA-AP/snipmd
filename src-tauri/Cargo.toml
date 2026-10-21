@@ -1,6 +1,6 @@
 [package]
 name = "snip-md"
-version = "0.1.0"
+version = "1.0.0"
 description = "Frameless Windows 11 Markdown & Snipping Tool Note-Taking Workspace"
 authors = ["SnipMD Contributors"]
 edition = "2021"

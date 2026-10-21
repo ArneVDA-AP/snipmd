@@ -17,6 +17,8 @@ Requires Node.js 22, Rust stable with the MSVC toolchain, and the Visual Studio 
 ```
 It runs `npm ci`, the typecheck, the tests and the release build, and copies the files to `release-win11\`. It stops at the first command that fails.
 
+The files are not code-signed: SmartScreen warns on the first run of the setup until a signing certificate is added to the build job (README says how to get past it).
+
 ## Smoke test of an installer
 On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\com.snipmd.desktop`):
 1. Run the setup. It installs without admin rights; the Start menu has SnipMD.

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{ErrorKind, Read};
-use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, text};
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, session, text};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -517,7 +517,15 @@ fn start_cleanup(app_data: PathBuf) {
         if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
             return;
         }
-        let live = live_tabs(&mut session);
+        let mut live = live_tabs(&mut session);
+        // A set-aside session still links its untitled notes' screenshots. It was set aside because it
+        // does not parse, but its raw text still spells every name it links, and names are matched as
+        // text across all tabs: it counts as one more known text. One that cannot be read at all
+        // names unknown images, so nothing is cleaned that run.
+        for aside in session::set_aside(&app_data) {
+            let Ok(bytes) = fs::read(&aside) else { return };
+            live.insert(format!("set-aside:{}", aside.display()), Some(String::from_utf8_lossy(&bytes).into_owned()));
+        }
         let removed = cleanup::clean_scratch(&app_data.join("scratch"), &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
         if removed > 0 {
             eprintln!("cleanup: removed {removed} unused scratch item(s)");
@@ -540,32 +548,33 @@ fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
     live
 }
 
+
+/// The stored session, and the file an unreadable one was moved to (the page names it in a bar).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionLoad {
+    raw: Option<String>,
+    set_aside: Option<String>,
+}
+
 #[tauri::command(async)]
-fn load_session(app: AppHandle) -> Result<Option<String>, String> {
+fn load_session(app: AppHandle) -> Result<SessionLoad, String> {
     let app_data = app_data(&app)?;
-    let session_path = app_data.join("session.json");
-    if !session_path.exists() {
-        return Ok(None);
-    }
-
-    let raw = fs::read_to_string(&session_path)
-        .map_err(|e| format!("Failed to read session.json: {e}"))?;
-
-    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else {
-        // Unreadable: keep it aside (its untitled text may be recoverable by hand) instead of letting
-        // the fresh session overwrite it. Never deleted.
-        let secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-        let aside = app_data.join(format!("session.unreadable-{secs}.json"));
-        fs::rename(&session_path, &aside).map_err(|e| format!("session.json cannot be read and could not be kept aside: {e}"))?;
-        return Ok(None);
+    // An unreadable session is kept aside (its untitled text may be recoverable by hand); when it
+    // cannot be, the error tells the page not to write a fresh session over it.
+    let raw = match session::load(&app_data.join("session.json"), |s| serde_json::from_str::<Value>(s).is_ok())? {
+        session::Loaded::Text(raw) => raw,
+        session::Loaded::Missing => return Ok(SessionLoad { raw: None, set_aside: None }),
+        session::Loaded::SetAside(p) => return Ok(SessionLoad { raw: None, set_aside: Some(p.to_string_lossy().into_owned()) }),
     };
+    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else { unreachable!("checked by session::load") };
     for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
         allow_note(&app, Path::new(p));
     }
     if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
         allowed(&app).allow_note_folder(Path::new(folder));
     }
-    Ok(Some(raw))
+    Ok(SessionLoad { raw: Some(raw), set_aside: None })
 }
 
 #[tauri::command(async)]
@@ -607,13 +616,14 @@ fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
 /// The configured first size (1200 x 820) is taller than the work area of a 1080p laptop at 150%
 /// or a 1440p screen at 200%, which would put the bottom of the window off-screen.
 fn fit_to_screen(window: &WebviewWindow) {
-    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
+    let (Ok(Some(monitor)), Ok(outer), Ok(inner)) = (window.current_monitor(), window.outer_size(), window.inner_size()) else { return };
     let area = monitor.work_area().size;
-    if size.width <= area.width && size.height <= area.height {
+    let (over_w, over_h) = (outer.width.saturating_sub(area.width), outer.height.saturating_sub(area.height));
+    if over_w == 0 && over_h == 0 {
         return;
     }
-    let fitted = PhysicalSize::new(size.width.min(area.width), size.height.min(area.height));
-    let _ = window.set_size(fitted);
+    // `set_size` sets the inner size, so take the overflow of the outer frame off the inner size.
+    let _ = window.set_size(PhysicalSize::new(inner.width.saturating_sub(over_w), inner.height.saturating_sub(over_h)));
     let _ = window.center();
 }
 

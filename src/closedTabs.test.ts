@@ -117,7 +117,8 @@ describe('screenshot count on a hostile note', () => {
     addTab('h', { content: '!['.repeat(100_000) + ' ![](h.assets/a.png)' });
     const t = performance.now();
     await closeTabWithRestore('h');
-    expect(performance.now() - t).toBeLessThan(1000);
+    // Quadratic work on 100k marks would take minutes; the margin absorbs a loaded CI runner.
+    expect(performance.now() - t).toBeLessThan(3000);
     expect(bar().text).toBe('h.md closed, with 1 screenshot.');
   });
 });

@@ -14,7 +14,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
         │  invoke (typed wrappers in ipc.ts)        │  calls
         └──────────────────────────────────────────┘
 ```
-- **One store**: `%APPDATA%/com.snipmd.desktop/session.json` holds tabs, untitled text, closed tabs and the last folder. It is written atomically, debounced while typing and at once after a paste, a save, a close or blur (`session.ts`).
+- **One store**: `%APPDATA%/com.snipmd.desktop/session.json` holds tabs, untitled text, closed tabs and the last folder. It is written atomically, debounced while typing and at once after a paste, a save, a close or blur (`session.ts`). A session that cannot be read is moved aside, never overwritten (`core/src/session.rs`).
 - **Untitled tabs** keep their images in `%APPDATA%/com.snipmd.desktop/scratch/<tab id>/`, linked as `untitled.assets/…`. The first save writes the note, then moves that folder to `<stem>.assets/` and rewrites the links in one undoable step.
 - **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per folder at runtime.
 

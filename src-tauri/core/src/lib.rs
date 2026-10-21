@@ -10,6 +10,7 @@ pub mod cleanup;
 pub mod links;
 pub mod naming;
 pub mod paths;
+pub mod session;
 pub mod text;
 
 /// Why a path was refused.
