@@ -53,7 +53,7 @@ export function bindEditListener(fn: (id: string) => void): void {
 export function initTabs(p: Panes, t: Titlebar): void {
   panes = p;
   titlebar = t;
-  bindFilePathLookup((id) => getTab(id)?.filePath ?? null);
+  bindFilePathLookup((id) => findTab(id)?.filePath ?? null); // a paste into a tab closed meanwhile still saves next to its note
   bindChangeListener(onDocChange);
 }
 
