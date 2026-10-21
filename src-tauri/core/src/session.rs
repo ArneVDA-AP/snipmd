@@ -30,10 +30,10 @@ pub fn load(path: &Path, valid: impl Fn(&str) -> bool) -> Result<Loaded, String>
             Err(_) => "not UTF-8 text".into(),
         },
     };
-    set_aside(path).map(Loaded::SetAside).map_err(|e| format!("session.json cannot be read ({why}) and could not be kept aside: {e}"))
+    move_aside(path).map(Loaded::SetAside).map_err(|e| format!("session.json cannot be read ({why}) and could not be kept aside: {e}"))
 }
 
-fn set_aside(path: &Path) -> std::io::Result<PathBuf> {
+fn move_aside(path: &Path) -> std::io::Result<PathBuf> {
     let dir = path.parent().unwrap_or(Path::new("."));
     let ms = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
     for n in 0..100 {
@@ -45,4 +45,13 @@ fn set_aside(path: &Path) -> std::io::Result<PathBuf> {
         }
     }
     Err(std::io::Error::new(ErrorKind::AlreadyExists, "no free name to keep it aside"))
+}
+
+/// The sessions `load` kept aside in `dir`. Their untitled notes still link screenshots in scratch.
+pub fn set_aside(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
+    entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("session.unreadable-") && n.ends_with(".json")))
+        .collect()
 }

@@ -76,8 +76,9 @@ export function toAssetUrl(absPath: string): string {
   return convertFileSrc(absPath);
 }
 
-export function loadSessionRaw(): Promise<string | null> {
-  return invoke<string | null>('load_session');
+/** The stored session text, and where an unreadable session was moved to. */
+export function loadSessionRaw(): Promise<{ raw: string | null; setAside: string | null }> {
+  return invoke('load_session');
 }
 
 /** The session goes as a raw UTF-8 body, not as a JSON string inside JSON. */

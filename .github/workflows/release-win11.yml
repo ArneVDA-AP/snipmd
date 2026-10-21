@@ -48,12 +48,14 @@ jobs:
       - name: Tag matches the app version
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           $v = (Get-Content package.json | ConvertFrom-Json).version
           $conf = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
           $crate = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           foreach ($x in @($v, $conf, $crate)) {
-            if ("v$x" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match the versions: package.json $v, tauri.conf.json $conf, Cargo.toml $crate" }
+            if ("v$x" -ne $env:TAG) { throw "Tag $env:TAG does not match the versions: package.json $v, tauri.conf.json $conf, Cargo.toml $crate" }
           }
 
       - name: Build installers

@@ -10,8 +10,12 @@ const m = vi.hoisted(() => ({
   onOpenedNotes: vi.fn(async () => {}),
   onMenuCommand: vi.fn(async () => {}),
   onPasteText: vi.fn(async () => {}),
-  loadSession: vi.fn(async () => ({ version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] })),
-  showError: vi.fn()
+  loadSession: vi.fn(async (): Promise<{ session: unknown; setAside: string | null }> => ({
+    session: { version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] },
+    setAside: null
+  })),
+  showError: vi.fn(),
+  showInfo: vi.fn()
 }));
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => ['C:/n/hung.md'],
@@ -46,7 +50,7 @@ vi.mock('./session', () => ({ loadSession: m.loadSession }));
 vi.mock('./external', () => ({ startExternalWatch: () => void m.order.push('watch') }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError, showInfo: m.showInfo }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClosedTab: async () => {} }));
 
@@ -72,4 +76,13 @@ it('a session that could not be read or kept aside is not overwritten: no sessio
   await new Promise((r) => setTimeout(r, 20));
   expect(m.order).not.toContain('session writes');
   expect(m.showError).toHaveBeenCalledWith(expect.stringContaining('session'), expect.anything(), 'session');
+});
+
+it('a session that was set aside is named in a lasting bar, and the new session is written', async () => {
+  m.order.length = 0;
+  m.loadSession.mockResolvedValueOnce({ session: null, setAside: 'C:/data/session.unreadable-1.json' });
+  void startApp(document.createElement('div'));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(m.order).toContain('session writes');
+  expect(m.showInfo).toHaveBeenCalledWith(expect.objectContaining({ key: 'session-aside', text: expect.stringContaining('session.unreadable-1.json') }));
 });

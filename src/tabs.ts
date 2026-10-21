@@ -240,6 +240,9 @@ export function preloadReader(): void {
 /** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. */
 const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs');
 
+/** Counts read renders; only the latest may fill the read pane. */
+let renders = 0;
+
 export async function activate(id: string): Promise<void> {
   const tab = openTab(id) ?? getTabs()[0];
   if (!tab) return;
@@ -261,6 +264,7 @@ export async function activate(id: string): Promise<void> {
     }
     if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
     let article: HTMLElement;
+    const render = ++renders;
     try {
       article = await renderRead(tab.id, textOf(tab));
     } catch (err) {
@@ -271,7 +275,8 @@ export async function activate(id: string): Promise<void> {
       if (activeId === tab.id) await activate(tab.id);
       return;
     }
-    if (activeId !== tab.id || tab.mode !== 'read') return; // a slow render must not show in another tab
+    // A slow render must not show in another tab, nor replace a newer render of this one.
+    if (render !== renders || activeId !== tab.id || tab.mode !== 'read') return;
     panes.read.replaceChildren(article);
     requestAnimationFrame(() => {
       panes.read.scrollTop = tab.scrollTop;

@@ -1,6 +1,6 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
-import { focusInfobar, mountInfobar, showError } from './infobar';
+import { focusInfobar, mountInfobar, showError, showInfo } from './infobar';
 import { loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
@@ -193,10 +193,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   registerKeys(titlebar);
 
   let sessionUnread: unknown = null;
-  const [session, cliFiles, finderNotes, mica] = await Promise.all([
+  const [{ session, setAside }, cliFiles, finderNotes, mica] = await Promise.all([
     loadSession().catch((err: unknown) => {
       sessionUnread = err ?? 'unknown error';
-      return null;
+      return { session: null, setAside: null };
     }),
     getCliStartupFiles().catch(() => []),
     takeOpenedNotes().catch(() => []),
@@ -214,6 +214,9 @@ export async function startApp(root: HTMLElement): Promise<void> {
   // this run must not write over it.
   if (sessionUnread === null) startSessionWrites();
   else showError('read the session, so this run keeps no tabs for the next start', sessionUnread, 'session');
+  if (setAside) {
+    showInfo({ kind: 'error', key: 'session-aside', text: `The last session could not be read. It is kept as ${setAside}; its untitled notes can be copied out of it.` });
+  }
   startExternalWatch(saveTab);
   window.addEventListener('blur', () => void flushDirty());
   preloadReader();

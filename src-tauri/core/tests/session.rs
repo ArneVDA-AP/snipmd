@@ -1,4 +1,4 @@
-use snipmd_core::session::{load, Loaded};
+use snipmd_core::session::{load, set_aside, Loaded};
 use std::fs;
 use std::path::PathBuf;
 
@@ -72,4 +72,14 @@ fn a_session_that_cannot_be_read_or_moved_is_an_error() {
     fs::write(d.join("blocker"), "x").unwrap();
     let err = load(&d.join("blocker").join("session.json"), json);
     assert!(err.is_err(), "{err:?}");
+}
+
+#[test]
+fn set_aside_lists_what_load_moved_and_nothing_else() {
+    let d = dir("list");
+    fs::write(d.join("session.json"), "bad").unwrap();
+    let Loaded::SetAside(moved) = load(&d.join("session.json"), json).unwrap() else { panic!("not set aside") };
+    fs::write(d.join("session.json"), "{}").unwrap();
+    fs::write(d.join("perf.log"), "").unwrap();
+    assert_eq!(set_aside(&d), vec![moved]);
 }

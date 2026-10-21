@@ -517,7 +517,13 @@ fn start_cleanup(app_data: PathBuf) {
         if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
             return;
         }
-        let live = live_tabs(&mut session);
+        let mut live = live_tabs(&mut session);
+        // A set-aside session still links its untitled notes' screenshots. One that cannot be read
+        // names unknown images, so nothing is cleaned while it exists.
+        for aside in session::set_aside(&app_data) {
+            let Some(mut old) = fs::read_to_string(&aside).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) else { return };
+            add_live(&mut live, &mut old);
+        }
         let removed = cleanup::clean_scratch(&app_data.join("scratch"), &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
         if removed > 0 {
             eprintln!("cleanup: removed {removed} unused scratch item(s)");
@@ -527,7 +533,12 @@ fn start_cleanup(app_data: PathBuf) {
 
 /// Every session tab id (open and closed) with its text when the session holds it.
 fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
-    let mut live: HashMap<String, Option<String>> = HashMap::new();
+    let mut live = HashMap::new();
+    add_live(&mut live, session);
+    live
+}
+
+fn add_live(live: &mut HashMap<String, Option<String>>, session: &mut Value) {
     for tab in session_tabs(session) {
         let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
         let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
@@ -537,26 +548,35 @@ fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
             (known, _) => *known = None,
         }
     }
-    live
+}
+
+
+/// The stored session, and the file an unreadable one was moved to (the page names it in a bar).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionLoad {
+    raw: Option<String>,
+    set_aside: Option<String>,
 }
 
 #[tauri::command(async)]
-fn load_session(app: AppHandle) -> Result<Option<String>, String> {
+fn load_session(app: AppHandle) -> Result<SessionLoad, String> {
     let app_data = app_data(&app)?;
     // An unreadable session is kept aside (its untitled text may be recoverable by hand); when it
     // cannot be, the error tells the page not to write a fresh session over it.
     let raw = match session::load(&app_data.join("session.json"), |s| serde_json::from_str::<Value>(s).is_ok())? {
         session::Loaded::Text(raw) => raw,
-        session::Loaded::Missing | session::Loaded::SetAside(_) => return Ok(None),
+        session::Loaded::Missing => return Ok(SessionLoad { raw: None, set_aside: None }),
+        session::Loaded::SetAside(p) => return Ok(SessionLoad { raw: None, set_aside: Some(p.to_string_lossy().into_owned()) }),
     };
-    let mut parsed: Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else { unreachable!("checked by session::load") };
     for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
         allow_note(&app, Path::new(p));
     }
     if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
         allowed(&app).allow_note_folder(Path::new(folder));
     }
-    Ok(Some(raw))
+    Ok(SessionLoad { raw: Some(raw), set_aside: None })
 }
 
 #[tauri::command(async)]

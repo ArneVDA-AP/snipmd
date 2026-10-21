@@ -315,4 +315,19 @@ describe('read mode', () => {
     expect(getActiveTab()?.id).toBe('rm-b');
     expect(document.getElementById('r')!.textContent).toBe('B');
   });
+
+  it('an older render of the same tab does not replace a newer one', async () => {
+    await restore(session([tab({ id: 'rm-s', content: 'old' })]));
+    let release!: () => void;
+    const stale = Object.assign(document.createElement('article'), { textContent: 'old' });
+    vi.mocked(renderRead).mockReturnValueOnce(new Promise((r) => (release = () => r(stale))));
+    const first = activate('rm-s');
+    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-s', 'old'));
+    applyToTab('rm-s', { changes: { from: 0, insert: 'NEW ' } });
+    await activate('rm-s');
+    release();
+    await first;
+    expect(document.getElementById('r')!.textContent).toMatch(/^NEW old/);
+  });
 });
+
