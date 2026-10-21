@@ -3,7 +3,7 @@ import { Titlebar } from './titlebar';
 import { mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
-import { checkTabs, startExternalWatch } from './external';
+import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
 import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen } from './ipc';
 import {
@@ -84,8 +84,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   await openPaths(cliFiles);
-  await checkTabs();
-  startExternalWatch();
+  startExternalWatch(saveTab);
 
   await Promise.all([
     // A hung note write (drive removed) must not keep the window open; the session was written first.

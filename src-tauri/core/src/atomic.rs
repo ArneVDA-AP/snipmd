@@ -17,7 +17,7 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     };
     let target = real.as_path();
     if fs::metadata(target).is_ok_and(|m| m.permissions().readonly()) {
-        return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "read-only")); // D8
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "read-only")); // D8
     }
     let name = target.file_name().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "target has no file name"))?;
     let tmp_name = || {

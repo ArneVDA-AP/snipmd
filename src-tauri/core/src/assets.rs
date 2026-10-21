@@ -26,6 +26,24 @@ pub fn copy_dir(from: &Path, to: &Path) -> io::Result<()> {
     walk(from, to, false)
 }
 
+/// Copies into a new file, synced; a failed copy removes its partial file.
+fn copy_new(src: &Path, dst: &Path) -> io::Result<()> {
+    let mut out = OpenOptions::new().write(true).create_new(true).open(dst)?;
+    io::copy(&mut fs::File::open(src)?, &mut out).and_then(|_| out.sync_all()).inspect_err(|_| {
+        let _ = fs::remove_file(dst);
+    })?;
+    Ok(())
+}
+
+fn same_file(src: &Path, dst: &Path) -> io::Result<bool> {
+    match fs::metadata(dst) {
+        Ok(m) if m.len() == fs::metadata(src)?.len() => Ok(fs::read(src)? == fs::read(dst)?),
+        Ok(_) => Ok(false),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 fn walk(from: &Path, to: &Path, remove: bool) -> io::Result<()> {
     if !from.is_dir() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "source folder not found"));
@@ -47,9 +65,11 @@ fn walk(from: &Path, to: &Path, remove: bool) -> io::Result<()> {
                 let _ = fs::remove_dir(&src);
             }
         } else {
-            let mut out = OpenOptions::new().write(true).create_new(true).open(&dst)?;
-            io::copy(&mut fs::File::open(&src)?, &mut out)?;
-            out.sync_all()?;
+            // A file already there with the same bytes is a copy from an earlier, interrupted run: skip it,
+            // so calling again finishes the job. Any other file of that name is never overwritten.
+            if !same_file(&src, &dst)? {
+                copy_new(&src, &dst)?;
+            }
             if remove {
                 fs::remove_file(&src)?;
             }

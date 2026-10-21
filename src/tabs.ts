@@ -2,7 +2,7 @@
 // The text of a tab lives in its EditorState; TabState.content is only filled when the session is
 // written and used to create the editor state on restore. Read it through textOf().
 import { EditorView } from '@codemirror/view';
-import type { ClosedTab, DiskStamp, SessionFile, TabMode, TabState } from './types';
+import type { ClosedTab, DiskStamp, SessionFile, TabState } from './types';
 import { createEditorState } from './editor/setup';
 import { redrawImages } from './editor/imageWidget';
 import {
@@ -190,9 +190,9 @@ export function newUntitled(): Promise<void> {
   return addTab(`Untitled-${untitledCounter++}`, null, '');
 }
 
-/** A new untitled tab holding `text`, e.g. the disk version of a note in conflict. */
-export function openCopy(title: string, text: string, mode: TabMode): Promise<void> {
-  return addTab(title, null, text, { mode });
+/** A new untitled tab in read mode holding `text`: the disk version of a note in conflict. */
+export function openCopy(title: string, text: string): Promise<void> {
+  return addTab(title, null, text, { mode: 'read' });
 }
 
 export async function openPath(path: string): Promise<void> {

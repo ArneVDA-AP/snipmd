@@ -66,38 +66,52 @@ fn allow_notes(app: &AppHandle, paths: impl Iterator<Item = PathBuf>) -> Vec<Str
         .collect()
 }
 
-async fn pick(app: &AppHandle, save_name: Option<String>) -> Result<Option<String>, String> {
+enum Pick {
+    Open,
+    Save(String),
+    Folder,
+}
+
+/// Shows a native dialog and grants what the user picked: a note (open, save) or a folder for new notes.
+async fn pick(app: &AppHandle, kind: Pick) -> Result<Option<String>, String> {
     let (tx, mut rx) = tauri::async_runtime::channel(1);
     let done = move |p| {
         let _ = tx.blocking_send(p);
     };
     let builder = app.dialog().file();
-    match save_name {
-        Some(name) => builder
+    let folder = matches!(kind, Pick::Folder);
+    match kind {
+        Pick::Save(name) => builder
             .set_file_name(if name.ends_with(".md") { name } else { format!("{name}.md") })
             .add_filter("Markdown", &["md"])
             .save_file(done),
-        None => builder.add_filter("Markdown", MD_EXTENSIONS).pick_file(done),
+        Pick::Open => builder.add_filter("Markdown", MD_EXTENSIONS).pick_file(done),
+        Pick::Folder => builder.pick_folder(done),
     }
     let picked = rx.recv().await.ok_or_else(|| "dialog closed unexpectedly".to_string())?;
-    match picked {
-        Some(fp) => {
-            let path = fp.into_path().map_err(|e| e.to_string())?;
-            allow_note(app, &path);
-            Ok(Some(path.to_string_lossy().into_owned()))
-        }
-        None => Ok(None),
+    let Some(fp) = picked else { return Ok(None) };
+    let path = fp.into_path().map_err(|e| e.to_string())?;
+    if folder {
+        allowed(app).allow_note_folder(&path);
+    } else {
+        allow_note(app, &path);
     }
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
 async fn pick_open(app: AppHandle) -> Result<Option<String>, String> {
-    pick(&app, None).await
+    pick(&app, Pick::Open).await
 }
 
 #[tauri::command]
 async fn pick_save(app: AppHandle, default_name: String) -> Result<Option<String>, String> {
-    pick(&app, Some(default_name)).await
+    pick(&app, Pick::Save(default_name)).await
+}
+
+#[tauri::command]
+async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
+    pick(&app, Pick::Folder).await
 }
 
 #[derive(Serialize)]
@@ -131,6 +145,9 @@ fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_data_dir().map_err(|e| format!("Failed to resolve app_data_dir: {e}"))
 }
 
+/// The link prefix an untitled tab's images use; it resolves to the tab's scratch folder.
+const UNTITLED_ASSETS: &str = "untitled.assets";
+
 /// Where a tab's images live, decided once per command: next to its note, or in its scratch folder.
 enum ImageHome {
     Note(PathBuf),
@@ -142,9 +159,16 @@ impl ImageHome {
     fn of(app: &AppHandle, tab_id: &str, note_path: Option<&str>) -> Result<Self, String> {
         match note_path.filter(|p| !p.trim().is_empty()) {
             Some(p) => Ok(ImageHome::Note(check_path(app, p)?)),
-            None if paths::valid_tab_id(tab_id) => Ok(ImageHome::Untitled(app_data(app)?.join("scratch").join(tab_id))),
-            None => Err("Invalid tab id".to_string()),
+            None => Self::scratch(app, tab_id).map(ImageHome::Untitled),
         }
+    }
+
+    /// An untitled tab's scratch folder, `<app data>/scratch/<tab id>`.
+    fn scratch(app: &AppHandle, tab_id: &str) -> Result<PathBuf, String> {
+        if !paths::valid_tab_id(tab_id) {
+            return Err("Invalid tab id".to_string());
+        }
+        Ok(app_data(app)?.join("scratch").join(tab_id))
     }
 
     fn name(&self) -> String {
@@ -170,7 +194,7 @@ impl ImageHome {
             }
             ImageHome::Untitled(dir) => {
                 fs::create_dir_all(dir).map_err(fail)?;
-                Ok((dir.clone(), "untitled.assets".to_string()))
+                Ok((dir.clone(), UNTITLED_ASSETS.to_string()))
             }
         }
     }
@@ -259,10 +283,23 @@ fn note_name(path: &Path) -> String {
     path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned()
 }
 
+/// TextFormat as the frontend sends and receives it (the core crate has no serde).
 #[derive(Serialize, Deserialize, Clone, Copy)]
 struct Format {
     crlf: bool,
     bom: bool,
+}
+
+impl From<text::TextFormat> for Format {
+    fn from(f: text::TextFormat) -> Self {
+        Format { crlf: f.crlf, bom: f.bom }
+    }
+}
+
+impl From<Format> for text::TextFormat {
+    fn from(f: Format) -> Self {
+        text::TextFormat { crlf: f.crlf, bom: f.bom }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
@@ -293,6 +330,15 @@ struct PrefixMove {
     to: String,
 }
 
+/// The file's stamp, or None when it does not exist.
+fn stamp(p: &Path) -> std::io::Result<Option<DiskStamp>> {
+    match fs::metadata(p) {
+        Ok(m) => stamp_of(&m).map(Some),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 fn stamp_of(meta: &fs::Metadata) -> std::io::Result<DiskStamp> {
     let ms = meta
         .modified()?
@@ -306,10 +352,17 @@ fn stamp_of(meta: &fs::Metadata) -> std::io::Result<DiskStamp> {
 fn read_markdown_file(app: AppHandle, path: String) -> Result<NoteFile, String> {
     let checked = check_path(&app, &path)?;
     let name = note_name(&checked);
-    let bytes = fs::read(&checked).map_err(|e| format!("Failed to read {name}: {e}"))?;
-    let stamp = fs::metadata(&checked).and_then(|m| stamp_of(&m)).map_err(|e| format!("Failed to read {name}: {e}"))?;
+    // Bytes and stamp from one open file, so a write in between cannot pair new bytes with an old stamp.
+    let read = || -> std::io::Result<(Vec<u8>, DiskStamp)> {
+        let mut file = fs::File::open(&checked)?;
+        let meta = file.metadata()?;
+        let mut bytes = Vec::with_capacity(meta.len() as usize);
+        file.read_to_end(&mut bytes)?;
+        Ok((bytes, stamp_of(&meta)?))
+    };
+    let (bytes, stamp) = read().map_err(|e| format!("Failed to read {name}: {e}"))?;
     let (text, fmt) = text::decode(&bytes).map_err(|_| format!("{name} is not UTF-8 text"))?;
-    Ok(NoteFile { text, format: Format { crlf: fmt.crlf, bom: fmt.bom }, stamp })
+    Ok(NoteFile { text, format: fmt.into(), stamp })
 }
 
 /// Enough of a note to read its format: sniff needs the BOM and the first line break.
@@ -333,17 +386,13 @@ fn write_markdown_file(
     let name = note_name(&checked);
     // Never write over a change made outside SnipMD since the tab last read or wrote the file (SPEC §6.1).
     if let Some(expected) = expected {
-        let now = match fs::metadata(&checked).and_then(|m| stamp_of(&m)) {
-            Ok(s) => Some(s),
-            Err(e) if e.kind() == ErrorKind::NotFound => None,
-            Err(e) => return Err(format!("Failed to check {name} before saving: {e}")),
-        };
+        let now = stamp(&checked).map_err(|e| format!("Failed to check {name} before saving: {e}"))?;
         if now != Some(expected) {
             return Ok(WriteOutcome::Changed { changed: now });
         }
     }
     let fmt = match format {
-        Some(f) => text::TextFormat { crlf: f.crlf, bom: f.bom },
+        Some(f) => f.into(),
         None => match read_head(&checked) {
             Ok(head) => text::sniff(&head),
             Err(e) if e.kind() == ErrorKind::NotFound => text::TextFormat::NEW_FILE,
@@ -351,33 +400,29 @@ fn write_markdown_file(
         },
     };
     atomic::atomic_write(&checked, &text::encode(&content, fmt)).map_err(|e| format!("Failed to write {name}: {e}"))?;
-    let written = fs::metadata(&checked).and_then(|m| stamp_of(&m)).map_err(|e| format!("Failed to read the stamp of {name}: {e}"))?;
-    Ok(WriteOutcome::Written { written })
+    match stamp(&checked) {
+        Ok(Some(written)) => Ok(WriteOutcome::Written { written }),
+        Ok(None) => Err(format!("{name} vanished right after it was written")),
+        Err(e) => Err(format!("Failed to read the stamp of {name}: {e}")),
+    }
 }
 
 #[tauri::command(async)]
 fn stat_note(app: AppHandle, path: String) -> Result<Option<DiskStamp>, String> {
     let checked = check_path(&app, &path)?;
-    match fs::metadata(&checked).and_then(|m| stamp_of(&m)) {
-        Ok(s) => Ok(Some(s)),
-        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("Failed to check {}: {e}", note_name(&checked))),
-    }
+    stamp(&checked).map_err(|e| format!("Failed to check {}: {e}", note_name(&checked)))
 }
 
-fn stem_assets(note: &Path) -> String {
-    let stem = note.file_stem().unwrap_or_default().to_string_lossy().into_owned();
-    encode_link_path(&format!("{stem}.assets/"))
+/// How links to a note's image folder start, as written in Markdown: `labo%2004.assets/`.
+fn link_prefix(note: &Path) -> String {
+    encode_link_path(&format!("{}/", note_name(&assets_dir_for(note))))
 }
 
 #[tauri::command(async)]
 fn promote_untitled(app: AppHandle, tab_id: String, note_path: String) -> Result<Option<PrefixMove>, String> {
-    if !paths::valid_tab_id(&tab_id) {
-        return Err("Invalid tab id".to_string());
-    }
+    let scratch = ImageHome::scratch(&app, &tab_id)?;
     let note = check_path(&app, &note_path)?;
     let name = note_name(&note);
-    let scratch = app_data(&app)?.join("scratch").join(&tab_id);
     let empty = match fs::read_dir(&scratch) {
         Ok(mut it) => it.next().is_none(),
         Err(e) if e.kind() == ErrorKind::NotFound => true,
@@ -387,7 +432,7 @@ fn promote_untitled(app: AppHandle, tab_id: String, note_path: String) -> Result
         return Ok(None);
     }
     assets::move_dir(&scratch, &assets_dir_for(&note)).map_err(|e| format!("Failed to move the images to {name}: {e}"))?;
-    Ok(Some(PrefixMove { from: "untitled.assets/".to_string(), to: stem_assets(&note) }))
+    Ok(Some(PrefixMove { from: format!("{UNTITLED_ASSETS}/"), to: link_prefix(&note) }))
 }
 
 #[tauri::command(async)]
@@ -396,11 +441,11 @@ fn copy_assets(app: AppHandle, from_note: String, to_note: String) -> Result<Opt
     let to = check_path(&app, &to_note)?;
     let src = assets_dir_for(&from);
     // Same note, or another extension of the same stem: the folder is already the right one.
-    if from == to || src == assets_dir_for(&to) || !src.is_dir() {
+    if src == assets_dir_for(&to) || !src.is_dir() {
         return Ok(None);
     }
     assets::copy_dir(&src, &assets_dir_for(&to)).map_err(|e| format!("Failed to copy the images of {} to {}: {e}", note_name(&from), note_name(&to)))?;
-    Ok(Some(PrefixMove { from: stem_assets(&from), to: stem_assets(&to) }))
+    Ok(Some(PrefixMove { from: link_prefix(&from), to: link_prefix(&to) }))
 }
 
 #[tauri::command(async)]
@@ -409,23 +454,6 @@ fn default_note_folder(app: AppHandle) -> Result<String, String> {
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create the Notes folder: {e}"))?;
     allowed(&app).allow_note_folder(&dir);
     Ok(dir.to_string_lossy().into_owned())
-}
-
-#[tauri::command(async)]
-async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
-    let (tx, mut rx) = tauri::async_runtime::channel(1);
-    app.dialog().file().pick_folder(move |p| {
-        let _ = tx.blocking_send(p);
-    });
-    let picked = rx.recv().await.ok_or_else(|| "dialog closed unexpectedly".to_string())?;
-    match picked {
-        Some(fp) => {
-            let dir = fp.into_path().map_err(|e| e.to_string())?;
-            allowed(&app).allow_note_folder(&dir);
-            Ok(Some(dir.to_string_lossy().into_owned()))
-        }
-        None => Ok(None),
-    }
 }
 
 /// The new note's path, after the name and the folder passed their checks.
@@ -442,12 +470,20 @@ fn new_note_path(app: &AppHandle, folder: &str, name: &str) -> Result<PathBuf, S
 #[tauri::command(async)]
 fn note_name_free(app: AppHandle, folder: String, name: String) -> Result<bool, String> {
     let path = new_note_path(&app, &folder, &name)?;
-    path.try_exists().map(|e| !e).map_err(|e| format!("Failed to check {name}: {e}"))
+    taken(&path).map(|t| !t).map_err(|e| format!("Failed to check {name}: {e}"))
+}
+
+/// A name is taken by an existing note or by an image folder it would inherit.
+fn taken(note: &Path) -> std::io::Result<bool> {
+    Ok(note.try_exists()? || assets_dir_for(note).try_exists()?)
 }
 
 #[tauri::command(async)]
 fn claim_new_note(app: AppHandle, folder: String, name: String) -> Result<String, String> {
     let path = new_note_path(&app, &folder, &name)?;
+    if assets_dir_for(&path).try_exists().unwrap_or(true) {
+        return Err(format!("An image folder for {name} already exists"));
+    }
     match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
         Ok(_) => {}
         Err(e) if e.kind() == ErrorKind::AlreadyExists => return Err(format!("{name} already exists")),

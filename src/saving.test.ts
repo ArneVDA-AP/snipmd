@@ -26,6 +26,7 @@ vi.mock('./tabs', () => ({
   }),
   setLastFolder: vi.fn((f: string) => h.log.push(`lastFolder ${f}`))
 }));
+vi.mock('./external', () => ({ handleRefusedWrite: vi.fn(), resolveConflict: vi.fn() }));
 vi.mock('./session', () => ({ flushSession: vi.fn(() => Promise.resolve()), scheduleSessionSave: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: vi.fn(), errorText: String }));
 
@@ -34,9 +35,10 @@ import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } fr
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix } from './editor/links';
 import { markSaved } from './tabs';
-import { bindOutsideChange, setConflict } from './diskState';
+import { setConflict } from './diskState';
+import { handleRefusedWrite } from './external';
 import { flushSession } from './session';
-import { clearInfo, showError, showInfo } from './infobar';
+import { clearInfo, showError } from './infobar';
 
 const mk = (id: string) => ({ id, title: id, filePath: `/n/${id}.md`, dirty: true, text: `text ${id}` });
 const STAMP = { mtimeMs: 1, size: 1 };
@@ -198,8 +200,6 @@ describe('format and stamp', () => {
   });
 
   it('sends the known stamp; a write Rust refuses is handed to the watch and not marked saved', async () => {
-    const seen: unknown[] = [];
-    bindOutsideChange((id, st) => seen.push([id, st]));
     const known = { mtimeMs: 5, size: 5 };
     const now = { mtimeMs: 6, size: 7 };
     h.tabs = [{ ...mk('rf'), disk: known } as never];
@@ -207,7 +207,7 @@ describe('format and stamp', () => {
     expect(await saveTab('rf')).toBe(false);
     expect(vi.mocked(writeNote).mock.calls[0][3]).toEqual(known);
     expect(markSaved).not.toHaveBeenCalled();
-    expect(seen).toEqual([['rf', now]]);
+    expect(handleRefusedWrite).toHaveBeenCalledWith('rf', now);
   });
 });
 
@@ -266,9 +266,10 @@ describe('first save', () => {
     expect(await saveTab('u')).toBe(true);
     expect(h.tabs[0].filePath).toBe('/n/x.md');
     expect(rewriteImagePrefix).not.toHaveBeenCalled();
-    const bar = vi.mocked(showInfo).mock.calls[0][0];
-    expect(bar.key).toBe('images:u');
-    bar.actions![0].run();
+    const [what, , key, actions] = vi.mocked(showError).mock.calls[0];
+    expect(what).toBe('move the images of Untitled-1');
+    expect(key).toBe('images:u');
+    actions![0].run();
     await tick();
     expect(rewriteImagePrefix).toHaveBeenCalledWith('u', MOVE);
     expect(clearInfo).toHaveBeenCalledWith('images:u');

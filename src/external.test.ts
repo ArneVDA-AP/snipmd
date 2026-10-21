@@ -30,8 +30,8 @@ vi.mock('./editor/registry', () => ({
   applyToTab: m.applyToTab
 }));
 
-import { checkTabs, startExternalWatch } from './external';
-import { beginWrite, endWrite, inConflict, reportOutsideChange, setConflict } from './diskState';
+import { checkTabs, handleRefusedWrite, startExternalWatch } from './external';
+import { beginWrite, endWrite, inConflict, setConflict } from './diskState';
 
 const S1 = { mtimeMs: 1, size: 10 };
 const S2 = { mtimeMs: 2, size: 12 };
@@ -61,6 +61,9 @@ beforeEach(() => {
   m.readNote.mockResolvedValue({ text: 'hello brave world', format: fmt, stamp: S2 });
   ['a', 'b'].forEach((id) => setConflict(id, false)); // diskState is shared across tests
 });
+
+// Binds the save the conflict choices use; nothing else of the watch is exercised here.
+startExternalWatch(m.saveTab);
 
 describe('checkTabs', () => {
   it('does nothing for the same stamp', async () => {
@@ -126,8 +129,9 @@ describe('checkTabs', () => {
     await checkTabs();
     action('Open disk version').run();
     await flush();
-    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world', 'read');
-    expect(m.showInfo).toHaveBeenCalledTimes(2);
+    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world');
+    expect(m.showInfo).toHaveBeenCalledTimes(1); // the action keeps its bar open
+    expect(lastBar().actions!.every((a) => a.keepOpen)).toBe(true);
     expect(lastBar().key).toBe('external:a');
     expect(inConflict('a')).toBe(true);
     setConflict('a', false);
@@ -206,7 +210,7 @@ describe('checkTabs', () => {
 
   it('a write Rust refused puts a dirty tab in conflict', async () => {
     addTab('a', true);
-    reportOutsideChange('a', S2);
+    handleRefusedWrite('a', S2);
     await flush();
     expect(inConflict('a')).toBe(true);
     expect(lastBar().key).toBe('external:a');
@@ -243,7 +247,7 @@ describe('startExternalWatch', () => {
   });
 
   it('checks on focus and every 2 s while focused, and stops on blur', async () => {
-    startExternalWatch();
+    startExternalWatch(m.saveTab);
     await vi.advanceTimersByTimeAsync(0);
     expect(m.statNote).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(4000);

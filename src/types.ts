@@ -52,6 +52,8 @@ export interface InfoAction {
   label: string;
   run: () => void;
   primary?: boolean;
+  /** The bar stays after this action (e.g. "Open disk version": the choice is still open). */
+  keepOpen?: boolean;
 }
 
 /** A message in the info bar (SPEC §4). The only way the app shows messages or choices. */
@@ -68,6 +70,8 @@ export interface InfoMessage {
   sticky?: boolean;
   /** Controls of the feature that shows the bar (first-save form), placed after the text. Built with DOM APIs, never innerHTML. */
   body?: HTMLElement;
+  /** Called once when the bar goes, however it goes: dismissed, an action, replaced, cleared or reset. */
+  onClose?: () => void;
 }
 
 export interface SavedImage {

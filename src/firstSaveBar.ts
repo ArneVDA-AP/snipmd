@@ -45,7 +45,6 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     const finish = (choice: FirstSaveChoice): void => {
       if (done) return;
       done = true;
-      seq++;
       clearInfo(key);
       resolve(choice);
     };
@@ -102,11 +101,8 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     const body = document.createElement('span');
     body.className = 'firstsave-body';
     body.append(folderBtn, input, save, other);
-    showInfo({ kind: 'info', text: 'Save as', key, body });
-    // The bar's own dismiss button removes the bar without telling us; catch its click.
-    body.parentElement?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('.infobar-close')) finish(null);
-    });
+    // However the bar goes (dismissed, cleared, replaced), the save is cancelled unless it already chose.
+    showInfo({ kind: 'info', text: 'Save as', key, body, onClose: () => finish(null) });
 
     input.focus();
     input.setSelectionRange(0, Math.max(0, input.value.length - '.md'.length));

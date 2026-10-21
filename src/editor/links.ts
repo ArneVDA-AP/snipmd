@@ -6,7 +6,7 @@ import { applyToTab, getState } from './registry';
 
 /** Every Markdown image URL that starts with exactly `move.from`, as a change to `move.to`. */
 function prefixChanges(state: EditorState, move: PrefixMove): ChangeSpec[] {
-  const tree = move.from ? ensureSyntaxTree(state, state.doc.length, 1000) : null;
+  const tree = ensureSyntaxTree(state, state.doc.length, 1000);
   const changes: ChangeSpec[] = [];
   tree?.iterate({
     enter(node) {

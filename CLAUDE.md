@@ -58,6 +58,10 @@
 - **One state per key.** A cache keeps one tagged entry per key (`ok` / `pending` / `failed`), not parallel maps and sets that each need clearing.
 - **Decide once per command.** A Rust command resolves its target once into a type (`ImageHome`: note or untitled tab) and asks that type for folder, link prefix, name and resolver; no repeated `Option` checks down the call chain.
 - **Capabilities are as narrow as the event.** A grant from a user action (dropped files) covers that action only: each drop replaces the set, and the asset scope only ever gets single image files.
+- **Write first, then move the pointers.** A first save or Save As writes the new file before images move and links are rewritten; until that write succeeds the tab, its links and the original stay as they were. A folder move goes file by file and can be called again to finish.
+- **Writes carry what they expect.** A note write sends the stamp the tab last saw; Rust refuses it when the file changed or went away, and the external-change module decides what happens. No write path skips that check except a new file the user just chose.
+- **One owner per state, wired from the root.** Conflict state and its bars belong to `src/external.ts`; others call `resolveConflict` / `handleRefusedWrite`. When two modules need each other, `app.ts` passes the function in (`startExternalWatch(saveTab)`); no late-bound hooks with silent no-op defaults.
+- **Bars report their own end.** A bar that stands for a pending choice uses `onClose` (fires for every way it goes) and `keepOpen` actions; nothing reaches into the info bar's DOM.
 - **Lifecycle hooks at the root.** Flush-on-close hangs on the window's close-requested event, not on one button.
 - Before finishing a phase, run `/simplify` and fold any new recurring lesson into this list.
 

@@ -1,10 +1,11 @@
 // External changes (SPEC §6.1): notes edited outside SnipMD are reloaded in place, or put in conflict.
+// This module owns the conflict state of a tab and its bar; saving asks it through resolveConflict
+// and handleRefusedWrite. Bar actions hold only the tab id and look the tab up when they run.
 import type { DiskStamp, TabState } from './types';
 import { readNote, statNote } from './ipc';
 import { getTab, getTabs, markDirty, markSaved, openCopy } from './tabs';
 import { applyToTab, getState } from './editor/registry';
-import { bindOutsideChange, inConflict, isWriting, setConflict, writeGeneration } from './diskState';
-import { saveTab } from './saving';
+import { inConflict, isWriting, setConflict, writeGeneration } from './diskState';
 import { clearInfo, showError, showInfo } from './infobar';
 
 const WATCH_MS = 2000;
@@ -12,6 +13,9 @@ const barKey = (id: string): string => `external:${id}`;
 /** Errors of the bar's actions get their own key, so the conflict bar and its choices stay. */
 const errorKey = (id: string): string => `external-error:${id}`;
 const same = (a: DiskStamp, b: DiskStamp): boolean => a.mtimeMs === b.mtimeMs && a.size === b.size;
+
+/** Saving, bound by startExternalWatch (saving imports this module, not the other way round). */
+let save: (id: string) => Promise<boolean> = async () => false;
 
 /** Replaces only the changed middle of the document, so cursor and scroll stay where they were. */
 function replaceMiddle(id: string, text: string): void {
@@ -27,93 +31,93 @@ function replaceMiddle(id: string, text: string): void {
 
 /**
  * Loads the file into the tab and marks it saved. With `onlyIfClean`, edits typed during the read win:
- * the tab goes into conflict instead. Returns false when it did not reload.
+ * the tab goes into conflict instead.
  */
-async function reload(tab: TabState, onlyIfClean: boolean): Promise<boolean> {
+async function reload(tab: TabState, onlyIfClean: boolean): Promise<void> {
   const file = await readNote(tab.filePath!);
-  if (onlyIfClean && tab.dirty) {
-    raiseConflict(tab, file.stamp);
-    return false;
-  }
+  if (onlyIfClean && tab.dirty) return raiseChanged(tab, file.stamp);
   replaceMiddle(tab.id, file.text);
   tab.format = file.format;
   markSaved(tab.id, { text: file.text, stamp: file.stamp });
-  return true;
 }
 
-function raiseConflict(tab: TabState, stamp: DiskStamp): void {
+/** Ends a tab's conflict and removes its bars. Also called by Save As, which settles it too. */
+export function resolveConflict(id: string): void {
+  setConflict(id, false);
+  clearInfo(barKey(id));
+  clearInfo(errorKey(id));
+}
+
+/** A bar action for tab `id`: it runs only while the tab is open, and a failure is reported beside the bar. */
+function act(id: string, label: string, what: string, run: (tab: TabState) => Promise<void> | void, primary = false) {
+  return {
+    label,
+    primary,
+    keepOpen: true, // the bar goes through resolveConflict once the choice is made
+    run: () => {
+      const tab = getTab(id);
+      if (!tab) return clearInfo(barKey(id));
+      void Promise.resolve(run(tab)).catch((err) => showError(`${what} ${tab.title}`, err, errorKey(id)));
+    }
+  };
+}
+
+function raiseChanged(tab: TabState, stamp: DiskStamp): void {
   setConflict(tab.id, true);
-  warnChanged(tab, stamp);
-}
-
-function resolve(tab: TabState, thenSave = false): void {
-  setConflict(tab.id, false);
-  clearInfo(barKey(tab.id));
-  clearInfo(errorKey(tab.id));
-  if (thenSave) void saveTab(tab.id);
-}
-
-/** Runs a bar action; the bar is shown again (its choice is still open) and a failure is reported beside it. */
-function guarded(tab: TabState, what: string, show: () => void, fn: () => Promise<void>): () => void {
-  return () =>
-    void fn().catch((err) => {
-      show();
-      showError(`${what} ${tab.title}`, err, errorKey(tab.id));
-    });
-}
-
-function warnChanged(tab: TabState, stamp: DiskStamp): void {
-  const show = (): void => warnChanged(tab, stamp);
+  const id = tab.id;
   showInfo({
     kind: 'warning',
-    key: barKey(tab.id),
+    key: barKey(id),
     sticky: true,
     text: `${tab.title} was changed outside SnipMD and you have changes too.`,
     actions: [
-      {
-        label: 'Open disk version',
-        run: guarded(tab, 'open the disk version of', show, async () => {
-          const file = await readNote(tab.filePath!);
-          await openCopy(`${tab.title} (disk)`, file.text, 'read');
-          show(); // the bar stays: the choice about this tab is still open
-        })
-      },
-      {
-        label: 'Reload',
-        run: guarded(tab, 'reload', show, async () => {
-          await reload(tab, false);
-          resolve(tab);
-        })
-      },
-      {
-        label: 'Keep mine',
-        primary: true,
-        run: () => {
-          tab.disk = stamp;
-          resolve(tab, true);
-        }
-      }
+      act(id, 'Open disk version', 'open the disk version of', async (t) => {
+        const file = await readNote(t.filePath!);
+        await openCopy(`${t.title} (disk)`, file.text);
+      }),
+      act(id, 'Reload', 'reload', async (t) => {
+        await reload(t, false);
+        resolveConflict(id);
+      }),
+      act(id, 'Keep mine', 'save', (t) => {
+        t.disk = stamp; // the version on disk now is the one being replaced
+        resolveConflict(id);
+        return void save(id);
+      }, true)
     ]
   });
 }
 
-function warnGone(tab: TabState): void {
+function raiseGone(tab: TabState): void {
+  setConflict(tab.id, true);
+  markDirty(tab.id); // the session keeps the text now that the file is gone
+  const id = tab.id;
   showInfo({
     kind: 'warning',
-    key: barKey(tab.id),
+    key: barKey(id),
     sticky: true,
     text: `${tab.title} is no longer on disk.`,
     actions: [
-      {
-        label: 'Save again',
-        primary: true,
-        run: () => {
-          tab.disk = null; // nothing to compare with: the write recreates the file
-          resolve(tab, true);
-        }
-      }
+      act(id, 'Save again', 'save', (t) => {
+        t.disk = null; // nothing to compare with: the write recreates the file
+        resolveConflict(id);
+        return void save(id);
+      }, true)
     ]
   });
+}
+
+/** The file is not the one the tab knows: reload a clean tab, put a dirty one in conflict, or report it gone. */
+async function outside(tab: TabState, stamp: DiskStamp | null): Promise<void> {
+  if (stamp === null) raiseGone(tab);
+  else if (tab.dirty) raiseChanged(tab, stamp);
+  else await reload(tab, true);
+}
+
+/** Saving calls this when Rust refused a write because the file changed or went away meanwhile. */
+export function handleRefusedWrite(id: string, stamp: DiskStamp | null): void {
+  const tab = getTab(id);
+  if (tab?.filePath && !inConflict(id)) void outside(tab, stamp).catch(() => {});
 }
 
 async function checkTab(tab: TabState): Promise<void> {
@@ -124,22 +128,6 @@ async function checkTab(tab: TabState): Promise<void> {
   if (stamp && tab.disk && same(stamp, tab.disk)) clearInfo(barKey(tab.id));
   else await outside(tab, stamp);
 }
-
-/** The file is not the one the tab knows: reload a clean tab, put a dirty one in conflict, or report it gone. */
-async function outside(tab: TabState, stamp: DiskStamp | null): Promise<void> {
-  if (stamp === null) {
-    setConflict(tab.id, true);
-    markDirty(tab.id); // the session keeps the text now that the file is gone
-    warnGone(tab);
-  } else if (tab.dirty) raiseConflict(tab, stamp);
-  else await reload(tab, true);
-}
-
-// A write that Rust refused because the file changed meanwhile ends up here too.
-bindOutsideChange((id, stamp) => {
-  const tab = getTab(id);
-  if (tab?.filePath && !inConflict(id)) void outside(tab, stamp).catch(() => {});
-});
 
 /** Compares every disk tab with its file. Never rejects; one failing tab does not stop the others. */
 export async function checkTabs(): Promise<void> {
@@ -158,9 +146,14 @@ function start(): void {
   }, WATCH_MS);
 }
 
-/** Checks on window focus and every 2 s while the window has focus. */
-export function startExternalWatch(): void {
+/**
+ * Checks now (restored dirty tabs against their files, SPEC §7), on window focus, and every 2 s
+ * while the window has focus. `saveTab` is how a conflict choice writes the tab.
+ */
+export function startExternalWatch(saveTab: (id: string) => Promise<boolean>): void {
+  save = saveTab;
   window.addEventListener('focus', start);
   window.addEventListener('blur', stop);
   if (document.hasFocus()) start();
+  else void checkTabs();
 }

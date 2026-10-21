@@ -3,10 +3,11 @@ import type { DiskStamp, TabState, TextFormat } from './types';
 import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } from './ipc';
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
-import { beginWrite, endWrite, inConflict, reportOutsideChange, setConflict } from './diskState';
+import { beginWrite, endWrite, inConflict } from './diskState';
+import { handleRefusedWrite, resolveConflict } from './external';
 import { getTab, getTabs, markSaved, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
-import { clearInfo, errorText, showError, showInfo } from './infobar';
+import { clearInfo, showError } from './infobar';
 import { dirname, normPath, samePath } from './paths';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
@@ -26,7 +27,7 @@ async function writeFile(tab: TabState, path: string, text: string, format: Text
   try {
     const out = await writeNote(path, text, format, expected);
     if ('written' in out) return out.written;
-    reportOutsideChange(tab.id, out.changed);
+    handleRefusedWrite(tab.id, out.changed);
     return null;
   } finally {
     endWrite(tab.id);
@@ -47,9 +48,11 @@ function writeTab(tab: TabState): Promise<boolean> {
     const text = textOf(tab);
     try {
       if (inConflict(tab.id)) return false;
-      const stamp = await writeFile(tab, tab.filePath!, text, tab.format, tab.disk);
+      const path = tab.filePath!;
+      const stamp = await writeFile(tab, path, text, tab.format, tab.disk);
       if (!stamp) return false;
-      markSaved(tab.id, { text, stamp });
+      // A Save As that switched the tab meanwhile owns its stamp now; this write was to the old file.
+      if (tab.filePath === path) markSaved(tab.id, { text, stamp });
       clearInfo(errorKey(tab.id));
       return true;
     } catch (err) {
@@ -99,12 +102,11 @@ async function moveImages(tab: TabState): Promise<void> {
     if (move) rewriteImagePrefix(tab.id, move);
     clearInfo(imagesKey(tab.id));
   } catch (err) {
-    showInfo({
-      kind: 'error',
-      key: imagesKey(tab.id),
-      text: `Could not move the images of ${tab.title}: ${errorText(err)}. They are safe in the scratch folder.`,
-      actions: [{ label: 'Try again', primary: true, run: () => void moveImages(tab) }]
-    });
+    // The images stay in the scratch folder; nothing is lost.
+    const id = tab.id;
+    showError(`move the images of ${tab.title}`, err, imagesKey(id), [
+      { label: 'Try again', primary: true, run: () => void (getTab(id) && moveImages(getTab(id)!)) }
+    ]);
   }
 }
 
@@ -127,8 +129,7 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
     if (!stamp) return false;
     if (move) rewriteImagePrefix(tab.id, move);
     markSaved(tab.id, { text, stamp, path: target });
-    setConflict(tab.id, false);
-    clearInfo(`external:${tab.id}`);
+    resolveConflict(tab.id); // the new file has no outside change to settle
     setLastFolder(dirname(target));
     clearInfo(errorKey(tab.id));
     return true;
@@ -172,13 +173,15 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Called on every edit: saves a dirty disk tab 1 s after the last one. */
 export function scheduleAutosave(id: string): void {
+  if (!getTab(id)?.filePath) return; // untitled tabs live in the session until their first save
   clearTimeout(timers.get(id));
   timers.set(
     id,
     setTimeout(() => {
       timers.delete(id);
       const tab = getTab(id);
-      if (tab?.filePath && tab.dirty) void saveTab(id);
+      // markSaved's tab-list change schedules the debounced session write; no immediate one per pause.
+      if (tab?.filePath && tab.dirty && !inConflict(id)) void writeTab(tab);
     }, AUTOSAVE_MS)
   );
 }

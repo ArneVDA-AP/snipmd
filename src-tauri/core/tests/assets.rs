@@ -106,4 +106,14 @@ mod dirs {
         assert_eq!(fs::read(d.join("to/sub/b.png")).unwrap(), b"B");
         assert!(!d.join("from").exists());
     }
+
+    #[test]
+    fn a_copy_resumes_over_files_it_already_copied() {
+        let d = dir("resume");
+        fs::create_dir_all(d.join("to/sub")).unwrap();
+        fs::write(d.join("to/a.png"), b"A").unwrap(); // left by an interrupted earlier copy
+        copy_dir(&d.join("from"), &d.join("to")).unwrap();
+        assert_eq!(fs::read(d.join("to/sub/b.png")).unwrap(), b"B");
+        assert_eq!(fs::read(d.join("from/a.png")).unwrap(), b"A");
+    }
 }
