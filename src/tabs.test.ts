@@ -8,7 +8,7 @@ vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 
 import { readNote } from './ipc';
 import { clearTabInfo, showError } from './infobar';
-import { closeTab, initTabs, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
+import { closeTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
 import { applyToTab, getState, getView, trackImageSave } from './editor/registry';
 
@@ -223,5 +223,41 @@ describe('a closed tab is a tab without a view', () => {
     await reopenClosed('cf');
     expect(inConflict('cf')).toBe(false);
     expect(clearTabInfo).toHaveBeenCalledWith('cf');
+  });
+});
+
+describe('loadText', () => {
+  it('replaces only the changed middle of a tab with an editor', async () => {
+    await restore(session([tab({ id: 'lt-a', mode: 'edit', content: 'hello world' })]));
+    const view = getView()!;
+    view.dispatch({ selection: { anchor: 11 } });
+    loadText(getTabs()[0], 'hello brave world');
+    expect(textOf(getTabs()[0])).toBe('hello brave world');
+    expect(view.state.selection.main.head).toBe(17); // the cursor moved with the text after it
+  });
+
+  it('a restored tab never shown takes the file text, so its next write cannot undo an outside edit', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('B original\n'));
+    await restore(session([
+      tab({ id: 'lt-shown', mode: 'edit', content: 'x' }),
+      tab({ id: 'lt-hidden', title: 'b.md', filePath: 'C:/n/b.md' })
+    ]));
+    const hidden = getTabs()[1];
+    expect(getState('lt-hidden')).toBeUndefined();
+    loadText(hidden, 'B original\nLINE ADDED OUTSIDE\n');
+    expect(textOf(hidden)).toBe('B original\nLINE ADDED OUTSIDE\n');
+  });
+
+  it('restoring a closed tab whose file changed shows the new text, even when the hidden view still holds it', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('A original\n'));
+    await restore(session([
+      tab({ id: 'lt-A', title: 'a.md', filePath: 'C:/n/a.md', mode: 'edit' }),
+      tab({ id: 'lt-R', mode: 'read', content: 'reading' })
+    ]));
+    await closeTab('lt-A'); // the next tab is in read mode: the view keeps A's state
+    vi.mocked(readNote).mockResolvedValue(note('A original\nADDED OUTSIDE\n'));
+    const back = await reopenClosed('lt-A');
+    expect(textOf(back!)).toBe('A original\nADDED OUTSIDE\n');
+    expect(back!.dirty).toBe(false);
   });
 });

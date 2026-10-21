@@ -112,6 +112,16 @@ describe('closeTabWithRestore', () => {
   });
 });
 
+describe('screenshot count on a hostile note', () => {
+  it('stays linear: many unclosed ![ take well under a second', async () => {
+    addTab('h', { content: '!['.repeat(100_000) + ' ![](h.assets/a.png)' });
+    const t = performance.now();
+    await closeTabWithRestore('h');
+    expect(performance.now() - t).toBeLessThan(1000);
+    expect(bar().text).toBe('h.md closed, with 1 screenshot.');
+  });
+});
+
 describe('edits the close could not write', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
   const unsaved = () => m.showInfo.mock.calls.map((c: any[]) => c[0]).find((b: any) => b.key === 'unsaved:a');

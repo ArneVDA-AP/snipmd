@@ -7,6 +7,7 @@ import { createEditorState } from './editor/setup';
 import type { EditorState } from '@codemirror/state';
 import { redrawImages } from './editor/imageWidget';
 import {
+  applyToTab,
   bindChangeListener,
   bindFilePathLookup,
   dropState,
@@ -80,6 +81,26 @@ export const getTab = (id: string): TabState | undefined => tabs.find((t) => t.i
 export const getActiveTab = (): TabState | undefined => getTab(activeId) ?? tabs[0];
 /** Current text of a tab. */
 export const textOf = (tab: TabState): string => editorText(tab.id) ?? tab.content;
+
+/**
+ * Puts text read from its file into a tab: only the changed middle, so cursor, scroll and undo stay.
+ * A tab whose editor was never created takes it as its content. The one way file text enters a tab
+ * (reload, restore), so the text a tab shows and writes always matches the stamp stored with it.
+ */
+export function loadText(tab: TabState, text: string): void {
+  const old = editorText(tab.id);
+  if (old === undefined) {
+    tab.content = text;
+    return;
+  }
+  let from = 0;
+  const max = Math.min(old.length, text.length);
+  while (from < max && old[from] === text[from]) from++;
+  let tail = 0;
+  while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
+  if (from === old.length - tail && from === text.length - tail) return;
+  applyToTab(tab.id, { changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) } });
+}
 export const getLastFolder = (): string | null => lastFolder;
 
 /** SPEC §7: the last 20 closed tabs or 14 days, whichever is shorter. */
@@ -344,8 +365,8 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   if (diskIsSource(tab)) {
     try {
       const note = await readNote(tab.filePath!);
-      if (note.text !== textOf(tab)) dropState(tab.id); // the editor is created again from the file
-      Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format });
+      loadText(tab, note.text); // also when the hidden editor view still holds this tab
+      Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format, dirty: false });
     } catch {
       // Kept as closed; a missing file shows up as the "no longer on disk" bar.
     }

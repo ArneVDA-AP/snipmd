@@ -6,8 +6,11 @@ import { closeTab, getTab, reopenClosed } from './tabs';
 const BAR_KEY = 'closed';
 const BAR_MS = 8000;
 
-/** `![alt](url)` or `![alt](<url>)`; the url ends at whitespace (a title may follow). */
-const IMAGE = /!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^)\s]+))/g;
+/**
+ * `![alt](url)` or `![alt](<url>)`; the url ends at whitespace (a title may follow). Every part is
+ * bounded and stays on one line, so a hostile note cannot make the count on Ctrl+W quadratic.
+ */
+const IMAGE = /!\[[^\]\n]{0,1000}\]\([ \t]*(?:<([^>\n]{0,2048})>|([^)\s]{1,2048}))/g;
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
 /** Distinct relative image URLs: no scheme, not starting with `/`. */

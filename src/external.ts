@@ -3,8 +3,7 @@
 // and handleRefusedWrite. Bar actions hold only the tab id and look the tab up when they run.
 import type { DiskStamp, TabState } from './types';
 import { readNote, statNote } from './ipc';
-import { getTab, getTabs, markDirty, markSaved, openCopy } from './tabs';
-import { applyToTab, getState } from './editor/registry';
+import { getTab, getTabs, loadText, markDirty, markSaved, openCopy } from './tabs';
 import { inConflict, isWriting, setConflict, writeGeneration } from './diskState';
 import { clearInfo, showError, showInfo } from './infobar';
 
@@ -17,18 +16,6 @@ const same = (a: DiskStamp, b: DiskStamp): boolean => a.mtimeMs === b.mtimeMs &&
 /** Saving, bound by startExternalWatch (saving imports this module, not the other way round). */
 let save: (id: string) => Promise<boolean> = async () => false;
 
-/** Replaces only the changed middle of the document, so cursor and scroll stay where they were. */
-function replaceMiddle(id: string, text: string): void {
-  const old = getState(id)?.doc.toString();
-  if (old === undefined) return;
-  let from = 0;
-  const max = Math.min(old.length, text.length);
-  while (from < max && old[from] === text[from]) from++;
-  let tail = 0;
-  while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
-  applyToTab(id, { changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) } });
-}
-
 /**
  * Loads the file into the tab and marks it saved. With `onlyIfClean`, edits typed during the read win:
  * the tab goes into conflict instead.
@@ -36,7 +23,7 @@ function replaceMiddle(id: string, text: string): void {
 async function reload(tab: TabState, onlyIfClean: boolean): Promise<void> {
   const file = await readNote(tab.filePath!);
   if (onlyIfClean && tab.dirty) return raiseChanged(tab, file.stamp);
-  replaceMiddle(tab.id, file.text);
+  loadText(tab, file.text);
   tab.format = file.format;
   markSaved(tab.id, { text: file.text, stamp: file.stamp });
 }
