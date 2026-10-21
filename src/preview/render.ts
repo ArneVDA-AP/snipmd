@@ -33,9 +33,11 @@ purify.addHook('afterSanitizeAttributes', (node) => {
 const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
   USE_PROFILES: { html: true },
   FORBID_TAGS: ['style', 'form'],
-  FORBID_ATTR: ['style', 'id', 'srcset', 'poster', 'background', 'action', 'formaction'],
+  FORBID_ATTR: ['style', 'id', 'srcset', 'poster', 'background', 'action', 'formaction', 'role'],
   // No data-* from a note: data-tauri-drag-region would turn read-mode text into a window drag area.
   ALLOW_DATA_ATTR: false,
+  // No role or aria-* from a note: it could make a screen reader announce its text as an app alert.
+  ALLOW_ARIA_ATTR: false,
   ADD_ATTR: ['data-own'], // the app's own mark for images it resolves (filled in after sanitizing)
   RETURN_DOM_FRAGMENT: true
 };

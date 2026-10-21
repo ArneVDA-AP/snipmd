@@ -145,6 +145,7 @@ try {
     Stop-Snip $p
   }
 } finally {
+  Get-Process snip-md -ErrorAction SilentlyContinue | Stop-Process -Force
   if ($null -ne $before) { Set-ItemProperty -Path $themeKey -Name AppsUseLightTheme -Value $before -Type DWord }
   else { Remove-ItemProperty -Path $themeKey -Name AppsUseLightTheme -ErrorAction SilentlyContinue }
 }

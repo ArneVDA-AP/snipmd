@@ -36,6 +36,12 @@ describe('renderRead sanitizing', () => {
     expect(el.querySelector('code')!.hasAttribute('class')).toBe(false);
   });
 
+  it('drops role and aria-* a note writes', async () => {
+    const el = await render('<div role="alert" aria-label="Error">r</div>');
+    expect(el.querySelector('[role], [aria-label]')).toBeNull();
+    expect(el.textContent).toContain('r');
+  });
+
   it('a middle-click on a link does nothing in the webview', async () => {
     const el = await render('[x](https://example.org)');
     const e = new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true });

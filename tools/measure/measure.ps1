@@ -14,8 +14,8 @@
              the user's own, as in normal use.
   - paste:   a 3840x2160 PNG on the clipboard, Ctrl+V into an untitled tab, to the image decoded and
              painted (perf mark 'paste'), median of -Pastes.
-  - memory:  5 notes with 4 screenshots each open in tabs, every tab visited once; private bytes
-             of snip-md.exe plus its WebView2 processes (an upper bound of Task Manager's 'Memory').
+  - memory:  5 notes with 4 screenshots each open in tabs, every tab visited once; private working
+             set (Task Manager's 'Memory') and private bytes of snip-md.exe plus its WebView2 processes.
   The script puts images on the clipboard, so whatever was on it is gone afterwards. Keys are only
   sent while SnipMD has the foreground; otherwise the script stops.
   - installer: size of the NSIS setup next to the exe, when there is one.
@@ -111,6 +111,8 @@ function Focus-Snip($proc) {
 
 function Median([double[]]$xs) { $s = $xs | Sort-Object; $s[[int][Math]::Floor(($s.Count - 1) / 2)] }
 
+# Memory of snip-md.exe and every process under it (WebView2), in MB: the private working set
+# (what Task Manager shows as Memory) and private bytes (commit, an upper bound).
 function Tree-Memory([int]$parentId) {
   $all = Get-CimInstance Win32_Process
   $ids = New-Object System.Collections.Generic.List[int]
@@ -118,9 +120,11 @@ function Tree-Memory([int]$parentId) {
   for ($i = 0; $i -lt $ids.Count; $i++) {
     $all | Where-Object { $_.ParentProcessId -eq $ids[$i] } | ForEach-Object { $ids.Add([int]$_.ProcessId) }
   }
-  $bytes = 0
-  foreach ($id in $ids) { $p = Get-Process -Id $id -ErrorAction SilentlyContinue; if ($p) { $bytes += $p.PrivateMemorySize64 } }
-  return [Math]::Round($bytes / 1MB, 1)
+  $perf = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $ids -contains [int]$_.IDProcess }
+  $ws = ($perf | Measure-Object -Property WorkingSetPrivate -Sum).Sum
+  $commit = 0
+  foreach ($id in $ids) { $p = Get-Process -Id $id -ErrorAction SilentlyContinue; if ($p) { $commit += $p.PrivateMemorySize64 } }
+  return '{0:N1} / {1:N1}' -f ($ws / 1MB), ($commit / 1MB)
 }
 
 $results = [ordered]@{}
@@ -181,7 +185,7 @@ $p = Start-Snip $data $files
 $null = Wait-Mark $data 'ready' 1
 for ($n = 1; $n -le 5; $n++) { Start-Sleep -Milliseconds 600; Focus-Snip $p; $shell.SendKeys("^$n") }
 Start-Sleep -Seconds 3
-$results['Memory, 5 tabs and 20 images (MB private)'] = Tree-Memory $p.Id
+$results['Memory, 5 tabs and 20 images (MB, private working set / private bytes)'] = Tree-Memory $p.Id
 Stop-Snip $p
 
 # 4. Installer.
