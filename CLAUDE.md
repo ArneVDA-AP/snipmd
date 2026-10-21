@@ -20,7 +20,7 @@
 1. Every write of a note or `session.json` is atomic: temp file in the same directory, flush, rename. Never `fs::write` straight onto the target.
 2. New images use `OpenOptions::new().write(true).create_new(true)` with the `snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` name, retrying on `AlreadyExists`.
 3. Moving files across drives: if `fs::rename` fails, fall back to `fs::copy` + `fs::remove_file`, and only remove after the copy succeeded.
-4. Cleanup only runs at startup, only inside `%APPDATA%/snip-md/scratch/`, and only deletes things older than 14 days that nothing in the session or the closed-tabs list references (SPEC §6.5). Never delete anything next to a user's note.
+4. Cleanup only runs at startup, only inside `%APPDATA%/com.snipmd.desktop/scratch/`, and only deletes things older than 14 days that nothing in the session or the closed-tabs list references (SPEC §6.5). Never delete anything next to a user's note.
 5. One failing file write must never block other tabs or the session save. Surface it in the info bar.
 6. The session lives in `session.json` only. No localStorage for anything that must survive.
 

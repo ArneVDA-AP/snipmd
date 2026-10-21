@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const m = vi.hoisted(() => ({ perfMark: vi.fn(async (_name: string, _ms?: number) => true) }));
+const m = vi.hoisted(() => ({ perfMark: vi.fn(async (_name: string, _ms?: number, _epoch?: number) => true) }));
 vi.mock('./ipc', () => ({ perfMark: m.perfMark, toAssetUrl: (p: string) => `http://asset.localhost/${p}` }));
 
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -35,6 +35,24 @@ describe('perf marks', () => {
     await frame();
     await frame();
     expect(m.perfMark).toHaveBeenCalledWith('ready');
+  });
+
+  it('with tracing on, ready is followed by the page start as a wall-clock time', async () => {
+    const { markReady } = await import('./perf');
+    markReady();
+    await frame();
+    await frame();
+    const page = m.perfMark.mock.calls.find(([name]) => name === 'page');
+    expect(page).toEqual(['page', undefined, performance.timeOrigin]);
+  });
+
+  it('with tracing off, ready sends nothing more', async () => {
+    m.perfMark.mockResolvedValueOnce(false);
+    const { markReady } = await import('./perf');
+    markReady();
+    await frame();
+    await frame();
+    expect(m.perfMark.mock.calls.map(([name]) => name)).toEqual(['ready']);
   });
 
   it('with tracing on, paste is timed from the event to the decoded image of that path', async () => {
