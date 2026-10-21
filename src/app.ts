@@ -157,18 +157,18 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   // Writes start only now: a blur during the restore must not store an empty session over the real one.
-  // Before the files from the command line, so a slow or hung read of one never stops the session.
+  // Everything below is in place before the files from the command line are read, so a slow or
+  // hung read of one never stops the session, the close flush, forwarded files or drops.
   startSessionWrites();
   startExternalWatch(saveTab);
   window.addEventListener('blur', () => void flushDirty());
-  await openPaths(cliFiles);
-  markReady();
   preloadReader();
-
   await Promise.all([
     // A hung note write (drive removed) must not keep the window open; the session was written first.
     onCloseRequested(() => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))])),
     onForwardedFiles((paths) => void openPaths(paths)),
     onFilesDropped((d) => void handleDrop(d))
   ]);
+  await openPaths(cliFiles);
+  markReady();
 }
