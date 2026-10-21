@@ -2,11 +2,13 @@
 import { Titlebar } from './titlebar';
 import { mountInfobar } from './infobar';
 import { bindSessionSource, loadSession } from './session';
-import { flushDirty, saveTab } from './saving';
+import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
+import { checkTabs, startExternalWatch } from './external';
 import { handleDrop } from './drop';
 import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen } from './ipc';
 import {
   activate,
+  bindEditListener,
   closeTab,
   cycle,
   getActiveTab,
@@ -47,6 +49,7 @@ function registerKeys(): void {
     const active = getActiveTab();
     let handled = true;
     if (key === 'tab') void cycle(e.shiftKey ? -1 : 1);
+    else if (e.shiftKey && key === 's') void (active && saveAs(active.id));
     else if (e.shiftKey) handled = false;
     else if (key === 't' || key === 'n') void newUntitled();
     else if (key === 'o') void pickFileToOpen().then((p) => (p ? openPath(p) : undefined));
@@ -70,6 +73,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar);
   bindSessionSource(snapshot);
+  bindEditListener(scheduleAutosave);
   registerKeys();
   window.addEventListener('blur', () => void flushDirty());
 
@@ -80,6 +84,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (session) await restore(session);
   else if (cliFiles.length === 0) await newUntitled();
   await openPaths(cliFiles);
+  await checkTabs();
+  startExternalWatch();
 
   await Promise.all([
     // A hung note write (drive removed) must not keep the window open; the session was written first.
