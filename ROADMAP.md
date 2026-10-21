@@ -35,7 +35,7 @@ Most of the code is portable already: the Windows-only Rust sits behind `cfg(win
 |---|---|---|---|
 | 7a | `macos-latest` job in `ci.yml` (core tests, `cargo check`), and a manual `macos-run.yml` spike like `windows-run.yml`: build the app, launch it with `SNIPMD_DATA_DIR`, screenshot it, find out which automation the runner allows | cloud | the runner's output, pushed to `ci/macos-run-<n>` |
 | 7b | items 1-4 (Rust and config) | cloud | core tests, macOS CI, `macos-run.yml` |
-| 7c | items 5-6 (frontend) | cloud | Vitest, browser tour, `macos-run.yml` screenshots |
+| 7c | items 5-6 (frontend) | cloud | Vitest, `macos-run.yml` screenshots |
 | 7d | item 7 (release) | cloud, plus the owner's Apple account | a notarized `.dmg` from a tag, opened on a clean runner |
 
 Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.rs`, `app.ts`, `titlebar.ts`), so solo, not thin-standard.
