@@ -6,7 +6,7 @@ vi.mock('./ipc', () => ({
   pickFolder: vi.fn(),
   noteNameFree: vi.fn(),
 }));
-vi.mock('./tabs', () => ({ getLastFolder: vi.fn(), getTab: (id: string) => ({ id }) }));
+vi.mock('./tabs', () => ({ getLastFolder: vi.fn(), openTab: (id: string) => ({ id }) }));
 
 import { askFirstSave, type FirstSaveChoice } from './firstSaveBar';
 import { mountInfobar } from './infobar';

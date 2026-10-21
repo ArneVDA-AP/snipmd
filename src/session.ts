@@ -18,7 +18,7 @@ export function bindSessionSource(fn: () => SessionFile): void {
   source = fn;
 }
 
-/** T2. Debounced to at most one write per 500 ms; `immediate` writes now. Writes never overlap. */
+/** Debounced to at most one write per 500 ms; `immediate` writes now. Writes never overlap. */
 export function scheduleSessionSave(opts?: { immediate?: boolean }): void {
   if (opts?.immediate) {
     void flushSession();

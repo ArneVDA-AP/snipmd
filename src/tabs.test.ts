@@ -26,7 +26,8 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="e"></div><div id="r"></div>';
   initTabs(
     { editor: document.getElementById('e')!, read: document.getElementById('r')! },
-    { render: vi.fn() } as never
+    { render: vi.fn() } as never,
+    () => {}
   );
   vi.stubGlobal('requestAnimationFrame', () => 0);
 });

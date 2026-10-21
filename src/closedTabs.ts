@@ -1,7 +1,7 @@
-// T16: closing a tab (Ctrl+W, middle-click, ×) and restoring it (Ctrl+Shift+T, the bar's Restore). SPEC §7.
+// closing a Tab (Ctrl+W, middle-click, ×) and restoring it (Ctrl+Shift+T, the bar's Restore). SPEC §7.
 import { clearInfo, clearTabInfo, showInfo } from './infobar';
 import { saveTab } from './saving';
-import { closeTab, getTab, reopenClosed } from './tabs';
+import { closeTab, openTab, reopenClosed, textOf } from './tabs';
 
 const BAR_KEY = 'closed';
 const BAR_MS = 8000;
@@ -40,7 +40,7 @@ function shortcut(): HTMLElement {
  * not reach the disk get a warning bar with Restore.
  */
 export async function closeTabWithRestore(id: string): Promise<void> {
-  const tab = getTab(id);
+  const tab = openTab(id);
   if (!tab) return;
   // saveTab writes no tab in conflict and reports false, like a failed or refused write.
   const written = tab.dirty && tab.filePath ? saveTab(id) : null;
@@ -53,13 +53,13 @@ export async function closeTabWithRestore(id: string): Promise<void> {
     key: BAR_KEY,
     position: 'bottom',
     timeoutMs: BAR_MS,
-    text: closedText(closed.title, screenshotCount(closed.content)),
+    text: closedText(closed.title, screenshotCount(textOf(closed))),
     body: shortcut(),
     actions: [restore]
   });
   // Edits the close could not write stay reported until the tab is restored.
   void written?.then((ok) => {
-    if (ok || getTab(id)) return;
+    if (ok || openTab(id)) return; // restored meanwhile
     showInfo({ kind: 'warning', key: `unsaved:${id}`, text: `${closed.title} was closed with changes that are not on disk.`, actions: [restore] });
   });
 }

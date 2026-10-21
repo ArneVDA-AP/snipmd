@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { undo } from '@codemirror/commands';
 import { createEditorState } from './setup';
-import { dropState, getState, setState } from './registry';
+import { dropState, getState, initRegistry, setState } from './registry';
 import { rewriteImagePrefix } from './links';
+
+initRegistry({ filePathOf: () => null, onChange: () => {} });
 
 const MOVE = { from: 'untitled.assets/', to: 'note.assets/' };
 const text = (id: string) => getState(id)!.doc.toString();

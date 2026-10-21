@@ -25,7 +25,7 @@ function insertLinks(tabId: string, links: string[], at?: number): void {
 }
 
 /**
- * T5. The one way saved images land in a tab (paste and drop): shown from the cache at once, linked on
+ * The one way saved images land in a tab (paste and drop): shown from the cache at once, linked on
  * their own lines below `at` or the cursor, and the session written immediately (SPEC §7).
  */
 export function placeImages(tabId: string, images: SavedImage[], at?: number): void {

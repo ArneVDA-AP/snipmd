@@ -4,7 +4,7 @@ import { button } from './dom';
 import { clearInfo, showError, showInfo } from './infobar';
 import { defaultNoteFolder, noteNameFree, pickFolder } from './ipc';
 import { basename } from './paths';
-import { getLastFolder, getTab } from './tabs';
+import { getLastFolder, openTab } from './tabs';
 
 export type FirstSaveChoice = { folder: string; name: string } | 'other' | null;
 
@@ -50,7 +50,7 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     showError('find the notes folder', err);
     return null;
   }
-  if (!getTab(tab.id)) return null; // closed while the folder was looked up
+  if (!openTab(tab.id)) return null; // closed while the folder was looked up
 
   return new Promise<FirstSaveChoice>((resolve) => {
     let done = false;

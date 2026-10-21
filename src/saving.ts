@@ -1,11 +1,11 @@
-// Saving notes. Phase 4 adds autosave, the first-save info bar and Save As.
+// Saving notes: writes, autosave, the first save and Save As.
 import type { DiskStamp, TabState, TextFormat } from './types';
 import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } from './ipc';
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
 import { beginWrite, endWrite, inConflict } from './diskState';
 import { handleRefusedWrite, resolveConflict } from './external';
-import { allTabs, findTab, getTab, markSaved, setLastFolder, textOf } from './tabs';
+import { allTabs, getTab, markSaved, openTab, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { dirname, normPath, samePath } from './paths';
@@ -89,6 +89,7 @@ async function firstSave(tab: TabState): Promise<boolean> {
     showError(`${step} ${tab.title}`, err, errorKey(tab.id));
     return false;
   }
+  await imageSavesSettled(); // a paste that started before the save may still land in scratch
   await moveImages(tab);
   return true;
 }
@@ -107,7 +108,7 @@ async function moveImages(tab: TabState): Promise<void> {
     const id = tab.id;
     showError(`move the images of ${tab.title}`, err, imagesKey(id), [
       { label: 'Try again', primary: true, run: () => {
-        const t = findTab(id);
+        const t = getTab(id);
         if (t) void moveImages(t);
       } }
     ]);
@@ -156,7 +157,7 @@ function startFirstSave(tab: TabState, run: (t: TabState) => Promise<boolean>): 
 
 /** Ctrl+S, and the write when a tab closes. A tab in conflict is not written. */
 export async function saveTab(id: string): Promise<boolean> {
-  const tab = findTab(id);
+  const tab = getTab(id);
   if (!tab || inConflict(id)) return false;
   const ok = await (tab.filePath ? writeTab(tab) : startFirstSave(tab, firstSave));
   if (ok) scheduleSessionSave({ immediate: true });
@@ -165,7 +166,7 @@ export async function saveTab(id: string): Promise<boolean> {
 
 /** Ctrl+Shift+S. */
 export async function saveAs(id: string): Promise<boolean> {
-  const tab = getTab(id);
+  const tab = openTab(id);
   if (!tab) return false;
   const old = tab.filePath;
   const ok = await startFirstSave(tab, old ? (t) => copyTo(t, old) : firstSave);
@@ -177,13 +178,13 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Called on every edit: saves a dirty disk tab 1 s after the last one. */
 export function scheduleAutosave(id: string): void {
-  if (!findTab(id)?.filePath) return; // untitled tabs live in the session until their first save
+  if (!getTab(id)?.filePath) return; // untitled tabs live in the session until their first save
   clearTimeout(timers.get(id));
   timers.set(
     id,
     setTimeout(() => {
       timers.delete(id);
-      const tab = findTab(id); // also a closed tab: a link rewrite after its first save is written
+      const tab = getTab(id); // also a closed tab: a link rewrite after its first save is written
       // markSaved writes the session at once (SPEC §7: right after a save).
       if (tab?.filePath && tab.dirty && !inConflict(id)) void writeTab(tab);
     }, AUTOSAVE_MS)

@@ -1,14 +1,14 @@
-//! R7: a note's image folder (SPEC §6.3, §6.4).
+//! a Note's image folder (SPEC §6.3, §6.4).
 use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// R7. `C:/n/labo-04.md` -> `C:/n/labo-04.assets`.
+/// `C:/n/labo-04.md` -> `C:/n/labo-04.assets`.
 pub fn assets_dir_for(note: &Path) -> PathBuf {
     note.with_extension("assets")
 }
 
-/// R7. Moves a folder: one rename, else (another drive, or `to` exists) file by file, each source file
+/// Moves a folder: one rename, else (another drive, or `to` exists) file by file, each source file
 /// removed only after its copy is synced. A file that arrives in `from` meanwhile is never removed;
 /// a source folder that cannot be removed stays behind. Calling it again moves what is left.
 pub fn move_dir(from: &Path, to: &Path) -> io::Result<()> {
@@ -21,7 +21,7 @@ pub fn move_dir(from: &Path, to: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// R7. Copies a folder recursively; never overwrites existing files. `to`'s parent must exist.
+/// Copies a folder recursively; never overwrites existing files. `to`'s parent must exist.
 pub fn copy_dir(from: &Path, to: &Path) -> io::Result<()> {
     walk(from, to, false)
 }

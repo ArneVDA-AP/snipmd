@@ -13,7 +13,9 @@ import { showError } from '../infobar';
 import { scheduleSessionSave } from '../session';
 import { createEditorState } from './setup';
 import { placeImages } from './paste';
-import { getState, setState, setView } from './registry';
+import { getState, initRegistry, setState, setView } from './registry';
+
+initRegistry({ filePathOf: () => null, onChange: () => {} });
 
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
 Range.prototype.getBoundingClientRect = () => new DOMRect();

@@ -1,4 +1,4 @@
-//! R8: startup cleanup of the scratch folder (SPEC §6.5).
+//! Startup cleanup of the scratch folder (SPEC §6.5).
 use crate::paths::{percent_decode_lossy, valid_tab_id};
 use crate::ScratchEntry;
 use std::collections::{HashMap, HashSet};
@@ -6,10 +6,10 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// R8. How long an unused scratch folder or image is kept: 14 days.
+/// How long an unused scratch folder or image is kept: 14 days.
 pub const SCRATCH_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
-/// R8. Lists every tab folder directly in `scratch` (a valid tab id, not a symlink) and every item
+/// Lists every tab folder directly in `scratch` (a valid tab id, not a symlink) and every item
 /// directly inside one; a subfolder item carries the newest time of everything under it. Loose files, other names and deeper levels are not listed; an entry whose
 /// metadata fails is left out. A missing `scratch` gives an empty list.
 pub fn scan_scratch(scratch: &Path) -> std::io::Result<Vec<ScratchEntry>> {
@@ -88,7 +88,7 @@ pub fn select_for_cleanup<'a>(
         .collect()
 }
 
-/// R8. Scans, selects and removes each selected path under `scratch` (a folder with everything in it,
+/// Scans, selects and removes each selected path under `scratch` (a folder with everything in it,
 /// an item on its own). A failure skips that path; a scan error removes nothing. Returns the count removed.
 pub fn clean_scratch(
     scratch: &Path,

@@ -1,4 +1,4 @@
-//! R6: keep a note's line endings and BOM (SPEC §6.1). Phase 2.
+//! Keep a note's line endings and BOM (SPEC §6.1).
 
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
@@ -23,7 +23,7 @@ pub fn sniff(bytes: &[u8]) -> TextFormat {
     TextFormat { crlf, bom: bytes.starts_with(&BOM) }
 }
 
-/// R6. Decodes UTF-8 bytes to `\n` text and remembers the original format.
+/// Decodes UTF-8 bytes to `\n` text and remembers the original format.
 pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), crate::TextError> {
     let fmt = sniff(bytes);
     let body = if fmt.bom { &bytes[3..] } else { bytes };
@@ -32,7 +32,7 @@ pub fn decode(bytes: &[u8]) -> Result<(String, TextFormat), crate::TextError> {
     Ok((text, fmt))
 }
 
-/// R6. Encodes `\n` text back in the given format.
+/// Encodes `\n` text back in the given format.
 pub fn encode(text: &str, fmt: TextFormat) -> Vec<u8> {
     // One pass: a `\r` that already precedes a `\n` is dropped, every `\n` gets the chosen break.
     let mut out = Vec::with_capacity(text.len() + if fmt.crlf { text.len() / 16 } else { 0 } + 3);

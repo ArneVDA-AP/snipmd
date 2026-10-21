@@ -1,4 +1,4 @@
-//! R3: atomic writes (SPEC §6.1). Phase 2.
+//! Atomic writes (SPEC §6.1).
 use std::fs::{self, File, OpenOptions};
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -8,11 +8,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// R3. Writes to a temp file in the same folder, flushes, then renames over the target.
+/// Writes to a temp file in the same folder, flushes, then renames over the target.
 /// Never creates folders; on any error the temp file is removed and the target is untouched.
 pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let real = match fs::symlink_metadata(target) {
-        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(target)?, // D7: the link stays a link
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(target)?, // the link stays a link
         _ => target.to_path_buf(),
     };
     let target = real.as_path();

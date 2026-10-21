@@ -1,7 +1,7 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
 import { focusInfobar, mountInfobar } from './infobar';
-import { bindSessionSource, loadSession } from './session';
+import { loadSession } from './session';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
@@ -12,7 +12,6 @@ import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
 import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen, windowBackdrop } from './ipc';
 import {
   activate,
-  bindEditListener,
   cycle,
   focusActive,
   getActiveTab,
@@ -23,7 +22,6 @@ import {
   openPaths,
   preloadReader,
   restore,
-  snapshot,
   toggleMode
 } from './tabs';
 
@@ -145,9 +143,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     newTab: () => void newUntitled(),
     toggleMode: () => void toggleMode()
   });
-  initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar);
-  bindSessionSource(snapshot);
-  bindEditListener(scheduleAutosave);
+  initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar, scheduleAutosave);
   registerKeys(titlebar);
   window.addEventListener('blur', () => void flushDirty());
 

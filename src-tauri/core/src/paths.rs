@@ -1,4 +1,4 @@
-//! R1, R2: path checks (SPEC §8). Purely lexical, no file system access.
+//! path Checks (SPEC §8). Purely lexical, no file system access.
 use crate::PathError;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -75,7 +75,7 @@ fn has_drive(s: &str) -> bool {
     b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':'
 }
 
-/// R1. Resolves an image link from a note against the note's folder.
+/// Resolves an image link from a note against the note's folder.
 /// Percent-decodes; rejects absolute, drive, UNC, `..` escape and `:` streams.
 pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError> {
     let dec = percent_decode(link)?;
@@ -185,7 +185,7 @@ fn dir_key(n: &str) -> String {
     if k.ends_with('/') { k } else { k + "/" }
 }
 
-/// R2. The files and folders Rust commands may touch.
+/// The files and folders Rust commands may touch.
 #[derive(Debug, Default, Clone)]
 pub struct AllowedSet {
     files: HashSet<String>,
