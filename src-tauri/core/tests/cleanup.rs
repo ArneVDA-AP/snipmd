@@ -22,8 +22,18 @@ fn set_age(p: &Path, age: Duration) {
     File::options().write(true).open(p).unwrap().set_modified(t).unwrap();
 }
 
+/// Windows opens a folder only with backup semantics, and setting its time needs write-attributes access.
 fn age_dir(p: &Path, age: Duration) {
-    File::open(p).unwrap().set_modified(now() - age).unwrap();
+    #[cfg(windows)]
+    let dir = {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_WRITE_ATTRIBUTES: u32 = 0x100;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        fs::OpenOptions::new().access_mode(FILE_WRITE_ATTRIBUTES).custom_flags(FILE_FLAG_BACKUP_SEMANTICS).open(p).unwrap()
+    };
+    #[cfg(not(windows))]
+    let dir = File::open(p).unwrap();
+    dir.set_modified(now() - age).unwrap();
 }
 
 /// A tab folder with the given items, each at its own age; the folder itself gets `dir_age`.
