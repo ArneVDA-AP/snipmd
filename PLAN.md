@@ -165,7 +165,15 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
 - [x] 3 Images and paste: PR #4 merged (review `review/phase3-R1.md`: M1-M3 fixed, m4 m7 m8 m9 m10 fixed). **Windows test open**: 4K screenshot visible in under 150 ms; Excel cells paste as text; Ctrl+Shift+V with only an image does nothing; a jpg dropped mid-text lands on the drop line; two dropped images sit together. Until phase 4: do not first-save an untitled tab with images (its links stay `untitled.assets/`).
 - [x] 4 Saving flows: PR #5 merged (review `review/phase4-R1.md`: B1-B2 and M1-M10 fixed). **Windows test open**: untitled note with screenshots, Ctrl+S, Enter: file and folder side by side, `attrib` shows no H on the note; opens correctly in VS Code and on GitHub. Edit the note in Notepad while SnipMD has it open: a clean tab reloads, a dirty one shows the conflict bar. Save As to another drive copies the images.
 - [x] 5 Tabs and recovery: PR #6 merged (solo build; reviews `review/phase5-R1.md` thin and `review/phase5-solo-R1.md` solo, majors of both fixed). **Windows test open**: untitled tab with screenshots, Ctrl+W, restart, Ctrl+Shift+T: tab and images are back. Edit a note in Notepad while SnipMD has unsaved edits in it, then Ctrl+W: the warning bar "… closed with changes that are not on disk" with Restore. Ctrl+1 on AZERTY goes to the first tab; holding Ctrl+W closes one tab.
-- [ ] 6 Editor and measuring
+- [ ] 6 Editor and measuring: 6a merged (PR #8: UI system, find and replace, Markdown styling); 6b (PR #9: bundle split, budget marks, measuring script) and 6c (docs, release workflow) follow.
+  SPEC §9 budgets, measured:
+  | Measure | Target | Value | Where |
+  |---|---|---|---|
+  | Installer size | < 10 MB | 1.36 MB (NSIS); MSI 1.89 MB, bare exe 3.60 MB | Release workflow on `windows-latest`, 2026-10-21, phase 6c code |
+  | Startup JS (first paint) | as small as the first paint needs | 397 KB (130 KB gzip); read mode 76 KB loaded later | `npm run build`, phase 6b |
+  | Double-click to typing | < 300 ms | open: `measure.ps1` on the Windows machine | |
+  | Ctrl+V to 4K screenshot visible | < 150 ms | open: `measure.ps1` | |
+  | Memory, 5 tabs and 20 images | < 120 MB | open: `measure.ps1` | |
 
 ## Decisions
 Autonomous runs add one line per decision: date, what, why.
