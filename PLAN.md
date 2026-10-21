@@ -172,9 +172,17 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - Quitting: `osascript -e 'tell application "SnipMD" to quit'` sends the same event as `Cmd+Q`.
 - The result of open and quit, read from `session.json` in `SNIPMD_DATA_DIR`.
 - An image on the clipboard: `osascript` with `«class PNGf»` needs no permission.
-- `Cmd+V` and typing need System Events (Accessibility); `screencapture` needs Screen Recording. The 7a spike finds out whether the runner image grants both.
+- `Cmd+V` and typing through System Events, and screenshots: the runner grants Accessibility and Screen Recording (7a, run 2).
 - The §9 budgets, as a reference: the runner is a VM, not a laptop.
 - Gatekeeper on the downloaded `.dmg`: `spctl --assess` with the quarantine flag set.
+
+**7a result** (`macos-run.yml` run 2 on macOS 26.6 arm64, 2026-10-21; `findings/macos-ci/probe.txt` on `ci/macos-run-2`):
+- The Tauri crate compiles for both architectures. The universal app builds and gets an ad-hoc signature.
+- launch, quit Apple Event and **paste: PASS**. WKWebView hands a clipboard PNG to the page, and `placeImages` saves it and shows it inline with no change to the code.
+- finder-open and quit-flush: FAIL, as expected (items 2 and 1). These two probes are the acceptance tests for 7b.
+- The empty hint shows the Windows keys (item 5).
+- The runner's screen is 1024x768, smaller than the 1200x820 window, so the top bar sits under the menu bar in the screenshots. The 7b window config should cap the first size at the screen.
+- Run 1 never started the app (a relative path to `defaults read`) yet the job was green. The probe now fails the job when its harness breaks.
 
 **What it cannot check:**
 - How the app feels next to native apps.
@@ -221,7 +229,7 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
   | Ctrl+V to 4K screenshot visible | < 150 ms | owner's desktop: 70 / 62 ms median, **within budget**; runner 66-96 ms | same |
   | Memory, 5 tabs and 20 images | < 120 MB | owner's desktop: 98 / 104 MB private working set (Task Manager's Memory), **within budget**; 190 / 208 MB private bytes; runner 90 MB | same |
   The runner is a server VM without a GPU, so its start time says little about a laptop. Run 5 split it: the page's first script ran 462 ms after process start (WebView2 start-up and loading the bundle), the session was read 4 ms later, and the first tab took keys 55 ms after that (521 ms in all). SnipMD's own work is about 60 ms; the budget therefore depends on how fast WebView2 starts on the owner's machine. If it misses there, the levers are WebView2's start (a warm-up at login is out of scope for v1) and the 398 KB bundle parse.
-- [ ] 7 macOS (SPEC §13): planned, after v1.0.0; 7a can start now.
+- [ ] 7 macOS (SPEC §13): 7a done (PR #19: macOS CI job, `macos-run.yml`, probe; paste works, Finder open and quit flush fail as expected). 7b-7d after v1.0.0.
 
 ## Decisions
 Autonomous runs add one line per decision: date, what, why.

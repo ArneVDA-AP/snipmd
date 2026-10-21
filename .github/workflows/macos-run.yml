@@ -6,8 +6,6 @@ name: macOS run
 # today's build behaves on macOS. A runner is not a Mac on a desk: the tester's Mac is the judge.
 on:
   workflow_dispatch:
-  push: # TEMPORARY for the 7a spike (dispatch needs the file on main); remove before merge
-    branches: [claude/macos-7a]
 
 permissions:
   contents: write
