@@ -375,16 +375,20 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   // Open again at once, at the end of the strip, so a second Ctrl+Shift+T during the read below takes the next one.
   tabs = [...tabs.filter((t) => t !== tab), tab];
   delete tab.closedAt;
+  const shown = activeId;
   if (diskIsSource(tab)) {
     try {
       const note = await readNote(tab.filePath!);
       loadText(tab, note.text); // also when the hidden editor view still holds this tab
       Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format, dirty: false });
     } catch {
-      // Keeps the text it closed with; a missing file shows up as the "no longer on disk" bar.
+      // Keeps the text it closed with, as unsaved, so the session holds it until the external watch
+      // reports the file as gone.
+      tab.dirty = true;
     }
   }
-  await activate(tab.id);
+  // A tab the user went to during the read keeps the focus.
+  if (activeId === shown) await activate(tab.id);
   changed({ immediate: true });
   return tab;
 }
