@@ -67,7 +67,12 @@ fn main() {
         .setup(|app| {
             log("setup");
             let page = std::env::var("PROBE_PAGE").unwrap_or_else(|_| "index.html".into());
-            let mut wb = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(page.into()))
+            let url = if page == "about:blank" {
+                WebviewUrl::External("about:blank".parse().unwrap())
+            } else {
+                WebviewUrl::App(page.into())
+            };
+            let mut wb = WebviewWindowBuilder::new(app, "main", url)
                 .title("SnipMD probe")
                 .inner_size(1200.0, 820.0)
                 .center()
