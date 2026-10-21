@@ -8,7 +8,9 @@ import { handleDrop } from './drop';
 import { markReady, markStep } from './perf';
 import { openFind } from './editor/search';
 import { getView } from './editor/registry';
+import { pastePlainText } from './editor/paste';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
+import { IS_MAC } from './platform';
 import {
   getCliStartupFiles,
   onCloseRequested,
@@ -16,6 +18,7 @@ import {
   onForwardedFiles,
   onMenuCommand,
   onOpenedNotes,
+  onPasteText,
   onQuitRequested,
   pickFileToOpen,
   takeOpenedNotes,
@@ -86,6 +89,15 @@ const COMMANDS: Record<string, () => unknown> = {
   replace: () => find(true)
 };
 
+/**
+ * The app's modifier is down. On macOS that is Cmd alone, since Control keeps its text bindings
+ * there (Control+E: end of line), except Control+Tab, which cycles tabs as in browsers (SPEC §13).
+ */
+function commandKey(e: KeyboardEvent): boolean {
+  if (!IS_MAC) return e.ctrlKey || e.metaKey;
+  return e.key === 'Tab' ? e.ctrlKey && !e.metaKey : e.metaKey && !e.ctrlKey;
+}
+
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
@@ -102,7 +114,11 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 's': return COMMANDS.save;
     case 'w': return COMMANDS['close-tab'];
     case 'e': return COMMANDS['read-mode'];
-    case 'f': case 'h':
+    case 'h':
+      // Cmd+H hides the app on macOS; replace is Cmd+Option+F there (SPEC §13).
+      if (IS_MAC) return undefined;
+    // fall through
+    case 'f':
       // In the note CodeMirror handles the key itself; outside it (tab strip, a bar) and in read mode, open the panel here.
       if (getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
       return COMMANDS[key === 'h' ? 'replace' : 'find'];
@@ -129,8 +145,7 @@ function isBrowserKey(e: KeyboardEvent): boolean {
   const k = e.key.toLowerCase();
   if (k === 'f3' || k === 'f5' || k === 'f7' || k === 'browserback' || k === 'browserforward' || k === 'browserrefresh') return true;
   if (e.altKey && (k === 'arrowleft' || k === 'arrowright')) return true;
-  const ctrl = e.ctrlKey || e.metaKey;
-  return ctrl && !e.altKey && ['r', 'p', 'j', 'u'].includes(k);
+  return commandKey(e) && !e.altKey && ['r', 'p', 'j', 'u'].includes(k);
 }
 
 /** The browser menu (Back, Reload, Print) only where text is: the note, inputs and selected read-mode text. */
@@ -151,7 +166,7 @@ function registerKeys(titlebar: Titlebar): void {
       if (!e.repeat) cycleRegion(titlebar, e.shiftKey);
       return;
     }
-    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    if (!commandKey(e) || e.altKey) return;
     // A held key acts once (a held Ctrl+W would empty the window); only moving between tabs repeats.
     if (e.repeat && e.key !== 'Tab' && !DIGIT.test(e.code)) return e.preventDefault();
     const run = commandFor(e);
@@ -202,6 +217,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     onForwardedFiles((paths) => void openPaths(paths)),
     onOpenedNotes((paths) => void openPaths(paths)),
     onMenuCommand((name) => void COMMANDS[name]?.()),
+    onPasteText((text) => pastePlainText(getView(), text)),
     onFilesDropped((d) => void handleDrop(d))
   ]);
   await openPaths(startFiles);

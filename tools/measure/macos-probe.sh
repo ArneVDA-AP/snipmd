@@ -1,6 +1,6 @@
 #!/bin/bash
-# Phase 7a spike (PLAN.md): what a macOS runner can drive in the real SnipMD app, and how today's
-# build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED - <detail>" and the
+# The macOS acceptance probes (#30): what a macOS runner can drive in the real SnipMD app, and how
+# the build behaves there. Each probe prints one line "<name>: PASS|FAIL|BLOCKED - <detail>" and the
 # script always finishes, so one blocked permission never hides the other answers.
 # Every launch uses its own data folder (SNIPMD_DATA_DIR); screenshots go to <out>.
 # Exits 1 only when the harness itself is broken (no app, the app does not start); a probe that
@@ -171,6 +171,178 @@ if [ -s "$PNG" ] && osascript -e "set the clipboard to (read (POSIX file \"$PNG\
 else
   quit_app
   report paste BLOCKED "could not put a PNG on the clipboard"
+fi
+
+activate_app() {
+  osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
+  sleep 1
+}
+
+# Sends System Events lines to the app after activating it; false without Accessibility.
+keys_to_app() {
+  activate_app
+  local args=()
+  for line in "$@"; do args+=(-e "$line"); done
+  osascript "${args[@]}" 2>/dev/null
+}
+
+# "<open> <closed>" tab counts from session.json.
+tab_counts() {
+  session | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("tabs",[])), len(d.get("closedTabs",[])))' 2>/dev/null
+}
+
+# One line per accessibility element of the app's window, "role|description|value", web content
+# included: WKWebView exposes the page's tree to System Events.
+ax_dump() {
+  osascript - "$PID" <<'APPLESCRIPT' 2>/dev/null
+on run argv
+  set pid to (item 1 of argv) as integer
+  set out to ""
+  tell application "System Events"
+    set els to entire contents of window 1 of (first process whose unix id is pid)
+    repeat with i from 1 to count of els
+      set e to item i of els
+      set r to ""
+      set d to ""
+      set v to ""
+      try
+        set r to role of e
+      end try
+      try
+        set d to description of e
+      end try
+      try
+        set v to (value of e) as text
+      end try
+      set out to out & r & "|" & d & "|" & v & linefeed
+    end repeat
+  end tell
+  return out
+end run
+APPLESCRIPT
+}
+
+# "<x> <y>": the system close button's centre, in points from the window's top-left corner.
+close_button_centre() {
+  osascript - "$PID" <<'APPLESCRIPT'
+on run argv
+  set pid to (item 1 of argv) as integer
+  tell application "System Events"
+    set w to window 1 of (first process whose unix id is pid)
+    set b to first button of w whose subrole is "AXCloseButton"
+    set {winX, winY} to position of w
+    set {btnX, btnY} to position of b
+    set {btnW, btnH} to size of b
+    return ((btnX - winX + btnW / 2) as integer as text) & " " & ((btnY - winY + btnH / 2) as integer as text)
+  end tell
+end run
+APPLESCRIPT
+}
+
+echo "== Top bar (SPEC §13: system window buttons, room for them, macOS key labels in the hint)"
+start topbar
+activate_app
+shot 05-topbar >/dev/null
+screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
+read -r cx cy <<<"$(close_button_centre)"
+if [ -z "${cy:-}" ]; then
+  report traffic-lights BLOCKED "no close button found through System Events"
+elif [ "$cy" -ge 13 ] && [ "$cy" -le 21 ]; then
+  report traffic-lights PASS "close button centre at x $cx, y $cy: inside the 34 pt bar"
+else
+  report traffic-lights FAIL "close button centre at x $cx, y $cy; the 34 pt bar's middle is y 17"
+fi
+ax=$(ax_dump)
+echo "$ax" >"$OUT/05-topbar-ax.txt"
+echo "-- accessibility tree: $(echo "$ax" | grep -c .) elements; the buttons:"
+echo "$ax" | grep '^AXButton' | head -20
+# The page's tree must be visible before an absent button means anything. The labels are read off
+# the + button: the empty hint is aria-hidden (CodeMirror's placeholder), and both come from
+# platform.ts.
+if ! echo "$ax" | grep -q '^AXButton|New tab'; then
+  report own-buttons BLOCKED "the page's accessibility tree is not visible (tree in 05-topbar-ax.txt)"
+  report key-labels BLOCKED "the page's accessibility tree is not visible"
+else
+  if echo "$ax" | grep -qE '^AXButton[|](Minimize|Maximize|Restore)[|]'; then
+    report own-buttons FAIL "the page still draws its own window buttons"
+  else
+    report own-buttons PASS "the page has a New tab button and no Minimize/Maximize buttons"
+  fi
+  if echo "$ax" | grep -q '^AXButton|New tab (⌘T)|'; then
+    report key-labels PASS "the + button reads \"New tab (⌘T)\""
+  else
+    report key-labels FAIL "the + button reads: $(echo "$ax" | grep '^AXButton|New tab' | head -1)"
+  fi
+fi
+quit_app
+
+echo "== Cmd+W closes exactly one tab (the page and the menu must not both run it)"
+start close-once
+# Three tabs, text in the last: one Cmd+W leaves two open and one closed. A second run of the
+# command would also close an empty tab, which is dropped: one open, one closed.
+if keys_to_app 'tell application "System Events" to keystroke "t" using command down' 'delay 0.5' \
+  'tell application "System Events" to keystroke "t" using command down' 'delay 0.5' \
+  'tell application "System Events" to keystroke "closeonce"' 'delay 0.3' \
+  'tell application "System Events" to keystroke "w" using command down'; then
+  sleep 1.5
+  quit_app
+  counts=$(tab_counts)
+  if [ "$counts" = "2 1" ]; then
+    report close-once PASS "three tabs, Cmd+W on one with text: two open, one closed"
+  else
+    report close-once FAIL "open/closed after three tabs and one Cmd+W: ${counts:-no session}"
+  fi
+else
+  quit_app
+  report close-once BLOCKED "no keystrokes without Accessibility"
+fi
+
+echo "== Paste as Plain Text (Cmd+Shift+V, through the menu and Rust's clipboard read)"
+start paste-plain
+osascript -e 'set the clipboard to "plainpasteprobe"' 2>/dev/null
+if keys_to_app 'tell application "System Events" to keystroke "v" using {command down, shift down}'; then
+  sleep 1.5
+  quit_app
+  if session | grep -q plainpasteprobe; then
+    report paste-plain PASS "the clipboard text is in the note"
+  else
+    report paste-plain FAIL "the clipboard text did not reach the note"
+  fi
+else
+  quit_app
+  report paste-plain BLOCKED "no keystrokes without Accessibility"
+fi
+
+echo "== Replace is Cmd+Option+F; Cmd+H hides the app (SPEC §13)"
+start replace
+# End to end: with the word selected, Cmd+Option+F opens the panel with the word in Find and the
+# cursor in Replace (as Ctrl+H on Windows); typing there and Enter replace the word in the note.
+if keys_to_app 'tell application "System Events" to keystroke "oldword"' 'delay 0.3' \
+  'tell application "System Events" to keystroke "a" using command down' 'delay 0.3' \
+  'tell application "System Events" to keystroke "f" using {command down, option down}' 'delay 0.8' \
+  'tell application "System Events" to keystroke "newword"' 'delay 0.3' \
+  'tell application "System Events" to key code 36'; then
+  sleep 1
+  shot 06-replace >/dev/null
+  keys_to_app 'tell application "System Events" to keystroke "h" using command down' >/dev/null
+  sleep 1
+  visible=$(osascript -e "tell application \"System Events\" to get visible of (first process whose unix id is $PID)" 2>/dev/null)
+  if [ "$visible" = "false" ]; then
+    report cmd-h PASS "Cmd+H hid the app"
+  else
+    report cmd-h FAIL "the app is still visible after Cmd+H (visible: ${visible:-unknown})"
+  fi
+  quit_app
+  if session | grep -q newword && ! session | grep -q oldword; then
+    report replace PASS "Cmd+Option+F, a new word and Enter replaced the selected word"
+  elif session | grep -q newword; then
+    report replace FAIL "the new word went into the note instead of the Replace field (see 06-replace.png)"
+  else
+    report replace FAIL "the word was not replaced (see 06-replace.png)"
+  fi
+else
+  quit_app
+  report replace BLOCKED "no keystrokes without Accessibility"
 fi
 
 echo "== Logs"

@@ -25,13 +25,14 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `infobar.ts` is the only way to show messages and choices (no dialogs). A bar that belongs to a tab has a key ending in `:<tab id>`.
 - `editor/setup.ts` builds a tab's state: GFM Markdown without embedded languages, the highlight style, line styling (`mdStyle.ts`), the empty-state hint, find and replace, paste and inline images (`imageWidget.ts`, a `StateField` of block widgets with an async URL cache).
 - `preview/render.ts` (read mode) renders with `marked` and sanitizes with DOMPurify; images the app resolved get their URL after sanitizing, so a note cannot forge one. It is a separate chunk, loaded when the window is idle.
+- `platform.ts` says once, from the engine's user agent, whether the page runs on macOS, and writes key combinations the way the system does (`⇧⌘T`). On macOS the top bar leaves room for the system's window buttons, the app's keys need Cmd alone (Control keeps its text bindings), and Paste as Plain Text arrives as a `paste-text` event with the clipboard's text, because WKWebView pastes only through the Edit menu's own Paste.
 - `styles/main.css` holds the visual system: tokens for type, space, radius, motion and colour in both themes. `contrast.test.ts` checks every text pair for WCAG AA.
 
 ## Rust
 - Every command that touches the disk is async, so a slow or removed drive never freezes the window.
 - New images are created with `create_new` and a unique name; notes and the session are written to a temp file in the same folder, flushed and renamed.
 - The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab or closed tab.
-- `macos.rs` (SPEC §13) builds the menu bar, queues notes Finder hands over (`RunEvent::Opened`) until the page takes them, and answers AppKit's `applicationShouldTerminate:` with "later" until the page has flushed (5 s at most). Tao has no such hook, so it is added to tao's app delegate at startup. Only its two commands compile on Windows. `tauri.macos.conf.json` swaps the frameless window for native buttons over the bar.
+- `macos.rs` (SPEC §13) builds the menu bar, reads the clipboard's text for Paste as Plain Text, queues notes Finder hands over (`RunEvent::Opened`) until the page takes them, and answers AppKit's `applicationShouldTerminate:` with "later" until the page has flushed (5 s at most). Tao has no such hook, so it is added to tao's app delegate at startup. Only its two commands compile on Windows. `tauri.macos.conf.json` swaps the frameless window for native buttons over the bar.
 - `SNIPMD_DATA_DIR` points the app at another data folder and `SNIPMD_TRACE` writes budget marks to `perf.log` there; `tools/measure/measure.ps1` uses both.
 
 ## Tests
@@ -40,4 +41,4 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - CI on `windows-latest` runs both, builds the frontend and checks the Tauri crate on every push; a `macos-latest` job checks the crate for Apple Silicon and Intel.
 - `tools/ui-tour/tour.cjs`: screenshots of every UI state in light and dark (the write scene also at 150% and 200%) in a browser with a mocked backend. It runs without Tauri's CSP, so check style or script changes in the real window too.
 - `.github/workflows/windows-run.yml` (manual): builds the release app on a Windows runner, measures the SPEC §9 budgets and screenshots the real window; the results are a workflow artifact.
-- `.github/workflows/macos-run.yml` (manual): builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W and paste; the results are in the log and a workflow artifact.
+- `.github/workflows/macos-run.yml` (manual): builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W closing one tab, paste and plain paste, replace and Cmd+H, and the top bar read through Accessibility; the results are in the log and a workflow artifact.

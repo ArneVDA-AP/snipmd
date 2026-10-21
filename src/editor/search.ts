@@ -43,6 +43,7 @@ export function findExtension(): Extension {
     search({ top: true }),
     noAutofill,
     EditorState.phrases.of(PHRASES),
-    keymap.of([{ key: 'Mod-h', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
+    // Replace is Cmd+Option+F on macOS, where Cmd+H hides the app (SPEC §13).
+    keymap.of([{ key: 'Mod-h', mac: 'Mod-Alt-f', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
   ];
 }

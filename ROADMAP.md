@@ -31,7 +31,7 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 | Double-click to typing, cold start | < 1 s | 722–784 ms |
 
 ## macOS (phase 7, after v1.0.0)
-Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a and 7b went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs; 7c waits for nothing but #24 and #31, which are merged.
+Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a, 7b and 7c went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Next is 7d, the release.
 
 Most of the code is portable already: the Windows-only Rust sits behind `cfg(windows)`, keys accept `metaKey`, and paths parse POSIX. The work is in seven places:
 1. Quit. AppKit ends the app on `Cmd+Q`, the Dock's Quit and logout through `applicationWillTerminate`; Tauri 2.12 sends no `ExitRequested`, so the page never flushed. Done in 7b: `macos.rs` adds `applicationShouldTerminate:` to tao's delegate and answers later until the page has flushed (5 s at most).
@@ -70,6 +70,16 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - Run 1 never started the app (a relative path to `defaults read`) yet the job was green. The probe now fails the job when its harness breaks.
 
 **7b result** (PR #32, `macos-run.yml` run 4 on macOS 26.6 arm64, 2026-10-21): finder-open, quit-flush-cmdq, quit-flush-dock (a quit Apple Event) and close-tab (`Cmd+W`) PASS, as do launch and paste. Items 1-4 are done. The probe lines are in the run's log, and the screenshots are in its artifact.
+
+**7c result** (PR #34, `macos-run.yml` run 11, 2026-10-21): every probe PASS. New probes, read through Accessibility or the session, not by eye:
+- traffic-lights: the close button's centre is at y 17 in the 34 pt bar.
+- own-buttons and key-labels: the page has no window buttons, and + reads "New tab (⌘T)".
+- close-once: one Cmd+W closes one tab, so the page and the menu never both run a command.
+- paste-plain: Cmd+Shift+V pastes the clipboard's text.
+- replace: Cmd+Option+F, a word and Enter replace the selected word.
+- cmd-h: Cmd+H hides the app.
+
+Items 5 and 6 are done. Accessibility sees only part of WKWebView's page (the hint is `aria-hidden`), and this session cannot download artifacts; the empty hint is judged on the tester's Mac.
 
 **What it cannot check:**
 - How the app feels next to native apps.
@@ -110,4 +120,5 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **v1.0.0** is tagged only after the Windows tests pass.
 - **Start budget** (owner, 2026-10-21). SPEC §9 budgets SnipMD's own start (< 150 ms) and the cold start (< 1 s) instead of one 300 ms target. WebView2's own start takes about 600 ms on the owner's desktop before any page loads (tester probes on `test/w11-20261021`). A broker process that keeps WebView2 warm reaches about 320 ms but crashes SnipMD's start when its options differ, so it is out. Keeping SnipMD warm in the background is `PROPOSALS.md` #4, for after v1.
 - **macOS** comes after v1.0.0 (SPEC §13); Linux stays out. Most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop the Windows release depends on. The window keeps the native macOS buttons and an opaque bar, since vibrancy needs `macOSPrivateApi`. Closing the window quits the app, and new notes use LF.
+- **macOS keys.** Only Cmd is the app's modifier on macOS; Control keeps its text bindings (Control+E is end of line). The platform is read once from the engine's user agent, so the first paint is right. Paste as Plain Text goes through Rust's clipboard read, because WKWebView pastes only through the Edit menu.
 - **macOS 13 Ventura or later, universal binary.** The owner wants Intel included; Ventura still runs on 2017 Intel Macs and its WebKit has everything the frontend uses. Without an Apple Developer account, builds are ad-hoc signed.

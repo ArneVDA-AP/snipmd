@@ -25,10 +25,11 @@ fn decode_yields_lf_text_and_format() {
 }
 
 #[test]
-fn no_line_break_sniffs_crlf() {
-    assert!(sniff(b"one line").crlf);
-    assert!(sniff(b"").crlf);
-    assert_eq!(TextFormat::NEW_FILE, TextFormat { crlf: true, bom: false });
+fn no_line_break_sniffs_the_new_file_format() {
+    // CRLF on Windows, LF on macOS (SPEC §6.1, §13).
+    assert_eq!(sniff(b"one line").crlf, cfg!(windows));
+    assert_eq!(sniff(b"").crlf, cfg!(windows));
+    assert_eq!(TextFormat::NEW_FILE, TextFormat { crlf: cfg!(windows), bom: false });
     assert_eq!(TextFormat::default(), TextFormat { crlf: false, bom: false });
 }
 

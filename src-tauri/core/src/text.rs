@@ -10,15 +10,15 @@ pub struct TextFormat {
 }
 
 impl TextFormat {
-    /// Format for new notes: Windows line breaks, no BOM.
-    pub const NEW_FILE: TextFormat = TextFormat { crlf: true, bom: false };
+    /// Format for new notes: the system's line breaks (CRLF on Windows, LF on macOS), no BOM.
+    pub const NEW_FILE: TextFormat = TextFormat { crlf: cfg!(windows), bom: false };
 }
 
-/// R6b. Reads the format from raw bytes. Never fails. No line break counts as crlf.
+/// R6b. Reads the format from raw bytes. Never fails. Without a line break, a new note's line breaks apply.
 pub fn sniff(bytes: &[u8]) -> TextFormat {
     let crlf = match bytes.iter().position(|&b| b == b'\n') {
         Some(i) => i > 0 && bytes[i - 1] == b'\r',
-        None => true,
+        None => TextFormat::NEW_FILE.crlf,
     };
     TextFormat { crlf, bom: bytes.starts_with(&BOM) }
 }

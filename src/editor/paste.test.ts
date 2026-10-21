@@ -12,7 +12,7 @@ import { saveImage } from '../ipc';
 import { showError } from '../infobar';
 import { scheduleSessionSave } from '../session';
 import { createEditorState } from './setup';
-import { placeImages } from './paste';
+import { pastePlainText, placeImages } from './paste';
 import { getState, initRegistry, setState, setView } from './registry';
 
 initRegistry({ filePathOf: () => null, onChange: () => {} });
@@ -149,5 +149,23 @@ describe('placeImages', () => {
     placeImages('a', []);
     expect(view.state.doc.toString()).toBe('A');
     expect(scheduleSessionSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('Paste as Plain Text from the macOS menu (SPEC §13)', () => {
+  it('replaces the selection in the focused note, with line breaks normalized', () => {
+    mount('ab', 1);
+    view.dispatch({ selection: { anchor: 1, head: 2 } });
+    view.contentDOM.focus();
+    pastePlainText(view, 'x\r\ny');
+    expect(view.state.doc.toString()).toBe('ax\ny');
+    expect(view.state.selection.main.head).toBe(4);
+  });
+
+  it('does nothing when the note does not have focus (read mode, the tab strip)', () => {
+    mount('ab');
+    view.contentDOM.blur();
+    pastePlainText(view, 'x');
+    expect(view.state.doc.toString()).toBe('ab');
   });
 });
