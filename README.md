@@ -13,6 +13,8 @@
 ## Your notes stay yours
 Notes are plain Markdown files with an image folder next to them (`labo-04.md` + `labo-04.assets/`). They open without loss in VS Code, Obsidian and on GitHub, and they keep working if you stop using SnipMD.
 
+**With Obsidian:** save a note into a folder of your vault and Obsidian shows its screenshots. A note open in both apps stays in step: a change in one shows up in the other.
+
 ## It never loses anything
 - **Untitled notes survive a crash, Alt+F4 or a restart**, together with their screenshots. A screenshot that is still being saved when you close still lands in the note.
 - **Closing a tab asks nothing.** `Ctrl+Shift+T` brings it back, also after a restart.
@@ -51,9 +53,9 @@ SnipMD makes no network connections and collects nothing. See [`SECURITY.md`](SE
 ## Install
 SnipMD runs on Windows 10 and 11 (x64).
 
-**Version 1.0 is not released yet.** Once it is, download `SnipMD_<version>_x64-setup.exe` from [Releases](../../releases). The installer needs no admin rights, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it.
+Download `SnipMD_<version>_x64-setup.exe` from [Releases](../../releases). The installer needs no admin rights, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it. To open `.md` files with a double-click, pick SnipMD once under *Open with*.
 
-Until then you can build it yourself. You need Node.js 22, Rust with the MSVC toolchain, and the Visual Studio C++ build tools:
+To build it yourself, you need Node.js 22, Rust with the MSVC toolchain, and the Visual Studio C++ build tools:
 
 ```powershell
 npm ci

@@ -2,7 +2,7 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - unreleased
+## [1.0.0] - 2026-10-22
 
 The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; the session file and image folders of 0.1.0 are not carried over.
 
@@ -22,6 +22,7 @@ The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; the sessi
 - A visual system modelled on Windows 11: light and dark follow Windows, Mica behind the tab bar on Windows 11, WCAG AA contrast, reduced motion respected.
 - Keyboard: every action has a key (SPEC §10); `F6` moves between note, info bar and tabs; the tab strip works with arrows, Enter and Delete.
 - An empty tab shows the core loop.
+- The first window fits the screen, also on a small laptop at high scaling.
 
 ### Security
 - Every opened note is untrusted: strict CSP, sanitized read mode, links never navigate the window, Rust commands only touch files the user opened, their image folders and the app's own folder; the asset protocol is granted per folder.
