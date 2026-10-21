@@ -6,7 +6,7 @@ What is open, and the decisions still in force. Replace a section when it change
 All of SPEC.md v1 is on `main` with CI green, and the version is 1.0.0.
 
 1. **Windows tests on the owner's PC: passed** (2026-10-21/22, report on the unmerged `test/w11-20261021` branch). Security with `fixtures/evil.md`, paste then Alt+F4, paste and drop, first save, external edits with the conflict bar, Save As to another drive, closed tabs, held Ctrl+W, browser keys off, F6 and the tab strip, Mica, the installed app, Obsidian both ways, and 100%, 150% and 200% scaling. Three defects were found and fixed: autofill over the find fields (#20), code blocks that did not wrap in read mode (#36), and a first window taller than the screen at high scaling (#37). Left for after the release: a pulled USB stick and Ctrl+1 on a real AZERTY keyboard (the code handles it), and the first window sitting 7 px above the screen when it is shrunk to fit.
-2. **Final whole-app review** before the tag.
+2. **Final whole-app review: done** (2026-10-22). Two blockers (a session that could not be read was overwritten; a note that crashed the read-mode renderer stopped every later startup) and four majors were fixed in #38, each with a test, over three review rounds. Minor findings are in #39.
 3. **Tag `v1.0.0`** (owner's go), then smoke-test the published installer (RELEASE-WIN11.md).
 
 Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on `main` e951acb):
