@@ -199,7 +199,9 @@ on run argv
   set pid to (item 1 of argv) as integer
   set out to ""
   tell application "System Events"
-    repeat with e in (entire contents of window 1 of (first process whose unix id is pid))
+    set els to entire contents of window 1 of (first process whose unix id is pid)
+    repeat with i from 1 to count of els
+      set e to item i of els
       set r to ""
       set d to ""
       set v to ""
@@ -228,10 +230,10 @@ on run argv
   tell application "System Events"
     set w to window 1 of (first process whose unix id is pid)
     set b to first button of w whose subrole is "AXCloseButton"
-    set {wx, wy} to position of w
-    set {bx, by} to position of b
-    set {bw, bh} to size of b
-    return ((bx - wx + bw / 2) as integer as text) & " " & ((by - wy + bh / 2) as integer as text)
+    set {winX, winY} to position of w
+    set {btnX, btnY} to position of b
+    set {btnW, btnH} to size of b
+    return ((btnX - winX + btnW / 2) as integer as text) & " " & ((btnY - winY + btnH / 2) as integer as text)
   end tell
 end run
 APPLESCRIPT
@@ -242,34 +244,35 @@ start topbar
 activate_app
 shot 05-topbar >/dev/null
 screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
-echo "-- window buttons (role, subrole, description, position, size):"
-osascript -e "tell application \"System Events\" to tell window 1 of (first process whose unix id is $PID) to get {role, subrole, description, position, size} of buttons" 2>&1
-read -r bx by <<<"$(close_button_centre)"
-if [ -z "${by:-}" ]; then
+read -r cx cy <<<"$(close_button_centre)"
+if [ -z "${cy:-}" ]; then
   report traffic-lights BLOCKED "no close button found through System Events"
-elif [ "$by" -ge 13 ] && [ "$by" -le 21 ]; then
-  report traffic-lights PASS "close button centre at x $bx, y $by: inside the 34 pt bar"
+elif [ "$cy" -ge 13 ] && [ "$cy" -le 21 ]; then
+  report traffic-lights PASS "close button centre at x $cx, y $cy: inside the 34 pt bar"
 else
-  report traffic-lights FAIL "close button centre at x $bx, y $by; the 34 pt bar's middle is y 17"
+  report traffic-lights FAIL "close button centre at x $cx, y $cy; the 34 pt bar's middle is y 17"
 fi
 ax=$(ax_dump)
 echo "$ax" >"$OUT/05-topbar-ax.txt"
-echo "-- accessibility tree: $(echo "$ax" | grep -c .) elements; buttons and the first 40 lines:"
+echo "-- accessibility tree: $(echo "$ax" | grep -c .) elements; the buttons:"
 echo "$ax" | grep '^AXButton' | head -20
-echo "$ax" | head -40
-if [ -z "$ax" ]; then
-  report own-buttons BLOCKED "no accessibility tree"
-elif echo "$ax" | grep -qE '^AXButton\|(Minimize|Maximize|Restore)\|'; then
-  report own-buttons FAIL "the page still draws its own window buttons"
+# The page's tree must be visible before an absent button means anything. The labels are read off
+# the + button: the empty hint is aria-hidden (CodeMirror's placeholder), and both come from
+# platform.ts.
+if ! echo "$ax" | grep -q '^AXButton|New tab'; then
+  report own-buttons BLOCKED "the page's accessibility tree is not visible (tree in 05-topbar-ax.txt)"
+  report key-labels BLOCKED "the page's accessibility tree is not visible"
 else
-  report own-buttons PASS "no Minimize/Maximize buttons in the page"
-fi
-# The empty hint is aria-hidden (CodeMirror's placeholder), so the labels are read off the + button;
-# both come from platform.ts. The hint itself is in the screenshots.
-if echo "$ax" | grep -q '^AXButton|New tab (⌘T)|'; then
-  report key-labels PASS "the + button reads \"New tab (⌘T)\""
-else
-  report key-labels FAIL "no \"New tab (⌘T)\" button (tree in 05-topbar-ax.txt)"
+  if echo "$ax" | grep -qE '^AXButton[|](Minimize|Maximize|Restore)[|]'; then
+    report own-buttons FAIL "the page still draws its own window buttons"
+  else
+    report own-buttons PASS "the page has a New tab button and no Minimize/Maximize buttons"
+  fi
+  if echo "$ax" | grep -q '^AXButton|New tab (⌘T)|'; then
+    report key-labels PASS "the + button reads \"New tab (⌘T)\""
+  else
+    report key-labels FAIL "the + button reads: $(echo "$ax" | grep '^AXButton|New tab' | head -1)"
+  fi
 fi
 quit_app
 
@@ -312,13 +315,12 @@ fi
 
 echo "== Replace is Cmd+Option+F; Cmd+H hides the app (SPEC §13)"
 start replace
+# With the text selected, Find starts with a term and Replace gets the cursor (as Ctrl+H on Windows).
 if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3' \
+  'tell application "System Events" to keystroke "a" using command down' 'delay 0.3' \
   'tell application "System Events" to keystroke "f" using {command down, option down}'; then
   sleep 1
   shot 06-replace >/dev/null
-  echo "-- focused element (role, description, placeholder):"
-  osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set f to value of attribute \"AXFocusedUIElement\"" \
-    -e "tell application \"System Events\" to get {role of f, description of f, value of attribute \"AXPlaceholderValue\" of f}" 2>&1
   focus=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to get description of (value of attribute \"AXFocusedUIElement\")" 2>/dev/null)
   if [ "$focus" = "Replace" ]; then
     report replace PASS "Cmd+Option+F put the cursor in the Replace field"
