@@ -2,7 +2,7 @@
 import { placeholder } from '@codemirror/view';
 import { IS_MAC, keys } from '../platform';
 
-const SNIP: [string, string] = IS_MAC ? ['⌃⇧⌘4', 'snip part of the screen'] : ['Win+Shift+S', 'snip part of the screen'];
+const SNIP = IS_MAC ? '⌃⇧⌘4' : 'Win+Shift+S';
 // macOS has a second way in: the floating thumbnail of ⇧⌘4, dragged onto the note.
 const MORE = IS_MAC ? 'Or press ⇧⌘4 and drag its thumbnail here. ' : '';
 
@@ -15,7 +15,7 @@ function hint(): HTMLElement {
   };
   const root = el('span', 'empty-hint');
   const steps = el('span', 'empty-hint-steps');
-  for (const [k, what] of [SNIP, [keys('Ctrl+V'), 'paste it here, saved at once'], [keys('Ctrl+S'), 'name the note when you like']]) {
+  for (const [k, what] of [[SNIP, 'snip part of the screen'], [keys('Ctrl+V'), 'paste it here, saved at once'], [keys('Ctrl+S'), 'name the note when you like']]) {
     const step = el('span', '');
     step.append(el('kbd', '', k));
     steps.append(step, el('span', '', what));

@@ -174,10 +174,14 @@ else
   report paste BLOCKED "could not put a PNG on the clipboard"
 fi
 
-# Sends System Events lines to the app after activating it; false without Accessibility.
-keys_to_app() {
+activate_app() {
   osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
   sleep 1
+}
+
+# Sends System Events lines to the app after activating it; false without Accessibility.
+keys_to_app() {
+  activate_app
   local args=()
   for line in "$@"; do args+=(-e "$line"); done
   osascript "${args[@]}" 2>/dev/null
@@ -190,8 +194,7 @@ tab_counts() {
 
 echo "== Top bar (SPEC §13: system window buttons, room for them, macOS key labels in the hint)"
 start topbar
-osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
-sleep 1
+activate_app
 shot 05-topbar >/dev/null
 screencapture -x -R0,0,560,200 "$OUT/05-topbar-zoom.png" 2>/dev/null
 report topbar SEE "05-topbar.png and 05-topbar-zoom.png: traffic lights left of the first tab, no own buttons, ⌘ keys in the hint"

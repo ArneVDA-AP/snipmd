@@ -22,6 +22,8 @@ interface TabEl {
   close: HTMLButtonElement;
 }
 
+const CLOSE_KEY = keys('Ctrl+W');
+
 function setMaximized(maxBtn: HTMLButtonElement, max: boolean): void {
   const label = max ? 'Restore' : 'Maximize';
   if (maxBtn.title === label) return;
@@ -148,7 +150,7 @@ export class Titlebar {
       const tip = tab.filePath ?? `${tab.title} (not saved yet)`;
       if (t.el.title !== tip) t.el.title = tip;
       t.el.setAttribute('aria-selected', String(active));
-      t.close.title = `Close ${tab.title} (${keys('Ctrl+W')})`;
+      t.close.title = `Close ${tab.title} (${CLOSE_KEY})`;
       t.close.setAttribute('aria-label', `Close ${tab.title}${tab.dirty ? ', unsaved changes' : ''}`);
       return t.el;
     });

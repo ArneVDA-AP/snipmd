@@ -9,7 +9,7 @@ const MAC_MODS: [string, string][] = [['Ctrl', '⌃'], ['Alt', '⌥'], ['Shift',
  * A Windows combination (`Ctrl+Shift+S`) the way macOS writes it (`⇧⌘S`): Ctrl becomes Cmd,
  * except before Tab, which stays Control as in browsers (SPEC §13).
  */
-export function macKeys(combo: string): string {
+function macKeys(combo: string): string {
   const parts = combo.split('+');
   const key = parts.pop()!;
   const mods = new Set(parts.map((m) => (m === 'Ctrl' && key !== 'Tab' ? 'Cmd' : m)));

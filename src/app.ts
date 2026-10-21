@@ -114,9 +114,11 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 's': return COMMANDS.save;
     case 'w': return COMMANDS['close-tab'];
     case 'e': return COMMANDS['read-mode'];
-    case 'f': case 'h':
-      // Cmd+H hides the app on macOS; replace is Cmd+Option+F there, through the menu (SPEC §13).
-      if (key === 'h' && IS_MAC) return undefined;
+    case 'h':
+      // Cmd+H hides the app on macOS; replace is Cmd+Option+F there (SPEC §13).
+      if (IS_MAC) return undefined;
+    // fall through
+    case 'f':
       // In the note CodeMirror handles the key itself; outside it (tab strip, a bar) and in read mode, open the panel here.
       if (getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
       return COMMANDS[key === 'h' ? 'replace' : 'find'];
