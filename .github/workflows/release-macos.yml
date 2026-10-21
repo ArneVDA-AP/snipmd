@@ -1,0 +1,142 @@
+name: Release macOS
+
+# The universal macOS app as a .dmg (SPEC §13). Every run builds it, installs it from the .dmg the
+# way a tester does, runs the acceptance probes on that copy, and uploads the .dmg as a workflow
+# artifact. Publishing is a separate choice: run the workflow on a version tag with "publish" on,
+# and the .dmg joins that tag's release. A tag push alone does not publish, so tagging a Windows
+# release never ships a macOS build the tester has not checked.
+# The build job has a read-only token. Apple's secrets reach only the packaging step, which runs
+# Apple's tools and none of the dependencies' code. Only the publish job can write, and it runs no
+# project code.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Add the .dmg to the release of the tag this run is on
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      # 'true' or 'false' only; the secret itself stays out of the job's environment.
+      DEVELOPER_ID: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # install scripts and build.rs never see a write token
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Core tests (on macOS, so new notes are checked for LF)
+        working-directory: src-tauri
+        run: cargo test -p snipmd-core --locked
+
+      - name: Tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v=$(node -p 'require("./package.json").version')
+          [ "v$v" = "${{ github.ref_name }}" ] || { echo "Tag ${{ github.ref_name }} does not match version $v"; exit 1; }
+
+      - name: Build the app (universal, ad-hoc signed)
+        run: npx tauri build --target universal-apple-darwin --bundles app --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+
+      - name: Sign, pack and notarize
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          v=$(node -p 'require("./package.json").version')
+          tools/release/macos-package.sh src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app release "$v"
+
+      - name: Check the .dmg size (SPEC §9, under 10 MB)
+        run: |
+          dmg=$(ls release/*.dmg)
+          bytes=$(stat -f %z "$dmg")
+          echo "$(basename "$dmg"): $((bytes / 1024)) KB" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$bytes" -lt 10485760 ] || { echo "Over the 10 MB budget"; exit 1; }
+
+      - name: Install from the .dmg as a tester does, and run the probes on that copy
+        shell: bash # pipefail: a broken probe harness fails the step through tee
+        run: |
+          out="$RUNNER_TEMP/probe"
+          mkdir -p "$out" "$RUNNER_TEMP/Applications"
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" release/*.dmg
+          cp -R "$mnt/SnipMD.app" "$RUNNER_TEMP/Applications/"
+          hdiutil detach "$mnt"
+          app="$RUNNER_TEMP/Applications/SnipMD.app"
+          # A download from a browser carries this flag; Gatekeeper judges the app by it.
+          xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$app"
+          verdict=$(spctl --assess --type execute -vv "$app" 2>&1 || true)
+          echo "Gatekeeper on the downloaded app: $verdict" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$DEVELOPER_ID" = "true" ]; then
+            echo "$verdict" | grep -q accepted || { echo "A Developer ID build must pass Gatekeeper"; exit 1; }
+          fi
+          # The tester's step for an ad-hoc build (RELEASE-MACOS.md); harmless on a notarized one.
+          xattr -dr com.apple.quarantine "$app"
+          tools/measure/macos-probe.sh "$app" "$out" 2>&1 | tee release/probe.txt
+          if grep -E ': (FAIL|BLOCKED) - ' release/probe.txt; then
+            echo "A probe did not pass on the installed copy"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: SnipMD-macos-universal
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.publish && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: SnipMD-macos-universal
+          path: release
+
+      # Joins the tag's release when the Windows workflow made it already, or creates it.
+      - name: Publish the .dmg
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          append_body: true
+          body: |
+
+            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal.dmg`. Open it and drag SnipMD to Applications. Until SnipMD has a Developer ID, the first start needs the steps in RELEASE-MACOS.md.
+          files: release/*.dmg
