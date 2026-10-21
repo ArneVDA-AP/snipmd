@@ -10,7 +10,7 @@ import { readNote } from './ipc';
 import { clearTabInfo, showError } from './infobar';
 import { closeTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
-import { applyToTab, getState, getView, trackImageSave } from './editor/registry';
+import { applyToTab, filePathFor, getState, getView, trackImageSave } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
@@ -186,6 +186,12 @@ describe('a closed tab is a tab without a view', () => {
     expect(applyToTab('pa', { changes: { from: 4, insert: '\n![snip](untitled.assets/s.png)' } })).toBe(true);
     expect(snapshot().closedTabs[0].tab.content).toBe('text\n![snip](untitled.assets/s.png)');
     expect(textOf((await reopenClosed('pa'))!)).toBe('text\n![snip](untitled.assets/s.png)');
+  });
+
+  it('a closed note keeps its path, so a paste still running saves next to the note, not in scratch', async () => {
+    await restore(session([tab({ id: 'fp', filePath: 'C:/n/fp.md', content: 'note' }), tab({ id: 'fq', content: 'k' })]));
+    await closeTab('fp');
+    expect(filePathFor('fp')).toBe('C:/n/fp.md');
   });
 
   it('keeps unwritten edits past 20 entries; drops the others and their editor state', async () => {
