@@ -3,7 +3,7 @@
 ## Ground truth
 - `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, raise it and update the spec first.
 - `PLAN.md` is the cleanup plan from the prototype to `SPEC.md` v1. Do one phase at a time, on its own branch, and only the phase that was asked for.
-- `ARCHITECTURE.md` describes the original prototype design and is **outdated** (shared `.assets/`, GC on tab close, localStorage). Don't follow it.
+- `ARCHITECTURE.md` explains the code layout as it is now; keep it current when the layout changes.
 
 ## Workflow
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked.

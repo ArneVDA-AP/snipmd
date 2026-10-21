@@ -1,43 +1,31 @@
-# SnipMD v0.1.0 — Windows 11 Release Packaging Guide
+# Releasing SnipMD for Windows
 
-SnipMD is configured out-of-the-box to package into three native **Windows 11 (x64)** distribution formats using **Tauri v2** and **Rust (`x86_64-pc-windows-msvc`)**:
+SnipMD ships as a per-user NSIS installer (`SnipMD_<version>_x64-setup.exe`), an MSI for managed installs, and the bare `snip-md.exe`. All three run on Windows 10 and 11 (x64) with WebView2; the installer fetches WebView2 when it is missing. Target size: under 10 MB (SPEC §9).
 
-| Artifact | Output Filename | Best For |
-| :--- | :--- | :--- |
-| **NSIS Installer** | `SnipMD_0.1.0_x64-setup.exe` | Daily-driver Windows 11 setup (`currentUser` mode, registers `.md` & `.markdown` Explorer file associations, auto-bootstraps WebView2 if missing). |
-| **WiX MSI Package** | `SnipMD_0.1.0_x64_en-US.msi` | Enterprise / Group Policy deployment on Windows 11 workstations. |
-| **Portable Binary** | `SnipMD_0.1.0_x64_Portable.exe` (`snip-md.exe`) | Zero-install single binary (~3.5 MB with LTO + symbol stripping) using native Windows 11 WebView2. |
+## From a tag (the normal way)
+1. Set the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and move the `CHANGELOG.md` section from *unreleased* to the date.
+2. Merge to `main` with CI green.
+3. Push a tag `v<version>` on that commit. The workflow *Release Windows* (`.github/workflows/release-win11.yml`) builds on `windows-latest`, checks the installer size and publishes a GitHub release with the three files.
 
----
+A manual run of the same workflow (Actions → Run workflow) builds the files as workflow artifacts and publishes nothing.
 
-## Option A — 1-Click Local Build on Windows 11 (Recommended)
+## Locally
+Requires Node.js 22, Rust stable with the MSVC toolchain, and the Visual Studio C++ build tools.
 
-1. Download **`SnipMD-v0.1.0-Win11-x64-Release-Kit.zip`** from the **Win11 Release** modal inside the app (or clone this project).
-2. Extract the archive on your Windows 11 PC.
-3. Ensure prerequisites are installed (one-time setup in PowerShell):
-   ```powershell
-   winget install OpenJS.NodeJS.LTS
-   winget install Rustlang.Rustup
-   ```
-   *(Make sure "Desktop development with C++" is enabled in Visual Studio Build Tools).*
-4. Double-click **`build-win11-release.bat`** (or run `.\build-win11-release.ps1` in PowerShell).
-5. The script automatically compiles the frontend + Rust crate with LTO optimizations, stages all 3 Windows 11 executables into **`./release-win11/`**, and opens Windows Explorer to the folder.
+```powershell
+.\build-win11-release.ps1
+```
+It runs `npm ci`, the typecheck, the tests and the release build, and copies the files to `release-win11\`.
 
----
+## Smoke test of an installer
+On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\snip-md`):
+1. Run the setup. It installs without admin rights; the Start menu has SnipMD.
+2. Start SnipMD: one empty tab with the core-loop hint, in the Windows theme.
+3. `Win+Shift+S`, `Ctrl+V`: the screenshot shows below the cursor; type on.
+4. `Ctrl+S`, Enter: `Documents\Notes\<name>.md` and `<name>.assets\` exist side by side.
+5. Double-click a `.md` file in Explorer: it opens as a tab in the running window.
+6. Close and start again: the tabs are back.
+7. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
-## Option B — Zero-Install Cloud Build via GitHub Actions
-
-If you do not want to install the Rust/MSVC C++ toolchain locally on your PC:
-
-1. Push this repository to GitHub.
-2. Open the **Actions** tab → **"Release Windows 11 (x64 NSIS, MSI & Portable)"** → click **Run workflow** (or push tag `v0.1.0`).
-3. GitHub's `windows-latest` runner compiles `SnipMD_0.1.0_x64-setup.exe`, `SnipMD_0.1.0_x64_en-US.msi`, and `snip-md.exe` and attaches them to your GitHub Release & workflow artifacts.
-
----
-
-## Windows 11 Native Capabilities Included in the Release Build
-
-- **Frameless Windows 11 Shell (`decorations: false`)**: Native window drag region (`data-tauri-drag-region`) + minimize/maximize/close controls.
-- **Single-Instance File Association (`tauri-plugin-single-instance`)**: Double-clicking any `.md` or `.markdown` file in Windows 11 File Explorer opens it as a new tab inside your already-running SnipMD window (`external-open-files` event) rather than spawning duplicate processes.
-- **Atomic `Win + Shift + S` → `Ctrl + V` Snipping**: Intercepts `image/png` clipboard payloads and writes them atomically (`OpenOptions::new().write(true).create_new(true)`) to `<note-dir>/.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png` or `%APPDATA%\snip-md\scratchpad\.assets\`.
-- **Cross-Drive Safe Promotion**: Promoting a scratchpad tab from `C:\Users\<User>\AppData\Roaming\snip-md\scratchpad\.assets\` to a note saved on `D:\` or `E:\` automatically falls back to `fs::copy` + `fs::remove_file` across Windows drive volumes.
+## Measuring the budgets
+`tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values in `PLAN.md`.

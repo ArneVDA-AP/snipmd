@@ -1,91 +1,40 @@
-> **Outdated.** This describes the original prototype design and is superseded by `SPEC.md`. Kept for reference until the cleanup replaces it.
+# SnipMD architecture
 
-# SnipMD — Architecture & Data Flow Diagrams
+How the code is laid out and why. Behaviour is defined in `SPEC.md`; the rules for changing code are in `CLAUDE.md` (guardrails and conventions).
 
-## 1. High-Level Component Architecture
-
-```mermaid
-graph TD
-  subgraph Frontend ["WebView2 Frontend (Vanilla TS + Vite)"]
-    UI["Titlebar & Tab Strip (titlebar.ts)"]
-    TM["TabManager & Session State (TabManager.ts)"]
-    CM["CodeMirror 6 Editor (setup.ts)"]
-    PH["Paste Interceptor (pasteHandler.ts)"]
-    IW["Block Image StateField (imageWidget.ts)"]
-    PR["Marked HTML Preview (renderer.ts)"]
-  end
-
-  subgraph Backend ["Tauri v2 Core (Rust / lib.rs)"]
-    IPC_IMG["save_clipboard_image"]
-    IPC_PROM["promote_scratch_assets"]
-    IPC_GC["gc_scratch_assets"]
-    IPC_FS["read / write_markdown_file"]
-    IPC_SES["load / save_session"]
-  end
-
-  subgraph Disk ["Windows 11 Filesystem"]
-    LOCAL["<md_dir>/.assets/snip-YYYYMMDD-HHMMSS-mmm-XXXX.png"]
-    SCRATCH["%APPDATA%/snip-md/scratchpad/.assets/"]
-    SESSION["%APPDATA%/snip-md/session.json"]
-  end
-
-  UI --> TM
-  TM --> CM
-  TM --> PR
-  CM --> PH
-  CM --> IW
-  PH -- "Uint8Array + filePath" --> IPC_IMG
-  IPC_IMG -- "filePath != null (create_new)" --> LOCAL
-  IPC_IMG -- "filePath == null (create_new)" --> SCRATCH
-  TM -- "Ctrl+S on Unsaved Tab" --> IPC_PROM
-  IPC_PROM -- "Move referenced + sweep orphans" --> IPC_GC
-  TM -- "Ctrl+W on Unsaved Tab" --> IPC_GC
-  IPC_SES -- "Startup load_session sweep" --> IPC_GC
-  IPC_GC -- "Delete unreferenced files" --> SCRATCH
-  TM -- "window.blur" --> IPC_FS
-  TM -- "window.blur" --> IPC_SES
-  IPC_SES --> SESSION
+## Shape
 ```
-
-## 2. Snipping Tool Paste & Atomic Write Flow
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant CM6 as CodeMirror 6 (pasteHandler.ts)
-  participant Rust as Rust IPC (lib.rs)
-  participant FS as Windows Filesystem
-
-  User->>CM6: Win+Shift+S then Ctrl+V
-  CM6->>CM6: Detect clipboardData item "image/png"
-  CM6->>CM6: Convert Blob -> Uint8Array
-  CM6->>Rust: invoke('save_clipboard_image', { bytes, currentFilePath })
-  Rust->>Rust: Generate snip-YYYYMMDD-HHMMSS-mmm-XXXX.png
-  Rust->>FS: create_dir_all(.assets)
-  Rust->>FS: OpenOptions::new().write(true).create_new(true)
-  Note over Rust,FS: Retries with new 4-hex suffix if AlreadyExists
-  Rust-->>CM6: { markdownRelPath: ".assets/snip-...png", absDiskPath: "..." }
-  CM6->>CM6: Insert "![snip](.assets/snip-...png)" at cursor
-  CM6->>CM6: StateField resolves convertFileSrc(absDiskPath) & renders <img> widget
+WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                      snipmd-core (no Tauri)
+  app.ts  wiring, keys, lifecycle              lib.rs  commands, allowed set,        paths    lexical path checks
+  tabs.ts tab list, editor/read panes                  drop, setup, session          atomic   temp + flush + rename
+  saving / external / closedTabs / drop        backdrop.rs  Windows 11 Mica          naming   snip-…png, create_new
+  editor/  states, paste, images, search       links.rs     links open outside       assets   move/copy image folders
+  preview/ read mode (loaded on first use)     perf.rs      budget marks             text     line endings, BOM
+  infobar / titlebar / firstSaveBar                                                  cleanup  startup scratch cleanup
+        │  invoke (typed wrappers in ipc.ts)        │  calls
+        └──────────────────────────────────────────┘
 ```
+- **One store**: `%APPDATA%/snip-md/session.json` holds tabs, untitled text, closed tabs and the last folder. It is written atomically, debounced while typing and at once after a paste, a save, a close or blur (`session.ts`).
+- **Untitled tabs** keep their images in `%APPDATA%/snip-md/scratch/<tab id>/`, linked as `untitled.assets/…`. The first save writes the note, then moves that folder to `<stem>.assets/` and rewrites the links in one undoable step.
+- **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per folder at runtime.
 
-## 3. Scratchpad Promotion & Orphan Garbage Collection Flow
+## Frontend
+- `app.ts` is the only place that connects modules: it builds the DOM skeleton, owns the keyboard table (SPEC §10) and F6 focus regions, and hooks the window's close-requested event to flush writes.
+- `tabs.ts` owns the tab list and which pane is visible. A tab's text lives only in its CodeMirror `EditorState` (`editor/registry.ts`); `textOf(tab)` reads it. Closed tabs are tabs without a view: they keep their state, so a paste or write that ends after the close still lands.
+- `saving.ts` writes notes one at a time per tab and sends the disk stamp it last saw; Rust refuses a write when the file changed. `external.ts` owns conflicts and their bars.
+- `infobar.ts` is the only way to show messages and choices (no dialogs). A bar that belongs to a tab has a key ending in `:<tab id>`.
+- `editor/setup.ts` builds a tab's state: GFM Markdown without embedded languages, the highlight style, line styling (`mdStyle.ts`), the empty-state hint, find and replace, paste and inline images (`imageWidget.ts`, a `StateField` of block widgets with an async URL cache).
+- `preview/render.ts` (read mode) renders with `marked` and sanitizes with DOMPurify; images the app resolved get their URL after sanitizing, so a note cannot forge one. It is a separate chunk, loaded when the window is idle.
+- `styles/main.css` holds the visual system: tokens for type, space, radius, motion and colour in both themes. `contrast.test.ts` checks every text pair for WCAG AA.
 
-```mermaid
-sequenceDiagram
-  participant User
-  participant TM as TabManager.ts
-  participant Rust as Rust IPC (lib.rs)
-  participant Scratch as %APPDATA%/.../scratchpad/.assets
-  participant Local as <target_dir>/.assets
+## Rust
+- Every command that touches the disk is async, so a slow or removed drive never freezes the window.
+- New images are created with `create_new` and a unique name; notes and the session are written to a temp file in the same folder, flushed and renamed.
+- The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab or closed tab.
+- `SNIPMD_DATA_DIR` points the app at another data folder and `SNIPMD_TRACE` writes budget marks to `perf.log` there; `tools/measure/measure.ps1` uses both.
 
-  User->>TM: Presses Ctrl+S on Unsaved Tab ("Untitled-1")
-  TM->>User: Native Save Dialog -> selects "D:\notes\meeting.md"
-  TM->>Rust: invoke('promote_scratch_assets', { content, targetMdPath, remainingUnsavedContents })
-  Rust->>Rust: Parse referenced ".assets/snip-*.png" in content
-  Rust->>Local: Move referenced files from Scratch -> Local
-  Rust->>Rust: Write content to "D:\notes\meeting.md"
-  Rust->>Rust: gc_scratch_assets(remainingUnsavedContents)
-  Rust->>Scratch: Delete any snip-*.png not referenced in remainingUnsavedContents
-  Rust-->>TM: Promotion & GC complete
-```
+## Tests
+- `npm test`: Vitest with jsdom, one test file per module.
+- `cargo test -p snipmd-core`: the Rust logic, on any OS.
+- CI on `windows-latest` runs both, builds the frontend and checks the Tauri crate on every push.
+- `tools/ui-tour/tour.cjs`: screenshots of every UI state in light and dark, at 100-200% scaling, with a mocked backend.

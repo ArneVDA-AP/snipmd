@@ -38,9 +38,9 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
-    "category": "DeveloperTool",
-    "shortDescription": "Frameless Windows 11 Markdown & Snipping Tool Workspace",
-    "longDescription": "Ultra-lightweight frameless Windows 11 Markdown note-taking application with instant Win+Shift+S clipboard paste, CodeMirror 6 inline screenshot widgets, and mark-and-sweep scratchpad garbage collection.",
+    "category": "Productivity",
+    "shortDescription": "Markdown notes with instant screenshot paste",
+    "longDescription": "Paste, type, keep going. Win+Shift+S, Ctrl+V: the screenshot is in your note and on disk. Notes stay plain Markdown files with an image folder next to them.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
