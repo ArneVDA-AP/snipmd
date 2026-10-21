@@ -29,7 +29,7 @@ pub use mac::{opened, setup};
 mod mac {
     use super::{quit, OpenedNotes};
     use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
-    use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Runtime, Url, WebviewWindow};
+    use tauri::{AppHandle, Emitter, Manager, Runtime, Url};
 
     /// SPEC §13 menu bar. Custom items carry the page's command name as their id.
     fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -134,27 +134,12 @@ mod mac {
         let _ = app.emit("notes-opened", ());
     }
 
-    /// Startup: the menu bar, the quit hook, and a first window that fits the screen (the config
-    /// size is for a laptop).
+    /// Startup: the menu bar and the quit hook.
     pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         app.set_menu(menu(app)?)?;
         app.on_menu_event(on_menu_event);
         quit::install(app);
-        if let Some(window) = app.get_webview_window("main") {
-            fit_to_screen(&window);
-        }
         Ok(())
-    }
-
-    fn fit_to_screen(window: &WebviewWindow) {
-        let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
-        let area = monitor.work_area().size;
-        if size.width <= area.width && size.height <= area.height {
-            return;
-        }
-        let fitted = PhysicalSize::new(size.width.min(area.width), size.height.min(area.height));
-        let _ = window.set_size(fitted);
-        let _ = window.center();
     }
 }
 

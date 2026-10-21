@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, DragDropEvent, Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, PhysicalSize, WebviewWindow, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 mod backdrop;
@@ -604,6 +604,19 @@ fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
     open_args(&app, std::env::args().skip(1), &cwd)
 }
 
+/// The configured first size (1200 x 820) is taller than the work area of a 1080p laptop at 150%
+/// or a 1440p screen at 200%, which would put the bottom of the window off-screen.
+fn fit_to_screen(window: &WebviewWindow) {
+    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
+    let area = monitor.work_area().size;
+    if size.width <= area.width && size.height <= area.height {
+        return;
+    }
+    let fitted = PhysicalSize::new(size.width.min(area.width), size.height.min(area.height));
+    let _ = window.set_size(fitted);
+    let _ = window.center();
+}
+
 pub fn run() {
     perf::start();
     tauri::Builder::default()
@@ -629,6 +642,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             if let Some(window) = handle.get_webview_window("main") {
+                fit_to_screen(&window);
                 backdrop::apply(&window);
             }
             if let Ok(dir) = app_data(handle) {
