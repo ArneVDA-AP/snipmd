@@ -187,6 +187,8 @@ Autonomous runs add one line per decision: date, what, why.
 - 2026-10-21. Keyboard: F6 / Shift+F6 cycle page, info bar and tab strip (Windows convention); the tab strip has one tab stop with arrows, Home, End, Enter and Delete; Esc dismisses a non-sticky bar; window buttons are not tab stops (Alt+Space and Alt+F4 reach them). Ctrl+F or Ctrl+H in read mode switches to writing and opens the panel.
 - 2026-10-21. The editor parses GFM without embedded HTML, CSS or JavaScript (bundle 658 to 398 KB). HTML tag completion and auto-closing tags go with it; SnipMD notes are Markdown, and SPEC §5 asks for neither. An image's target is found after its `(` mark, because GFM makes URLs in alt text nodes of their own.
 - 2026-10-21. Budget marks stay in the shipped build but cost one IPC call at start when tracing is off; `SNIPMD_TRACE` and `SNIPMD_DATA_DIR` are developer switches, documented in ARCHITECTURE.md, not in the SPEC (they do not change what a note can reach).
+- 2026-10-21. A paste in the middle of a note leaves the cursor on an empty line below the image, adding one when the next line has text: the core loop is "paste, keep typing", and typing must not join the next paragraph.
+- 2026-10-21. WebView2's browser keys (reload, print, history) and its page menu are switched off in the page; the menu stays over text for spelling and clipboard. Tauri 2.12 does not expose the WebView2 setting, and a reload loses undo history and in-flight screenshots.
 - 2026-10-21. The window title does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
 
 ## Handoff

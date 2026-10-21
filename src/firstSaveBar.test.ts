@@ -55,6 +55,21 @@ describe('first-save bar', () => {
     expect(input().value).toBe('dhcp-probleem-lokaal-b.md');
   });
 
+  it('skips # comments inside fenced code', async () => {
+    await open('```sh\n# install\napt install x\n```\n## Real title\n');
+    expect(input().value).toBe('real-title.md');
+    await open('~~~\n# not this\n');
+    expect(input().value).toMatch(/^note-\d{8}\.md$/);
+  });
+
+  it('adds .md to a name typed without it', async () => {
+    const { p } = await open('# Plan');
+    await type('meeting');
+    expect(noteNameFree).toHaveBeenLastCalledWith('C:/Notes/Work', 'meeting.md');
+    key('Enter');
+    await expect(p).resolves.toEqual({ folder: 'C:/Notes/Work', name: 'meeting.md' });
+  });
+
   it('removes accents', async () => {
     await open('# Café ölçü');
     expect(input().value).toBe('cafe-olcu.md');

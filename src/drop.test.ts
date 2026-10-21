@@ -7,16 +7,19 @@ const m = vi.hoisted(() => ({
   visible: { id: 'a' as string | null },
   posAtCoords: vi.fn(),
   mode: { v: 'edit' },
-  showError: vi.fn()
+  showError: vi.fn(),
+  activate: vi.fn(async () => {})
 }));
 vi.mock('./ipc', () => ({ importImage: m.importImage }));
 vi.mock('./tabs', () => ({
   getTab: () => ({ mode: m.mode.v }),
+  getActiveTab: () => (m.visible.id ? { id: m.visible.id, mode: m.mode.v } : undefined),
+  activate: m.activate,
   openPaths: m.openPaths
 }));
 vi.mock('./editor/paste', () => ({ placeImages: m.placeImages }));
 vi.mock('./editor/registry', () => ({
-  visibleTabId: () => m.visible.id,
+  trackImageSave: (_id: string, p: Promise<unknown>) => p,
   getView: () => ({ posAtCoords: m.posAtCoords }),
   filePathFor: () => 'C:/n/x.md'
 }));
@@ -61,6 +64,15 @@ describe('handleDrop', () => {
     m.mode.v = 'read';
     await handleDrop(drop(['1.png']));
     expect(m.placeImages.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('in read mode the images go to the active tab and it is shown again', async () => {
+    m.mode.v = 'read';
+    m.visible.id = 'b';
+    await handleDrop(drop(['1.png']));
+    expect(m.importImage.mock.calls[0][0]).toBe('b');
+    expect(m.placeImages.mock.calls[0][0]).toBe('b');
+    expect(m.activate).toHaveBeenCalledWith('b');
   });
 
   it('uses the cursor when the point is outside the text', async () => {

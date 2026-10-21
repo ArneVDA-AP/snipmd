@@ -10,7 +10,7 @@ import { readNote } from './ipc';
 import { clearTabInfo, showError } from './infobar';
 import { closeTab, initTabs, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
 import { inConflict, setConflict } from './diskState';
-import { applyToTab, getState, getView } from './editor/registry';
+import { applyToTab, getState, getView, trackImageSave } from './editor/registry';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
@@ -93,6 +93,21 @@ describe('closeTab', () => {
     await closeTab('a');
     expect(getTabs().map((t) => t.id)).toEqual(['b']);
     expect(textOf(closing)).toBe('typed');
+  });
+
+  it('keeps an empty untitled tab while a screenshot is still saving into it, so the link lands and Restore brings it back', async () => {
+    await restore(session([tab({ id: 'e', mode: 'edit' }), tab({ id: 'f', mode: 'edit', content: 'other' })]));
+    let land!: () => void;
+    void trackImageSave('e', new Promise<void>((r) => (land = r)));
+    expect(await closeTab('e')).toBeDefined();
+    applyToTab('e', { changes: { from: 0, insert: '![snip](untitled.assets/a.png)\n' } });
+    land();
+    expect(snapshot().closedTabs.find((c) => c.tab.id === 'e')?.tab.content).toBe('![snip](untitled.assets/a.png)\n');
+  });
+
+  it('drops an empty untitled tab with nothing saving', async () => {
+    await restore(session([tab({ id: 'g', mode: 'edit' }), tab({ id: 'h', mode: 'edit', content: 'x' })]));
+    expect(await closeTab('g')).toBeUndefined();
   });
 });
 

@@ -4,7 +4,7 @@ import { saveImage } from '../ipc';
 import type { SavedImage } from '../types';
 import { scheduleSessionSave } from '../session';
 import { showError } from '../infobar';
-import { applyToTab, filePathFor, getState, tabIdFacet } from './registry';
+import { applyToTab, filePathFor, getState, tabIdFacet, trackImageSave } from './registry';
 import { primeAssetCache } from './imageWidget';
 import { markPasteVisible } from '../perf';
 
@@ -18,7 +18,9 @@ function insertLinks(tabId: string, links: string[], at?: number): void {
   const from = line.length === 0 ? line.from : line.to;
   let insert = line.length === 0 ? block : `\n${block}`;
   const end = from + insert.length;
-  if (line.to >= doc.length) insert += '\n';
+  // The cursor goes to an empty line below the images (SPEC §2): the next line when it is empty,
+  // otherwise a new one, so typing never joins the text that follows.
+  if (line.to >= doc.length || doc.lineAt(line.to + 1).length > 0) insert += '\n';
   applyToTab(tabId, { changes: { from, to: line.to, insert }, selection: { anchor: end + 1 }, scrollIntoView: true });
 }
 
@@ -60,7 +62,8 @@ export function pasteExtension() {
       const file = item?.getAsFile();
       if (!file) return false;
       event.preventDefault();
-      void pasteImage(view.state.facet(tabIdFacet), file, event.timeStamp);
+      const tabId = view.state.facet(tabIdFacet);
+      void trackImageSave(tabId, pasteImage(tabId, file, event.timeStamp));
       return true;
     }
   });

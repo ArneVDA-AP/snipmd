@@ -14,7 +14,8 @@ import {
   setState,
   setView,
   textOf as editorText,
-  visibleTabId
+  visibleTabId,
+  imageSavesRunning
 } from './editor/registry';
 import { readNote } from './ipc';
 import { setConflict } from './diskState';
@@ -227,7 +228,13 @@ export async function activate(id: string): Promise<void> {
   }
 }
 
-async function addTab(title: string, filePath: string | null, content: string, extra?: Partial<TabState>): Promise<void> {
+async function addTab(
+  title: string,
+  filePath: string | null,
+  content: string,
+  extra?: Partial<TabState>,
+  after?: string
+): Promise<void> {
   const tab: TabState = {
     id: crypto.randomUUID(),
     title,
@@ -241,7 +248,9 @@ async function addTab(title: string, filePath: string | null, content: string, e
     format: null,
     ...extra
   };
-  tabs.push(tab);
+  const at = after ? tabs.findIndex((t) => t.id === after) : -1;
+  if (at === -1) tabs.push(tab);
+  else tabs.splice(at + 1, 0, tab);
   await activate(tab.id);
   changed({ immediate: true });
 }
@@ -250,9 +259,9 @@ export function newUntitled(): Promise<void> {
   return addTab(`Untitled-${untitledCounter++}`, null, '');
 }
 
-/** A new untitled tab in read mode holding `text`: the disk version of a note in conflict. */
-export function openCopy(title: string, text: string): Promise<void> {
-  return addTab(title, null, text, { mode: 'read' });
+/** A new untitled tab in read mode holding `text` (the disk version of a note in conflict), next to tab `after`. */
+export function openCopy(title: string, text: string, after?: string): Promise<void> {
+  return addTab(title, null, text, { mode: 'read' }, after);
 }
 
 export async function openPath(path: string): Promise<void> {
@@ -285,8 +294,8 @@ export async function closeTab(id: string): Promise<TabState | undefined> {
   const [closing] = tabs.splice(idx, 1);
   closing.content = textOf(closing);
   const now = Date.now();
-  // An empty untitled tab has nothing to bring back.
-  const keep = closing.filePath !== null || closing.content !== '';
+  // An empty untitled tab has nothing to bring back, unless a screenshot is still saving into it.
+  const keep = closing.filePath !== null || closing.content !== '' || imageSavesRunning(id);
   if (keep) closedTabs = recent([{ tab: closing, closedAt: now }, ...closedTabs], now);
   else dropState(id);
   if (tabs.length === 0) await newUntitled();
@@ -317,7 +326,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     const text = textOf(tab);
     dropState(tab.id);
     await activate(open.id);
-    if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text);
+    if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text, open.id);
     changed({ immediate: true });
     return undefined;
   }
@@ -380,5 +389,5 @@ export function markSaved(id: string, written: { text: string; stamp: DiskStamp;
   }
   tab.disk = written.stamp;
   if (textOf(tab) === written.text) tab.dirty = false;
-  changed();
+  changed({ immediate: true }); // SPEC §7: the session is written right after a save
 }

@@ -101,17 +101,17 @@ describe('paste rules', () => {
 });
 
 describe('placeImages', () => {
-  it('mid-line keeps the line text and puts the link below', () => {
+  it('mid-line keeps the line text, puts the link below and the cursor on a new empty line', () => {
     mount('hello\nworld', 2);
     placeImages('a', [img('l.png')]);
-    expect(view.state.doc.toString()).toBe('hello\n![snip](l.png)\nworld');
+    expect(view.state.doc.toString()).toBe('hello\n![snip](l.png)\n\nworld');
     expect(view.state.selection.main.head).toBe('hello\n![snip](l.png)\n'.length);
   });
 
-  it('an empty line takes the link', () => {
+  it('an empty line takes the link and the cursor stays on an empty line before the next text', () => {
     mount('a\n\nb', 2);
     placeImages('a', [img('l.png')]);
-    expect(view.state.doc.toString()).toBe('a\n![snip](l.png)\nb');
+    expect(view.state.doc.toString()).toBe('a\n![snip](l.png)\n\nb');
     expect(view.state.selection.main.head).toBe('a\n![snip](l.png)\n'.length);
   });
 
@@ -125,14 +125,21 @@ describe('placeImages', () => {
   it('at on another line wins over the cursor', () => {
     mount('one\ntwo\nthree', 0);
     placeImages('a', [img('l.png')], 5);
-    expect(view.state.doc.toString()).toBe('one\ntwo\n![snip](l.png)\nthree');
+    expect(view.state.doc.toString()).toBe('one\ntwo\n![snip](l.png)\n\nthree');
   });
 
   it('several images go in one block, in order, with no user text between them', () => {
     mount('A\nB\nC', 0);
     placeImages('a', [img('one.png'), img('two.png')], 0);
-    expect(view.state.doc.toString()).toBe('A\n![snip](one.png)\n![snip](two.png)\nB\nC');
+    expect(view.state.doc.toString()).toBe('A\n![snip](one.png)\n![snip](two.png)\n\nB\nC');
     expect(view.state.selection.main.head).toBe('A\n![snip](one.png)\n![snip](two.png)\n'.length);
+  });
+
+  it('an empty next line is used, not doubled', () => {
+    mount('A\n\nB', 0);
+    placeImages('a', [img('l.png')]);
+    expect(view.state.doc.toString()).toBe('A\n![snip](l.png)\n\nB');
+    expect(view.state.selection.main.head).toBe('A\n![snip](l.png)\n'.length);
   });
 
   it('nothing to place changes nothing and saves nothing', () => {

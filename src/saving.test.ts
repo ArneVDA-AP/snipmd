@@ -38,6 +38,7 @@ import { rewriteImagePrefix } from './editor/links';
 import { markSaved } from './tabs';
 import { setConflict } from './diskState';
 import { handleRefusedWrite } from './external';
+import { trackImageSave } from './editor/registry';
 import { flushSession } from './session';
 import { clearInfo, showError } from './infobar';
 
@@ -58,6 +59,19 @@ beforeEach(() => {
 });
 
 describe('flushDirty', () => {
+  it('waits for a screenshot still saving, then writes the tab its link made dirty', async () => {
+    const tab = { ...mk('a'), dirty: false };
+    h.tabs = [tab];
+    let land!: () => void;
+    void trackImageSave('a', new Promise<void>((r) => (land = r)).then(() => (tab.dirty = true)));
+    const flushed = flushDirty();
+    await tick();
+    expect(writeNote).not.toHaveBeenCalled();
+    land();
+    await flushed;
+    expect(writeNote).toHaveBeenCalledTimes(1);
+  });
+
   it('one rejected write leaves the other tabs saved and the session flushed', async () => {
     h.tabs = [mk('a'), mk('b'), mk('c')];
     vi.mocked(writeNote).mockImplementation(async (p: string) => {

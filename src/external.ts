@@ -73,7 +73,7 @@ function raiseChanged(tab: TabState, stamp: DiskStamp): void {
     actions: [
       act(id, 'Open disk version', 'open the disk version of', async (t) => {
         const file = await readNote(t.filePath!);
-        await openCopy(`${t.title} (disk)`, file.text);
+        await openCopy(`${t.title} (disk)`, file.text, t.id);
       }),
       act(id, 'Reload', 'reload', async (t) => {
         await reload(t, false);

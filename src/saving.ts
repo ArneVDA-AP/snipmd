@@ -9,6 +9,7 @@ import { allTabs, findTab, getTab, markSaved, setLastFolder, textOf } from './ta
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { dirname, normPath, samePath } from './paths';
+import { imageSavesSettled } from './editor/registry';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
 const running = new Map<string, Promise<boolean>>();
@@ -192,6 +193,7 @@ export function scheduleAutosave(id: string): void {
 /** Window blur and close: write every dirty disk tab, closed ones included. One failure never stops the others or the session save. */
 export async function flushDirty(): Promise<void> {
   void flushSession(); // the session never waits for a note write
+  await imageSavesSettled(); // a screenshot still saving lands in its tab first (close right after Ctrl+V)
   await Promise.all(allTabs().filter((t) => t.dirty && t.filePath && !inConflict(t.id)).map(writeTab));
   await flushSession(); // the saved flags land in the session
 }

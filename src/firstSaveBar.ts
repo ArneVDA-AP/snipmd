@@ -19,8 +19,20 @@ function slug(s: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** The first heading outside fenced code (a `#` comment in a code block is not a heading). */
+function firstHeading(text: string): string {
+  const prose = text.replace(/^ {0,3}(```|~~~)[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm, '');
+  return /^#{1,6}[ \t]+(.+)$/m.exec(prose)?.[1] ?? '';
+}
+
+/** What the name field means: `.md` is added when the user left it off. */
+function noteFileName(value: string): string {
+  const name = value.trim();
+  return name && !/\.(md|markdown)$/i.test(name) ? `${name}.md` : name;
+}
+
 function proposeName(text: string): string {
-  const heading = /^#{1,6}[ \t]+(.+)$/m.exec(text)?.[1] ?? '';
+  const heading = firstHeading(text);
   const s = slug(heading);
   if (s) return `${s}.md`;
   const d = new Date();
@@ -72,12 +84,12 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     const other = button('', 'Other folder…', 'Other folder', () => finish('other'));
 
     function submit(): void {
-      if (!save.disabled) finish({ folder, name: input.value.trim() });
+      if (!save.disabled) finish({ folder, name: noteFileName(input.value) });
     }
 
     function check(): void {
       const mine = ++seq;
-      const name = input.value.trim();
+      const name = noteFileName(input.value);
       const set = (ok: boolean): void => {
         if (mine !== seq || done) return;
         input.classList.toggle('taken', !ok);

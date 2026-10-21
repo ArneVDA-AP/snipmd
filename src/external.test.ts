@@ -129,7 +129,7 @@ describe('checkTabs', () => {
     await checkTabs();
     action('Open disk version').run();
     await flush();
-    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world');
+    expect(m.openCopy).toHaveBeenCalledWith('a.md (disk)', 'hello brave world', 'a');
     expect(m.showInfo).toHaveBeenCalledTimes(1); // the action keeps its bar open
     expect(lastBar().actions!.every((a) => a.keepOpen)).toBe(true);
     expect(lastBar().key).toBe('external:a');
