@@ -261,3 +261,19 @@ describe('loadText', () => {
     expect(back!.dirty).toBe(false);
   });
 });
+
+describe('a closed tab the hidden view still holds', () => {
+  it('keeps a screenshot that lands after the close when another tab is shown', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('A\n'));
+    await restore(session([
+      tab({ id: 'cv-A', title: 'a.md', filePath: 'C:/n/a.md', mode: 'edit' }),
+      tab({ id: 'cv-R', mode: 'read', content: 'reading' }),
+      tab({ id: 'cv-E', mode: 'edit', content: 'edit' })
+    ]));
+    await closeTab('cv-A'); // the read-mode neighbour becomes active; the view keeps A
+    applyToTab('cv-A', { changes: { from: 2, insert: '![snip](a.assets/s.png)\n' } }); // the save lands late
+    const { activate } = await import('./tabs');
+    await activate('cv-E');
+    expect(getState('cv-A')?.doc.toString()).toBe('A\n![snip](a.assets/s.png)\n');
+  });
+});

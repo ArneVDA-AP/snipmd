@@ -137,10 +137,13 @@ export function setLastFolder(folder: string): void {
   lastFolder = folder;
 }
 
-/** Stores the visible editor's state, cursor and scroll back into its tab. */
+/**
+ * Stores the visible editor's state, cursor and scroll back into its tab, also a closed one: a
+ * screenshot that landed in a closed tab the view still held must survive the view moving on.
+ */
 function captureVisible(): void {
   const view = getView();
-  const tab = getTab(visibleTabId() ?? '');
+  const tab = findTab(visibleTabId() ?? '');
   if (view && tab) {
     setState(tab.id, view.state);
     if (tab.mode === 'edit') {
