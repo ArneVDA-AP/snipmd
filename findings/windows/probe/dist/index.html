@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script>window.__TAURI_INTERNALS__.invoke('mark', { name: 'head' });</script>
+</head>
+<body style="background:#202020;color:#ddd;margin:0">
+<textarea autofocus style="width:100%;height:90vh;background:#202020;color:#ddd;border:0"></textarea>
+<script>
+requestAnimationFrame(() => setTimeout(() => {
+  window.__TAURI_INTERNALS__.invoke('mark', { name: 'paint' })
+    .then(() => window.__TAURI_INTERNALS__.invoke('mark', { name: 'exit' }));
+}, 0));
+</script>
+</body>
+</html>
