@@ -40,3 +40,38 @@ jobs:
       - name: Check Tauri crate
         working-directory: src-tauri
         run: cargo check --locked
+
+  check-macos:
+    # SPEC §13: the Rust side must keep compiling for both Mac architectures. Typecheck and
+    # frontend tests do not depend on the OS and run in the Windows job only.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Unit tests (snipmd-core)
+        working-directory: src-tauri
+        run: cargo test -p snipmd-core --locked
+
+      - name: Check Tauri crate (Apple Silicon and Intel)
+        working-directory: src-tauri
+        run: |
+          cargo check --locked --target aarch64-apple-darwin
+          cargo check --locked --target x86_64-apple-darwin
