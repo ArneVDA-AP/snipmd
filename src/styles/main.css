@@ -238,7 +238,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .read-view a { color: var(--link); text-underline-offset: 2px; }
 .read-view a:hover { text-decoration-thickness: 2px; }
 .read-view code { padding: 0.1em 0.35em; border-radius: var(--r-sm); background: var(--code-bg); font: 0.88em var(--font-mono); color: var(--code); }
-.read-view pre { padding: var(--s3) var(--s4); border-radius: var(--r-md); background: var(--code-bg); overflow-x: auto; line-height: 1.5; }
+.read-view pre { padding: var(--s3) var(--s4); border-radius: var(--r-md); background: var(--code-bg); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 .read-view pre code { padding: 0; background: none; color: var(--text); font-size: var(--fs-code); }
 .read-view blockquote { padding-left: var(--s4); border-left: 3px solid var(--line-strong); color: var(--text-muted); }
 .read-view hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }

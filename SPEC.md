@@ -47,7 +47,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - Images inside fenced code blocks are not rendered.
 - Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). In read mode they switch to writing first.
 - Undo history survives tab switches and the first save of an untitled tab.
-- **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). No split view.
+- **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). Long lines wrap, also in code blocks, as in writing. No split view.
 
 ## 6. Files, images and saving
 
