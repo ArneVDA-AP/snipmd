@@ -66,7 +66,7 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - launch, quit Apple Event and **paste: PASS**. WKWebView hands a clipboard PNG to the page, and `placeImages` saves it and shows it inline with no change to the code.
 - finder-open and quit-flush: FAIL, as expected (items 2 and 1). These two probes are the acceptance tests for 7b.
 - The empty hint shows the Windows keys (item 5).
-- The runner's screen is 1024x768, smaller than the 1200x820 window, so the top bar sits under the menu bar in the screenshots. The 7b window config should cap the first size at the screen.
+- The runner's screen is 1024x768, smaller than the 1200x820 window, so the top bar sits under the menu bar in the screenshots. Startup now shrinks a first window that does not fit the work area, on every platform.
 - Run 1 never started the app (a relative path to `defaults read`) yet the job was green. The probe now fails the job when its harness breaks.
 
 **7b result** (PR #32, `macos-run.yml` run 4 on macOS 26.6 arm64, 2026-10-21): finder-open, quit-flush-cmdq, quit-flush-dock (a quit Apple Event) and close-tab (`Cmd+W`) PASS, as do launch and paste. Items 1-4 are done. The probe lines are in the run's log, and the screenshots are in its artifact.

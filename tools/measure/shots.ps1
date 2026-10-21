@@ -41,7 +41,7 @@ New-Item -ItemType Directory -Path $assets | Out-Null
 $bmp = New-Object System.Drawing.Bitmap 900, 360
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.Clear([System.Drawing.Color]::FromArgb(12, 12, 12))
-$font = New-Object System.Drawing.Font 'Consolas', 14
+$font = New-Object System.Drawing.Font 'Consolas', 19, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel) # pixels, so the fixture is the same at any scaling
 $lines = @('PS C:\Users\student> ipconfig', '', 'Windows IP Configuration', '', 'Ethernet adapter Ethernet:', '',
   '   Autoconfiguration IPv4 Address. . : 169.254.12.7', '   Subnet Mask . . . . . . . . . . . : 255.255.0.0', '   Default Gateway . . . . . . . . . :')
 $y = 16
