@@ -373,6 +373,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     return undefined;
   }
   // Open again at once, at the end of the strip, so a second Ctrl+Shift+T during the read below takes the next one.
+  const closedAt = tab.closedAt;
   tabs = [...tabs.filter((t) => t !== tab), tab];
   delete tab.closedAt;
   const shown = activeId;
@@ -381,14 +382,17 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
       const note = await readNote(tab.filePath!);
       loadText(tab, note.text); // also when the hidden editor view still holds this tab
       Object.assign(tab, { content: note.text, disk: note.stamp, format: note.format, dirty: false });
-    } catch {
-      // Keeps the text it closed with, as unsaved, so the session holds it until the external watch
-      // reports the file as gone.
-      tab.dirty = true;
+    } catch (err) {
+      // Stays closed, and nothing is written from it: a stale text must never go over the file. Its
+      // text opens as a read-only copy, so it can be read or saved elsewhere; Ctrl+Shift+T tries again.
+      tab.closedAt = closedAt;
+      showError(`reopen ${tab.title}`, err);
+      await openCopy(`${tab.title} (closed)`, textOf(tab));
+      return undefined;
     }
   }
-  // A tab the user went to during the read keeps the focus.
-  if (activeId === shown) await activate(tab.id);
+  // A tab the user went to during the read keeps the focus; a close of the shown tab does not count.
+  if (activeId === shown || !openTab(shown)) await activate(tab.id);
   changed({ immediate: true });
   return tab;
 }

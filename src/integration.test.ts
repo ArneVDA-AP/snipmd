@@ -174,4 +174,37 @@ describe('startup, restore and reopen', () => {
     expect(await saving.saveTab('fa')).toBe(true);
     expect(promoteUntitled).toHaveBeenCalledWith('fa', 'C:/n/title.md');
   });
+  it('a reopen whose file read fails stays closed, writes nothing and shows its text in a read-only copy', async () => {
+    vi.mocked(readNote).mockResolvedValueOnce(note('mine')); // restore
+    await restore(session([tab({ id: 'rf', title: 'rf.md', filePath: 'C:/n/rf.md' }), tab({ id: 'rk', content: 'k' })]));
+    await closeTab('rf');
+    vi.mocked(readNote).mockRejectedValueOnce(new Error('locked'));
+    expect(await reopenClosed('rf')).toBeUndefined();
+    expect(getTab('rf')!.closedAt).toBeDefined();
+    expect(getTab('rf')!.dirty).toBe(false);
+    expect(tabsMod.getTabs().map((t) => t.title)).toContain('rf.md (closed)');
+    await flushDirty();
+    expect(writeNote).not.toHaveBeenCalled();
+  });
+
+  it('a late reopen leaves the focus on a tab the user went to, but takes it when the shown tab was closed', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('t'));
+    await restore(session([tab({ id: 'fa', content: 'a' }), tab({ id: 'fb', content: 'b' }), tab({ id: 'fn', title: 'fn.md', filePath: 'C:/n/fn.md' })]));
+    await closeTab('fn');
+    let release!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r(note('t')))));
+    const went = reopenClosed('fn');
+    await tabsMod.activate('fb');
+    release();
+    await went;
+    expect(tabsMod.getActiveTab()?.id).toBe('fb');
+
+    await closeTab('fn');
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r(note('t')))));
+    const closedShown = reopenClosed('fn');
+    await closeTab('fb');
+    release();
+    await closedShown;
+    expect(tabsMod.getActiveTab()?.id).toBe('fn');
+  });
 });

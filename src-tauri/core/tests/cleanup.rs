@@ -120,6 +120,19 @@ fn a_dead_folder_whose_image_another_tab_names_is_kept() {
     assert!(selected(&root, &live(&[("t2", Some("![](untitled.assets/snip-a.png)"))])).is_empty());
 }
 
+#[cfg(unix)]
+#[test]
+fn an_item_whose_name_is_not_text_is_kept() {
+    use std::os::unix::ffi::OsStrExt;
+    let root = scratch("nonutf8");
+    let dir = tab(&root, "t1", 20 * DAY, &[]);
+    let p = dir.join(std::ffi::OsStr::from_bytes(b"snip-\xff.png"));
+    fs::write(&p, b"png").unwrap();
+    set_age(&p, 20 * DAY);
+    age_dir(&dir, 20 * DAY);
+    assert!(selected(&root, &live(&[("t1", Some("text"))])).is_empty());
+}
+
 #[test]
 fn items_of_a_tab_without_known_text_are_kept() {
     let root = scratch("none");

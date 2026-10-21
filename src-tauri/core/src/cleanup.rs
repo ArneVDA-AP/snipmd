@@ -62,7 +62,8 @@ fn is_old(modified: SystemTime, now: SystemTime, grace: Duration) -> bool {
 /// names any of its items (its items are then not listed), and an old item of a tab with known
 /// text that no known text names. Names are matched decoded and case folded, like the resolver
 /// reads them, and across all tabs: snip names are unique, and a tab whose id changed (an old
-/// session with a repeated id) still keeps its images.
+/// session with a repeated id) still keeps its images. The match is a substring match, so it errs
+/// on keeping (`a.png` is kept by `snip-a.png`), and a name that is not valid UTF-8 is kept.
 pub fn select_for_cleanup<'a>(
     entries: &'a [ScratchEntry],
     live: &HashMap<String, Option<String>>,
@@ -73,18 +74,25 @@ pub fn select_for_cleanup<'a>(
     let has_young: HashSet<&str> = entries.iter().filter(|e| !old(e)).map(|e| e.tab_id.as_str()).collect();
     // Every known text, decoded and case folded like the resolver reads links (Windows names ignore case).
     let texts: Vec<String> = live.values().filter_map(|t| Some(percent_decode_lossy(t.as_deref()?).to_lowercase())).collect();
-    let named = |e: &ScratchEntry| {
-        e.path.file_name().and_then(|n| n.to_str()).is_some_and(|name| {
-            let name = name.to_lowercase();
-            texts.iter().any(|t| t.contains(&name))
+    // One pass over the items: each name is looked up once.
+    let named: HashSet<&std::path::Path> = entries
+        .iter()
+        .filter(|e| !e.is_dir)
+        .filter(|e| match e.path.file_name().and_then(|n| n.to_str()) {
+            Some(name) => {
+                let name = name.to_lowercase();
+                texts.iter().any(|t| t.contains(&name))
+            }
+            None => true, // a name no text can spell is kept
         })
-    };
-    let named_in: HashSet<&str> = entries.iter().filter(|e| !e.is_dir && named(e)).map(|e| e.tab_id.as_str()).collect();
+        .map(|e| e.path.as_path())
+        .collect();
+    let named_in: HashSet<&str> = entries.iter().filter(|e| named.contains(e.path.as_path())).map(|e| e.tab_id.as_str()).collect();
     entries
         .iter()
         .filter(|e| match (e.is_dir, live.get(&e.tab_id)) {
             (true, None) => !has_young.contains(e.tab_id.as_str()) && !named_in.contains(e.tab_id.as_str()),
-            (false, Some(Some(_))) if old(e) => !named(e),
+            (false, Some(Some(_))) if old(e) => !named.contains(e.path.as_path()),
             _ => false,
         })
         .collect()
