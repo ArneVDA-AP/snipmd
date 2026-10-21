@@ -1,19 +1,21 @@
 # Dependencies
 node_modules/
-bun.lock
-bun.lockb
 
 # Frontend build outputs
 build/
 dist/
 coverage/
-server.js
 
 # Tauri v2 & Rust build artifacts
 src-tauri/target/
 src-tauri/gen/
 src-tauri/WixTools/
 release-win11/
+release/
+
+# Local tool output
+.claude/worktrees/
+findings/ui/shots/
 
 # OS & Editor files
 .DS_Store
