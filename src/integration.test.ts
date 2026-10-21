@@ -12,18 +12,21 @@ vi.mock('./ipc', () => ({
   statNote: vi.fn(),
   resolveAssetPath: vi.fn(() => new Promise(() => {})),
   toAssetUrl: (p: string) => `asset://${p}`,
+  claimNewNote: vi.fn(),
+  pickSavePath: vi.fn(),
+  promoteUntitled: vi.fn(async () => null),
+  copyAssets: vi.fn(async () => null),
   saveSessionRaw: vi.fn(async () => {}),
   loadSessionRaw: vi.fn(async () => null),
   perfMark: vi.fn(async () => false)
 }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({ renderRead: vi.fn() }));
+vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 
-import { readNote, saveImage, writeNote } from './ipc';
+import { claimNewNote, promoteUntitled, readNote, saveImage, saveSessionRaw, writeNote } from './ipc';
 import { showError } from './infobar';
-import { closeTab, getTab, initTabs, reopenClosed, restore, textOf } from './tabs';
-import { flushDirty, scheduleAutosave } from './saving';
-import { getView } from './editor/registry';
+import { askFirstSave } from './firstSaveBar';
 
 const note = (text: string) => ({ text, format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: text.length } });
 const tab = (o: Partial<TabState>): TabState => ({
@@ -34,6 +37,13 @@ const session = (tabs: TabState[]): SessionFile => ({
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+// Each test gets fresh modules, so module state (the session source, the tab list) starts empty.
+let tabsMod: typeof import('./tabs');
+let reg: typeof import('./editor/registry');
+let saving: typeof import('./saving');
+let closeTab: typeof tabsMod.closeTab, getTab: typeof tabsMod.getTab, reopenClosed: typeof tabsMod.reopenClosed;
+let restore: typeof tabsMod.restore, textOf: typeof tabsMod.textOf, flushDirty: typeof saving.flushDirty;
+
 /** Pastes an image whose bytes arrive only when the returned function is called. */
 function pasteImageLater(): () => void {
   let release!: () => void;
@@ -43,15 +53,21 @@ function pasteImageLater(): () => void {
   Object.defineProperty(ev, 'clipboardData', {
     value: { getData: () => '', items: [{ type: 'image/png', getAsFile: () => file }] }
   });
-  getView()!.contentDOM.dispatchEvent(ev);
+  reg.getView()!.contentDOM.dispatchEvent(ev);
   return release;
 }
 
 let n = 0;
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  vi.resetModules();
+  tabsMod = await import('./tabs');
+  saving = await import('./saving');
+  reg = await import('./editor/registry');
+  ({ closeTab, getTab, reopenClosed, restore, textOf } = tabsMod);
+  ({ flushDirty } = saving);
   document.body.innerHTML = '<div id="e"></div><div id="r"></div>';
-  initTabs({ editor: document.getElementById('e')!, read: document.getElementById('r')! }, { render: vi.fn() } as never, scheduleAutosave);
+  tabsMod.initTabs({ editor: document.getElementById('e')!, read: document.getElementById('r')! }, { render: vi.fn() } as never, saving.scheduleAutosave);
   vi.stubGlobal('requestAnimationFrame', () => 0);
   vi.mocked(writeNote).mockImplementation(async (_p, text) => ({ written: { mtimeMs: 2, size: text.length } }));
   n++;
@@ -96,5 +112,56 @@ describe('paste, close and save together', () => {
     const back = await reopenClosed(id);
     expect(back?.id).toBe(id);
     expect(textOf(back!)).toContain('![snip](untitled.assets/s.png)');
+  });
+});
+
+describe('startup, restore and reopen', () => {
+  it('no session write before the startup tabs are in place: a blur during restore keeps the old session', async () => {
+    vi.mocked(readNote).mockReturnValue(new Promise(() => {}));
+    void restore(session([tab({ id: 's1', title: 'n.md', filePath: 'C:/n/n.md' })]));
+    await flushDirty();
+    expect(saveSessionRaw).not.toHaveBeenCalled();
+  });
+
+  it('writes start with startSessionWrites', async () => {
+    await restore(session([tab({ id: 's2', content: 'draft' })]));
+    tabsMod.startSessionWrites();
+    await flushDirty();
+    expect(vi.mocked(saveSessionRaw).mock.calls.at(-1)![0]).toContain('draft');
+  });
+
+  it('an id in both lists of an old session keeps both texts and edits of the open tab survive its close', async () => {
+    const s = session([tab({ id: 'dup', content: 'live' }), tab({ id: 'k', content: 'k' })]);
+    s.closedTabs = [{ tab: tab({ id: 'dup', content: 'old' }), closedAt: Date.now() - 1000 }];
+    await restore(s);
+    tabsMod.startSessionWrites();
+    reg.applyToTab('dup', { changes: { from: 4, insert: ' edit' } });
+    await tabsMod.activate('k');
+    await closeTab('dup');
+    const closed = tabsMod.snapshot().closedTabs.map((c) => c.tab.content).sort();
+    expect(closed).toEqual(['live edit', 'old']);
+  });
+
+  it('a second Ctrl+Shift+T while the first reads its file reopens the next closed tab', async () => {
+    let release!: () => void;
+    vi.mocked(readNote).mockResolvedValueOnce(note('n1')); // restore
+    await restore(session([tab({ id: 'a', content: 'a' }), tab({ id: 'n1', title: 'n1.md', filePath: 'C:/n/n1.md' }), tab({ id: 'u2', content: 'u2' })]));
+    await closeTab('u2');
+    await closeTab('n1');
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r(note('n1')))));
+    const first = reopenClosed();
+    const second = await reopenClosed();
+    release();
+    expect((await first)?.id).toBe('n1');
+    expect(second?.id).toBe('u2');
+  });
+
+  it("a first save waits for its own tab's image saves only: a hung save elsewhere does not block it", async () => {
+    await restore(session([tab({ id: 'fa', content: '# Title' }), tab({ id: 'fb', content: 'b' })]));
+    void reg.trackImageSave('fb', new Promise(() => {}));
+    vi.mocked(askFirstSave).mockResolvedValue({ folder: 'C:/n', name: 'title.md' });
+    vi.mocked(claimNewNote).mockResolvedValue('C:/n/title.md');
+    expect(await saving.saveTab('fa')).toBe(true);
+    expect(promoteUntitled).toHaveBeenCalledWith('fa', 'C:/n/title.md');
   });
 });

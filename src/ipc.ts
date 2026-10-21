@@ -14,7 +14,7 @@ export function saveImage(tabId: string, notePath: string | null, bytes: Uint8Ar
   return invoke<SavedImage>('save_image', bytes, { headers: imageHeaders(tabId, notePath) });
 }
 
-/** T3b. Copies a dropped image file into the tab's image folder. Rust only accepts files that were dropped. */
+/** Copies a dropped image file into the tab's image folder. Rust only accepts files that were dropped. */
 export function importImage(tabId: string, notePath: string | null, src: string): Promise<SavedImage> {
   return invoke<SavedImage>('import_image', { tabId, notePath, src });
 }

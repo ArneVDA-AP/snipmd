@@ -53,9 +53,10 @@ export function imageSavesRunning(tabId: string): boolean {
   return (imageSaves.get(tabId)?.size ?? 0) > 0;
 }
 
-/** Settles when every image save running now has landed or failed. */
-export function imageSavesSettled(): Promise<unknown> {
-  return Promise.allSettled([...imageSaves.values()].flatMap((s) => [...s]));
+/** Settles when every image save running now (of one tab, or of all) has landed or failed. */
+export function imageSavesSettled(tabId?: string): Promise<unknown> {
+  const sets = tabId === undefined ? [...imageSaves.values()] : [imageSaves.get(tabId) ?? new Set()];
+  return Promise.allSettled(sets.flatMap((s) => [...s]));
 }
 
 export function setView(v: EditorView): void {

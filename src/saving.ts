@@ -89,7 +89,7 @@ async function firstSave(tab: TabState): Promise<boolean> {
     showError(`${step} ${tab.title}`, err, errorKey(tab.id));
     return false;
   }
-  await imageSavesSettled(); // a paste that started before the save may still land in scratch
+  await imageSavesSettled(tab.id); // a paste that started before the save may still land in scratch
   await moveImages(tab);
   return true;
 }
