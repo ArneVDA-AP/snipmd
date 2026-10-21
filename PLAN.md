@@ -193,7 +193,7 @@ Autonomous runs add one line per decision: date, what, why.
 
 ## Handoff
 - State (2026-10-21 05:00, autonomous run without computer use): `main` has phases 0-5, the v1 goal and all cloud work of phase 6 (PRs #8-#11). Goal items 2 (UI), 3 (find and replace, styling) and 6 (whole-app review) are done as far as the cloud can verify them; what is left needs the Windows machine: the open Windows tests, real-machine screenshots, the three §9 budgets that need a running app, and the v1.0.0 tag with a clean-install smoke test.
-- Run log of this session: per-PR reviews 6a (0/3/14), 6b (0/3/10), whole app R1 (0/3/10) and R2 (0/1/6); every major fixed with a test; about 20 subagent and workflow-free review runs on Opus, builds solo.
+- Run log of this session: per-PR reviews 6a (0/3/14), 6b (0/3/10), whole app R1 (0/3/10) and R2 (0/1/6); every major fixed with a test. Five review agents (Opus); the builds ran solo in the main session, because the units shared one stylesheet and one design.
 - **Next Windows window (04:30-09:00, computer use on the Windows machine)**, in this order:
   1. `git pull`, `npm ci`, `npm run tauri dev` on the newest merged `main`. Run every open Windows test in Status (phases 1-5) and the phase 6a test in PR #8; fix what fails, count each defect in the run log's "Later" column.
   2. Screenshots of the real app into `findings/ui/windows/` (same scenes as `findings/ui/README.md`, light and dark, 100/150/200% scaling); judge them against Goal item 2 and fix what looks wrong.
