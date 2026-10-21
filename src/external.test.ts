@@ -19,6 +19,7 @@ vi.mock('./tabs', () => ({
   getTabs: () => m.tabs,
   getTab: (id: string) => m.tabs.find((t) => t.id === id),
   markSaved: m.markSaved,
+  markDirty: (id: string) => void (m.tabs.find((t) => t.id === id).dirty = true),
   openCopy: m.openCopy,
   textOf: (t: any) => m.docs.get(t.id)
 }));
@@ -30,7 +31,7 @@ vi.mock('./editor/registry', () => ({
 }));
 
 import { checkTabs, startExternalWatch } from './external';
-import { beginWrite, endWrite, inConflict, setConflict } from './diskState';
+import { beginWrite, endWrite, inConflict, reportOutsideChange, setConflict } from './diskState';
 
 const S1 = { mtimeMs: 1, size: 10 };
 const S2 = { mtimeMs: 2, size: 12 };
@@ -58,6 +59,7 @@ beforeEach(() => {
   });
   m.statNote.mockResolvedValue(S1);
   m.readNote.mockResolvedValue({ text: 'hello brave world', format: fmt, stamp: S2 });
+  ['a', 'b'].forEach((id) => setConflict(id, false)); // diskState is shared across tests
 });
 
 describe('checkTabs', () => {
@@ -152,6 +154,62 @@ describe('checkTabs', () => {
     action('Save again').run();
     expect(inConflict('a')).toBe(false);
     expect(m.saveTab).toHaveBeenCalledWith('a');
+  });
+
+  it('Save again drops the old stamp, so the write recreates the file instead of being refused', async () => {
+    const tab = addTab('a');
+    m.statNote.mockResolvedValue(null);
+    await checkTabs();
+    action('Save again').run();
+    expect(tab.disk).toBeNull();
+  });
+
+  it('conflict bars cannot be dismissed, and a failed action keeps the bar and reports beside it', async () => {
+    addTab('a', true);
+    m.statNote.mockResolvedValue(S2);
+    await checkTabs();
+    expect(lastBar().sticky).toBe(true);
+    m.readNote.mockRejectedValueOnce('locked');
+    action('Reload').run();
+    await flush();
+    expect(inConflict('a')).toBe(true);
+    expect(lastBar().key).toBe('external:a');
+    expect(m.showError.mock.calls[0][2]).toBe('external-error:a');
+  });
+
+  it('text typed during the reload read wins: the tab goes into conflict instead of being overwritten', async () => {
+    const tab = addTab('a');
+    m.statNote.mockResolvedValue(S2);
+    m.readNote.mockImplementationOnce(async () => {
+      tab.dirty = true; // a keystroke while the file is read
+      return { text: 'other', format: fmt, stamp: S2 };
+    });
+    await checkTabs();
+    expect(m.docs.get('a')).toBe('hello world');
+    expect(m.markSaved).not.toHaveBeenCalled();
+    expect(inConflict('a')).toBe(true);
+  });
+
+  it('a write that ends during the stat makes the answer stale: no reload, no conflict', async () => {
+    const tab = addTab('a', true);
+    let answer!: (s: unknown) => void;
+    m.statNote.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    const check = checkTabs();
+    beginWrite('a');
+    endWrite('a');
+    tab.disk = S2;
+    answer(S2);
+    await check;
+    expect(inConflict('a')).toBe(false);
+    expect(m.readNote).not.toHaveBeenCalled();
+  });
+
+  it('a write Rust refused puts a dirty tab in conflict', async () => {
+    addTab('a', true);
+    reportOutsideChange('a', S2);
+    await flush();
+    expect(inConflict('a')).toBe(true);
+    expect(lastBar().key).toBe('external:a');
   });
 
   it('clears the bar when a later check finds equal stamps', async () => {

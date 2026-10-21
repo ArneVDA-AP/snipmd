@@ -64,6 +64,8 @@ export interface InfoMessage {
   position?: 'top' | 'bottom';
   /** A keyed message stays until it is dismissed or cleared with clearInfo(key); showing the key again updates it in place. */
   key?: string;
+  /** No dismiss button: the bar stays until its choice is made (conflicts). */
+  sticky?: boolean;
   /** Controls of the feature that shows the bar (first-save form), placed after the text. Built with DOM APIs, never innerHTML. */
   body?: HTMLElement;
 }
@@ -87,6 +89,9 @@ export interface NoteFile {
   format: TextFormat;
   stamp: DiskStamp;
 }
+
+/** A note write either happened, or was refused because the file changed outside SnipMD (null: it is gone). */
+export type WriteOutcome = { written: DiskStamp } | { changed: DiskStamp | null };
 
 /** Images moved or copied to another folder: links that start exactly with `from` now start with `to` (both as written in Markdown, percent-encoded). */
 export interface PrefixMove {

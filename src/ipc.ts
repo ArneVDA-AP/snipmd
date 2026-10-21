@@ -2,7 +2,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import type { DiskStamp, DroppedFiles, NoteFile, PrefixMove, SavedImage, TextFormat } from './types';
+import type { DiskStamp, DroppedFiles, NoteFile, PrefixMove, SavedImage, TextFormat, WriteOutcome } from './types';
 
 /** Headers that tell Rust which tab and note an image belongs to. The path is percent-encoded (headers are ASCII). */
 function imageHeaders(tabId: string, notePath: string | null): Record<string, string> {
@@ -19,9 +19,12 @@ export function importImage(tabId: string, notePath: string | null, src: string)
   return invoke<SavedImage>('import_image', { tabId, notePath, src });
 }
 
-/** T4. Writes a note in `format` (null: the format of the file on disk, or CRLF for a new one). Returns the file's new stamp. */
-export function writeNote(path: string, text: string, format: TextFormat | null): Promise<DiskStamp> {
-  return invoke<DiskStamp>('write_markdown_file', { path, content: text, format });
+/**
+ * T4. Writes a note in `format` (null: the format of the file on disk, or CRLF for a new one). With
+ * `expected`, Rust refuses when the file's stamp differs (changed or gone outside SnipMD) and says so.
+ */
+export function writeNote(path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<WriteOutcome> {
+  return invoke<WriteOutcome>('write_markdown_file', { path, content: text, format, expected });
 }
 
 /** T4 */

@@ -60,7 +60,7 @@ function barFor(pos: Pos, entry: Entry): HTMLElement {
       })
     );
   }
-  bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
+  if (!msg.sticky) bar.appendChild(button('infobar-close', '×', 'Dismiss', dismiss));
   return bar;
 }
 

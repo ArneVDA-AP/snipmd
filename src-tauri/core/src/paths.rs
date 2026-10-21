@@ -125,11 +125,17 @@ pub fn valid_note_name(name: &str) -> bool {
     !stem.ends_with(['.', ' ']) && !windows_device(stem)
 }
 
-/// CON, NUL, COM1 and the like name a device, not a folder, on Windows.
-fn windows_device(id: &str) -> bool {
-    let u = id.to_ascii_uppercase();
-    matches!(u.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || ((u.starts_with("COM") || u.starts_with("LPT")) && u.len() == 4 && u.as_bytes()[3].is_ascii_digit())
+/// CON, NUL, COM1 and the like name a device on Windows, also with an extension (`con.txt`) and
+/// trailing spaces before it; COM/LPT also take the superscript digits ¹ ² ³.
+fn windows_device(name: &str) -> bool {
+    let base = name.split('.').next().unwrap_or("").trim_end().to_uppercase();
+    if matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$") {
+        return true;
+    }
+    let mut chars = base.chars();
+    let head: String = chars.by_ref().take(3).collect();
+    let (digit, rest) = (chars.next(), chars.next());
+    (head == "COM" || head == "LPT") && rest.is_none() && digit.is_some_and(|d| ('1'..='9').contains(&d) || "¹²³".contains(d))
 }
 
 /// Lexically normalizes an absolute path to a string with `/` separators.

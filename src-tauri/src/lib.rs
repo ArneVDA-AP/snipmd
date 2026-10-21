@@ -265,11 +265,19 @@ struct Format {
     bom: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct DiskStamp {
     mtime_ms: f64,
     size: u64,
+}
+
+/// A write either happened, or was refused because the file is no longer the one the tab knows.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum WriteOutcome {
+    Written { written: DiskStamp },
+    Changed { changed: Option<DiskStamp> },
 }
 
 #[derive(Serialize)]
@@ -314,9 +322,26 @@ fn read_head(p: &Path) -> std::io::Result<Vec<u8>> {
 }
 
 #[tauri::command(async)]
-fn write_markdown_file(app: AppHandle, path: String, content: String, format: Option<Format>) -> Result<DiskStamp, String> {
+fn write_markdown_file(
+    app: AppHandle,
+    path: String,
+    content: String,
+    format: Option<Format>,
+    expected: Option<DiskStamp>,
+) -> Result<WriteOutcome, String> {
     let checked = check_path(&app, &path)?;
     let name = note_name(&checked);
+    // Never write over a change made outside SnipMD since the tab last read or wrote the file (SPEC §6.1).
+    if let Some(expected) = expected {
+        let now = match fs::metadata(&checked).and_then(|m| stamp_of(&m)) {
+            Ok(s) => Some(s),
+            Err(e) if e.kind() == ErrorKind::NotFound => None,
+            Err(e) => return Err(format!("Failed to check {name} before saving: {e}")),
+        };
+        if now != Some(expected) {
+            return Ok(WriteOutcome::Changed { changed: now });
+        }
+    }
     let fmt = match format {
         Some(f) => text::TextFormat { crlf: f.crlf, bom: f.bom },
         None => match read_head(&checked) {
@@ -326,7 +351,8 @@ fn write_markdown_file(app: AppHandle, path: String, content: String, format: Op
         },
     };
     atomic::atomic_write(&checked, &text::encode(&content, fmt)).map_err(|e| format!("Failed to write {name}: {e}"))?;
-    fs::metadata(&checked).and_then(|m| stamp_of(&m)).map_err(|e| format!("Failed to read the stamp of {name}: {e}"))
+    let written = fs::metadata(&checked).and_then(|m| stamp_of(&m)).map_err(|e| format!("Failed to read the stamp of {name}: {e}"))?;
+    Ok(WriteOutcome::Written { written })
 }
 
 #[tauri::command(async)]
@@ -368,11 +394,9 @@ fn promote_untitled(app: AppHandle, tab_id: String, note_path: String) -> Result
 fn copy_assets(app: AppHandle, from_note: String, to_note: String) -> Result<Option<PrefixMove>, String> {
     let from = check_path(&app, &from_note)?;
     let to = check_path(&app, &to_note)?;
-    if from == to {
-        return Ok(None);
-    }
     let src = assets_dir_for(&from);
-    if !src.is_dir() {
+    // Same note, or another extension of the same stem: the folder is already the right one.
+    if from == to || src == assets_dir_for(&to) || !src.is_dir() {
         return Ok(None);
     }
     assets::copy_dir(&src, &assets_dir_for(&to)).map_err(|e| format!("Failed to copy the images of {} to {}: {e}", note_name(&from), note_name(&to)))?;

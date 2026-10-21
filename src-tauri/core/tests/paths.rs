@@ -156,8 +156,12 @@ fn note_names() {
     }
     let long = format!("{}.md", "a".repeat(252));
     assert!(valid_note_name(&long));
+    for ok in ["console.md", "com10.md", "com.md", "lpt.md", "nul-check.md"] {
+        assert!(valid_note_name(ok), "{ok}");
+    }
     let too_long = format!("{}.md", "a".repeat(253));
-    for bad in [".md", "a.txt", "a/b.md", "a:b.md", "con.md", "a .md", "a.md.", "a\\b.md", "a\nb.md", "", &too_long] {
+    for bad in [".md", "a.txt", "a/b.md", "a:b.md", "con.md", "a .md", "a.md.", "a\\b.md", "a\nb.md", "", &too_long,
+        "con.txt.md", "NUL.tar.md", "COM¹.md", "lpt3.md", "CONIN$.md", "conout$.md", "aux .md"] {
         assert!(!valid_note_name(bad), "{bad}");
     }
 }

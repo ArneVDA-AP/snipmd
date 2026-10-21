@@ -237,6 +237,14 @@ export async function cycle(delta: 1 | -1): Promise<void> {
   await activate(tabs[(idx + delta + tabs.length) % tabs.length].id);
 }
 
+/** Marks a tab dirty without an edit (its file is gone), so the session keeps its text. */
+export function markDirty(id: string): void {
+  const tab = getTab(id);
+  if (!tab || tab.dirty) return;
+  tab.dirty = true;
+  changed({ immediate: true });
+}
+
 /**
  * After a write or reload: stores the file's stamp, marks the tab clean if its text still equals
  * `text`, and sets the path after a first save or Save As.

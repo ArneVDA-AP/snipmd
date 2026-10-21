@@ -84,4 +84,26 @@ mod dirs {
         let e = move_dir(&d.join("nope"), &d.join("to")).unwrap_err();
         assert_eq!(e.kind(), ErrorKind::NotFound);
     }
+
+    #[test]
+    fn copy_into_its_own_subfolder_is_refused_and_creates_nothing() {
+        let d = dir("self");
+        let e = copy_dir(&d.join("from"), &d.join("from/sub/inner")).unwrap_err();
+        assert_eq!(e.kind(), ErrorKind::InvalidInput);
+        assert!(!d.join("from/sub/inner").exists());
+        assert!(copy_dir(&d.join("from"), &d.join("from")).is_err());
+    }
+
+    #[test]
+    fn a_move_called_again_moves_what_is_left() {
+        let d = dir("again");
+        fs::create_dir(d.join("to")).unwrap();
+        fs::write(d.join("to/a.png"), b"MINE").unwrap();
+        assert!(move_dir(&d.join("from"), &d.join("to")).is_err());
+        fs::remove_file(d.join("to/a.png")).unwrap();
+        move_dir(&d.join("from"), &d.join("to")).unwrap();
+        assert_eq!(fs::read(d.join("to/a.png")).unwrap(), b"A");
+        assert_eq!(fs::read(d.join("to/sub/b.png")).unwrap(), b"B");
+        assert!(!d.join("from").exists());
+    }
 }

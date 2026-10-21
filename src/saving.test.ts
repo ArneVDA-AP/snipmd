@@ -13,7 +13,7 @@ vi.mock('./ipc', () => ({
   copyAssets: vi.fn()
 }));
 vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
-vi.mock('./editor/links', () => ({ rewriteImagePrefix: vi.fn() }));
+vi.mock('./editor/links', () => ({ rewriteImagePrefix: vi.fn(), rewrittenText: vi.fn(() => 'rewritten') }));
 vi.mock('./tabs', () => ({
   getTab: (id: string) => h.tabs.find((t) => t.id === id),
   getTabs: () => h.tabs,
@@ -27,19 +27,20 @@ vi.mock('./tabs', () => ({
   setLastFolder: vi.fn((f: string) => h.log.push(`lastFolder ${f}`))
 }));
 vi.mock('./session', () => ({ flushSession: vi.fn(() => Promise.resolve()), scheduleSessionSave: vi.fn() }));
-vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
+vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: vi.fn(), errorText: String }));
 
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } from './ipc';
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix } from './editor/links';
 import { markSaved } from './tabs';
-import { setConflict } from './diskState';
+import { bindOutsideChange, setConflict } from './diskState';
 import { flushSession } from './session';
-import { clearInfo, showError } from './infobar';
+import { clearInfo, showError, showInfo } from './infobar';
 
 const mk = (id: string) => ({ id, title: id, filePath: `/n/${id}.md`, dirty: true, text: `text ${id}` });
 const STAMP = { mtimeMs: 1, size: 1 };
+const W = { written: STAMP };
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
@@ -49,7 +50,7 @@ beforeEach(() => {
   vi.useRealTimers();
   ['a', 's1', 's2', 'm1', 'f1', 'f2', 'c', 'u', 'd'].forEach((i) => setConflict(i, false));
   vi.mocked(flushSession).mockImplementation(() => Promise.resolve());
-  vi.mocked(writeNote).mockResolvedValue(STAMP);
+  vi.mocked(writeNote).mockResolvedValue(W);
   vi.mocked(showError).mockReturnValue(() => {});
 });
 
@@ -58,7 +59,7 @@ describe('flushDirty', () => {
     h.tabs = [mk('a'), mk('b'), mk('c')];
     vi.mocked(writeNote).mockImplementation(async (p: string) => {
       if (p.includes('/b.')) throw 'disk full';
-      return STAMP;
+      return W;
     });
     await expect(flushDirty()).resolves.toBeUndefined();
     expect(h.tabs.map((t) => t.dirty)).toEqual([false, true, false]);
@@ -88,7 +89,7 @@ describe('saveTab', () => {
       log.push(`start ${text}`);
       if (log.length === 1) await new Promise<void>((r) => (release = r));
       log.push(`end ${text}`);
-      return STAMP;
+      return W;
     });
     const p1 = saveTab('s1');
     await tick();
@@ -119,7 +120,7 @@ describe('saveTab', () => {
     vi.mocked(writeNote).mockImplementation(async (_p: string, text: string) => {
       writes.push(text);
       if (writes.length === 1) await new Promise<void>((r) => (release = r));
-      return STAMP;
+      return W;
     });
     tab.text = 'v1';
     const first = saveTab('m1');
@@ -137,7 +138,7 @@ describe('write failures', () => {
     vi.mocked(writeNote).mockRejectedValue('drive removed');
     await flushDirty();
     expect(vi.mocked(showError).mock.calls.map((c) => c[2])).toEqual(['save:f1', 'save:f2']);
-    vi.mocked(writeNote).mockResolvedValue(STAMP);
+    vi.mocked(writeNote).mockResolvedValue(W);
     await saveTab('f1');
     expect(clearInfo).toHaveBeenCalledWith('save:f1');
     expect(clearInfo).not.toHaveBeenCalledWith('save:f2');
@@ -190,10 +191,23 @@ describe('format and stamp', () => {
   it('writeNote gets the tab format and markSaved the returned stamp', async () => {
     const stamp = { mtimeMs: 9, size: 4 };
     h.tabs = [{ ...mk('fm'), format: { eol: 'crlf' } }];
-    vi.mocked(writeNote).mockResolvedValue(stamp);
+    vi.mocked(writeNote).mockResolvedValue({ written: stamp });
     await saveTab('fm');
-    expect(writeNote).toHaveBeenCalledWith('/n/fm.md', 'text fm', { eol: 'crlf' });
+    expect(writeNote).toHaveBeenCalledWith('/n/fm.md', 'text fm', { eol: 'crlf' }, undefined);
     expect(markSaved).toHaveBeenCalledWith('fm', { text: 'text fm', stamp });
+  });
+
+  it('sends the known stamp; a write Rust refuses is handed to the watch and not marked saved', async () => {
+    const seen: unknown[] = [];
+    bindOutsideChange((id, st) => seen.push([id, st]));
+    const known = { mtimeMs: 5, size: 5 };
+    const now = { mtimeMs: 6, size: 7 };
+    h.tabs = [{ ...mk('rf'), disk: known } as never];
+    vi.mocked(writeNote).mockResolvedValue({ changed: now });
+    expect(await saveTab('rf')).toBe(false);
+    expect(vi.mocked(writeNote).mock.calls[0][3]).toEqual(known);
+    expect(markSaved).not.toHaveBeenCalled();
+    expect(seen).toEqual([['rf', now]]);
   });
 });
 
@@ -203,18 +217,18 @@ describe('first save', () => {
     h.tabs = [untitled()];
     vi.mocked(promoteUntitled).mockImplementation(async () => (h.log.push('promote'), MOVE));
     vi.mocked(rewriteImagePrefix).mockImplementation(() => (h.log.push('rewrite'), 1));
-    vi.mocked(writeNote).mockImplementation(async () => (h.log.push('write'), STAMP));
+    vi.mocked(writeNote).mockImplementation(async () => (h.log.push('write'), W));
   });
 
-  it('claims the note, promotes, rewrites, writes, then sets the path and last folder', async () => {
+  it('claims the note and writes it before it moves the images and rewrites the links', async () => {
     vi.mocked(askFirstSave).mockResolvedValue({ folder: '/n', name: 'x.md' });
     vi.mocked(claimNewNote).mockImplementation(async () => (h.log.push('claim'), '/n/x.md'));
     expect(await saveTab('u')).toBe(true);
     expect(claimNewNote).toHaveBeenCalledWith('/n', 'x.md');
+    expect(writeNote).toHaveBeenCalledWith('/n/x.md', 'hello', null, null);
     expect(promoteUntitled).toHaveBeenCalledWith('u', '/n/x.md');
     expect(rewriteImagePrefix).toHaveBeenCalledWith('u', MOVE);
-    expect(writeNote).toHaveBeenCalledWith('/n/x.md', 'hello', null);
-    expect(h.log).toEqual(['claim', 'promote', 'rewrite', 'write', 'markSaved /n/x.md', 'lastFolder /n']);
+    expect(h.log).toEqual(['claim', 'write', 'markSaved /n/x.md', 'lastFolder /n', 'promote', 'rewrite']);
   });
 
   it('other uses pickSavePath', async () => {
@@ -233,16 +247,31 @@ describe('first save', () => {
     expect(showError).not.toHaveBeenCalled();
   });
 
-  it('a failing promote leaves the tab untitled and shows one error', async () => {
+  it('a failing write leaves the tab untitled, its images and links untouched', async () => {
     vi.mocked(askFirstSave).mockResolvedValue({ folder: '/n', name: 'x.md' });
     vi.mocked(claimNewNote).mockResolvedValue('/n/x.md');
-    vi.mocked(promoteUntitled).mockRejectedValue('no space');
+    vi.mocked(writeNote).mockRejectedValue('disk full');
     expect(await saveTab('u')).toBe(false);
     expect(h.tabs[0].filePath).toBeNull();
+    expect(promoteUntitled).not.toHaveBeenCalled();
     expect(rewriteImagePrefix).not.toHaveBeenCalled();
-    expect(writeNote).not.toHaveBeenCalled();
     expect(showError).toHaveBeenCalledTimes(1);
     expect(vi.mocked(showError).mock.calls[0][0]).toContain('Untitled-1');
+  });
+
+  it('a failing move keeps the saved note, leaves the links and offers to try again', async () => {
+    vi.mocked(askFirstSave).mockResolvedValue({ folder: '/n', name: 'x.md' });
+    vi.mocked(claimNewNote).mockResolvedValue('/n/x.md');
+    vi.mocked(promoteUntitled).mockRejectedValueOnce('locked');
+    expect(await saveTab('u')).toBe(true);
+    expect(h.tabs[0].filePath).toBe('/n/x.md');
+    expect(rewriteImagePrefix).not.toHaveBeenCalled();
+    const bar = vi.mocked(showInfo).mock.calls[0][0];
+    expect(bar.key).toBe('images:u');
+    bar.actions![0].run();
+    await tick();
+    expect(rewriteImagePrefix).toHaveBeenCalledWith('u', MOVE);
+    expect(clearInfo).toHaveBeenCalledWith('images:u');
   });
 });
 
@@ -254,10 +283,21 @@ describe('saveAs of a disk tab', () => {
     vi.mocked(copyAssets).mockResolvedValue(MOVE);
     expect(await saveAs('d')).toBe(true);
     expect(copyAssets).toHaveBeenCalledWith('/n/d.md', '/m/b.md');
-    expect(rewriteImagePrefix).toHaveBeenCalledWith('d', MOVE);
     expect(writeNote).toHaveBeenCalledTimes(1);
-    expect(writeNote).toHaveBeenCalledWith('/m/b.md', 'text d', { eol: 'crlf' });
-    expect(markSaved).toHaveBeenCalledWith('d', expect.objectContaining({ path: '/m/b.md' }));
+    expect(writeNote).toHaveBeenCalledWith('/m/b.md', 'rewritten', { eol: 'crlf' }, null);
+    expect(rewriteImagePrefix).toHaveBeenCalledWith('d', MOVE);
+    expect(markSaved).toHaveBeenCalledWith('d', expect.objectContaining({ path: '/m/b.md', text: 'rewritten' }));
+  });
+
+  it('a failing write leaves the tab, its links and its path untouched', async () => {
+    h.tabs = [mk('d')];
+    vi.mocked(pickSavePath).mockResolvedValue('/m/b.md');
+    vi.mocked(copyAssets).mockResolvedValue({ from: 'd.assets/', to: 'b.assets/' });
+    vi.mocked(writeNote).mockRejectedValue('read-only');
+    expect(await saveAs('d')).toBe(false);
+    expect(rewriteImagePrefix).not.toHaveBeenCalled();
+    expect(markSaved).not.toHaveBeenCalled();
+    expect(h.tabs[0].filePath).toBe('/n/d.md');
   });
 
   it('the same path is a plain save without copying', async () => {
@@ -265,6 +305,6 @@ describe('saveAs of a disk tab', () => {
     vi.mocked(pickSavePath).mockResolvedValue('/n/d.md');
     expect(await saveAs('d')).toBe(true);
     expect(copyAssets).not.toHaveBeenCalled();
-    expect(writeNote).toHaveBeenCalledWith('/n/d.md', 'text d', undefined);
+    expect(writeNote).toHaveBeenCalledWith('/n/d.md', 'text d', undefined, undefined);
   });
 });

@@ -35,10 +35,8 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
         ));
         n
     };
-    let mut opts = OpenOptions::new();
-    #[cfg(windows)]
-    std::os::windows::fs::OpenOptionsExt::attributes(&mut opts, 0x2); // D9: hidden temp file
-    let tmp = write_with(target.parent().unwrap_or(Path::new("")), tmp_name, opts, bytes)?;
+    // No hidden attribute on the temp file: the rename would carry it onto the note.
+    let tmp = write_new(target.parent().unwrap_or(Path::new("")), tmp_name, bytes)?;
     fs::rename(&tmp, target).inspect_err(|_| {
         let _ = fs::remove_file(&tmp);
     })
@@ -46,12 +44,8 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
 
 /// A new file from `create_unique` with all of `bytes`, synced and closed. On error it is removed,
 /// so no partly written file stays behind.
-pub fn write_new(dir: &Path, name: impl FnMut() -> std::ffi::OsString, bytes: &[u8]) -> std::io::Result<PathBuf> {
-    write_with(dir, name, OpenOptions::new(), bytes)
-}
-
-fn write_with(dir: &Path, name: impl FnMut() -> OsString, opts: OpenOptions, bytes: &[u8]) -> io::Result<PathBuf> {
-    let (path, mut file) = create_unique_with(dir, name, opts)?;
+pub fn write_new(dir: &Path, name: impl FnMut() -> OsString, bytes: &[u8]) -> io::Result<PathBuf> {
+    let (path, mut file) = create_unique(dir, name)?;
     file.write_all(bytes).and_then(|_| file.sync_all()).map(|_| path.clone()).inspect_err(|_| {
         drop(file);
         let _ = fs::remove_file(&path);
@@ -60,21 +54,10 @@ fn write_with(dir: &Path, name: impl FnMut() -> OsString, opts: OpenOptions, byt
 
 /// R3b. Creates `dir/<name()>` with create_new; on AlreadyExists asks `name` again (64 attempts at most).
 /// Never creates folders. Any other error is returned at once.
-pub fn create_unique(
-    dir: &Path,
-    name: impl FnMut() -> std::ffi::OsString,
-) -> std::io::Result<(PathBuf, File)> {
-    create_unique_with(dir, name, OpenOptions::new())
-}
-
-fn create_unique_with(
-    dir: &Path,
-    mut name: impl FnMut() -> std::ffi::OsString,
-    mut opts: OpenOptions,
-) -> std::io::Result<(PathBuf, File)> {
+pub fn create_unique(dir: &Path, mut name: impl FnMut() -> OsString) -> io::Result<(PathBuf, File)> {
     for _ in 0..64 {
         let p = dir.join(name());
-        match opts.write(true).create_new(true).open(&p) {
+        match OpenOptions::new().write(true).create_new(true).open(&p) {
             Ok(f) => return Ok((p, f)),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(e),

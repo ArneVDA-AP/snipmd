@@ -1,12 +1,12 @@
 // Saving notes. Phase 4 adds autosave, the first-save info bar and Save As.
-import type { TabState } from './types';
+import type { DiskStamp, TabState, TextFormat } from './types';
 import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } from './ipc';
 import { askFirstSave } from './firstSaveBar';
-import { rewriteImagePrefix } from './editor/links';
-import { beginWrite, endWrite, inConflict, setConflict } from './diskState';
+import { rewriteImagePrefix, rewrittenText } from './editor/links';
+import { beginWrite, endWrite, inConflict, reportOutsideChange, setConflict } from './diskState';
 import { getTab, getTabs, markSaved, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
-import { clearInfo, showError } from './infobar';
+import { clearInfo, errorText, showError, showInfo } from './infobar';
 import { dirname, normPath, samePath } from './paths';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
@@ -15,6 +15,23 @@ const queued = new Map<string, Promise<boolean>>();
 
 const AUTOSAVE_MS = 1000;
 const errorKey = (id: string): string => `save:${id}`;
+const imagesKey = (id: string): string => `images:${id}`;
+
+/**
+ * One note write, marked for the external-change watch. With `expected`, a file that changed or went
+ * away outside SnipMD is not written: the watch is told and null comes back.
+ */
+async function writeFile(tab: TabState, path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<DiskStamp | null> {
+  beginWrite(tab.id);
+  try {
+    const out = await writeNote(path, text, format, expected);
+    if ('written' in out) return out.written;
+    reportOutsideChange(tab.id, out.changed);
+    return null;
+  } finally {
+    endWrite(tab.id);
+  }
+}
 
 /**
  * Writes a disk tab's newest text. Writes of one tab never overlap, and saves asked for while
@@ -28,10 +45,10 @@ function writeTab(tab: TabState): Promise<boolean> {
     running.set(tab.id, next);
     // Read when the write starts, so it carries the newest text. A closed tab keeps its text in content.
     const text = textOf(tab);
-    beginWrite(tab.id);
     try {
       if (inConflict(tab.id)) return false;
-      const stamp = await writeNote(tab.filePath!, text, tab.format);
+      const stamp = await writeFile(tab, tab.filePath!, text, tab.format, tab.disk);
+      if (!stamp) return false;
       markSaved(tab.id, { text, stamp });
       clearInfo(errorKey(tab.id));
       return true;
@@ -39,7 +56,6 @@ function writeTab(tab: TabState): Promise<boolean> {
       showError(`save ${tab.title}`, err, errorKey(tab.id));
       return false;
     } finally {
-      endWrite(tab.id);
       if (running.get(tab.id) === next) running.delete(tab.id);
     }
   });
@@ -47,7 +63,10 @@ function writeTab(tab: TabState): Promise<boolean> {
   return next;
 }
 
-/** Untitled tab: ask where, move its images into place, rewrite the links, write. On any failure it stays untitled. */
+/**
+ * Untitled tab: ask where, write the note, and only then move its images and rewrite the links. Until
+ * the note is written the tab stays untitled with its text and images untouched.
+ */
 async function firstSave(tab: TabState): Promise<boolean> {
   let step = 'choose a place for';
   try {
@@ -55,28 +74,44 @@ async function firstSave(tab: TabState): Promise<boolean> {
     const picked = choice === 'other' ? await pickSavePath(tab.title) : choice && (await claimNewNote(choice.folder, choice.name));
     if (!picked) return false;
     const target = normPath(picked);
-    step = 'move the images of';
-    const move = await promoteUntitled(tab.id, target);
-    if (move) rewriteImagePrefix(tab.id, move);
     step = 'save';
     const text = textOf(tab);
-    beginWrite(tab.id);
-    try {
-      const stamp = await writeNote(target, text, null);
-      markSaved(tab.id, { text, stamp, path: target });
-    } finally {
-      endWrite(tab.id);
-    }
+    const stamp = await writeFile(tab, target, text, null, null);
+    if (!stamp) return false;
+    markSaved(tab.id, { text, stamp, path: target });
     setLastFolder(dirname(target));
     clearInfo(errorKey(tab.id));
-    return true;
   } catch (err) {
     showError(`${step} ${tab.title}`, err, errorKey(tab.id));
     return false;
   }
+  await moveImages(tab);
+  return true;
 }
 
-/** Save As of a disk tab: copy the images, rewrite the links, write the new file. The original stays untouched. */
+/**
+ * After a first save: moves the scratch images next to the note and rewrites their links (one undo
+ * step; autosave writes the result). A failure keeps the images in scratch and offers to try again.
+ */
+async function moveImages(tab: TabState): Promise<void> {
+  try {
+    const move = await promoteUntitled(tab.id, tab.filePath!);
+    if (move) rewriteImagePrefix(tab.id, move);
+    clearInfo(imagesKey(tab.id));
+  } catch (err) {
+    showInfo({
+      kind: 'error',
+      key: imagesKey(tab.id),
+      text: `Could not move the images of ${tab.title}: ${errorText(err)}. They are safe in the scratch folder.`,
+      actions: [{ label: 'Try again', primary: true, run: () => void moveImages(tab) }]
+    });
+  }
+}
+
+/**
+ * Save As of a disk tab: copy the images, write the new file with the rewritten links, and only then
+ * switch the tab to it. A failure leaves the tab, its links and the original untouched.
+ */
 async function copyTo(tab: TabState, old: string): Promise<boolean> {
   let step = 'choose a place for';
   try {
@@ -86,16 +121,12 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
     if (samePath(target, old)) return saveTab(tab.id);
     step = 'copy the images of';
     const move = await copyAssets(old, target);
-    if (move) rewriteImagePrefix(tab.id, move);
     step = 'save';
-    const text = textOf(tab);
-    beginWrite(tab.id);
-    try {
-      const stamp = await writeNote(target, text, tab.format);
-      markSaved(tab.id, { text, stamp, path: target });
-    } finally {
-      endWrite(tab.id);
-    }
+    const text = move ? rewrittenText(tab.id, move) : textOf(tab);
+    const stamp = await writeFile(tab, target, text, tab.format, null);
+    if (!stamp) return false;
+    if (move) rewriteImagePrefix(tab.id, move);
+    markSaved(tab.id, { text, stamp, path: target });
     setConflict(tab.id, false);
     clearInfo(`external:${tab.id}`);
     setLastFolder(dirname(target));
