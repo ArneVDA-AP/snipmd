@@ -1,8 +1,8 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { markdownKeymap, markdownLanguage, pasteURLAsLink } from '@codemirror/lang-markdown';
+import { HighlightStyle, LanguageSupport, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { imageWidgetField } from './imageWidget';
 import { pasteExtension } from './paste';
@@ -28,6 +28,13 @@ const highlight = HighlightStyle.define([
   { tag: [tags.processingInstruction, tags.meta, tags.punctuation], color: 'var(--syntax)' }
 ]);
 
+/**
+ * GitHub-flavoured Markdown without embedded HTML or code languages: `markdown()` would pull in the
+ * HTML, CSS and JavaScript parsers and autocompletion (SPEC §9: startup loads only what it needs).
+ * Enter continues lists and quotes; pasting a URL over a selection makes a link.
+ */
+const markdownSupport = new LanguageSupport(markdownLanguage, [Prec.high(keymap.of(markdownKeymap)), pasteURLAsLink]);
+
 export function createEditorState(tabId: string, doc: string): EditorState {
   return EditorState.create({
     doc,
@@ -38,7 +45,7 @@ export function createEditorState(tabId: string, doc: string): EditorState {
       dropCursor(),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ spellcheck: 'true', 'aria-label': 'Note' }),
-      markdown(),
+      markdownSupport,
       syntaxHighlighting(highlight),
       markdownLines,
       emptyHint,

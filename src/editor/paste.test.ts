@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EditorView } from '@codemirror/view';
 
 vi.mock('../ipc', () => ({ saveImage: vi.fn() }));
+vi.mock('../perf', () => ({ markPasteVisible: vi.fn() }));
 vi.mock('../session', () => ({ scheduleSessionSave: vi.fn() }));
 vi.mock('../infobar', () => ({ showError: vi.fn() }));
 vi.mock('./imageWidget', () => ({ primeAssetCache: vi.fn(), imageWidgetField: [] }));

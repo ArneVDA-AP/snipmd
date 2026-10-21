@@ -39,6 +39,7 @@ vi.mock('./tabs', () => ({
   newUntitled: m.newUntitled,
   openPath: m.openPath,
   openPaths: async () => {},
+  preloadReader: () => {},
   restore: async () => {},
   snapshot: () => ({}),
   toggleMode: m.toggleMode
@@ -46,6 +47,7 @@ vi.mock('./tabs', () => ({
 vi.mock('./saving', () => ({ flushDirty: async () => {}, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
 vi.mock('./session', () => ({ bindSessionSource: () => {}, loadSession: async () => null }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
+vi.mock('./perf', () => ({ markReady: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
 vi.mock('./infobar', () => ({ mountInfobar: () => {}, bindReturnFocus: () => {}, focusInfobar: m.focusInfobar }));
 vi.mock('./titlebar', () => ({

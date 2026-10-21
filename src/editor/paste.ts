@@ -6,6 +6,7 @@ import { scheduleSessionSave } from '../session';
 import { showError } from '../infobar';
 import { applyToTab, filePathFor, getState, tabIdFacet } from './registry';
 import { primeAssetCache } from './imageWidget';
+import { markPasteVisible } from '../perf';
 
 /** One `![snip](link)` line per link, as one block below the line holding `at` (default: the cursor), in one transaction. */
 function insertLinks(tabId: string, links: string[], at?: number): void {
@@ -32,10 +33,12 @@ export function placeImages(tabId: string, images: SavedImage[], at?: number): v
   scheduleSessionSave({ immediate: true });
 }
 
-async function pasteImage(tabId: string, file: File): Promise<void> {
+async function pasteImage(tabId: string, file: File, start: number): Promise<void> {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    placeImages(tabId, [await saveImage(tabId, filePathFor(tabId), bytes)]);
+    const saved = await saveImage(tabId, filePathFor(tabId), bytes);
+    placeImages(tabId, [saved]);
+    markPasteVisible(saved.absPath, start);
   } catch (err) {
     showError('save the image', err);
   }
@@ -57,7 +60,7 @@ export function pasteExtension() {
       const file = item?.getAsFile();
       if (!file) return false;
       event.preventDefault();
-      void pasteImage(view.state.facet(tabIdFacet), file);
+      void pasteImage(view.state.facet(tabIdFacet), file, event.timeStamp);
       return true;
     }
   });

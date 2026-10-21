@@ -102,6 +102,11 @@ export function openLink(url: string): Promise<void> {
   return invoke<void>('open_link', { url });
 }
 
+/** A measurement mark (src/perf.ts); Rust logs it only when SNIPMD_TRACE is set. */
+export function perfMark(name: string, ms?: number): Promise<void> {
+  return invoke<void>('perf_mark', { name, ms: ms ?? null });
+}
+
 /** True when Rust gave the window Windows 11 Mica; the top bar may then be transparent. */
 export function windowBackdrop(): Promise<boolean> {
   return invoke<boolean>('window_backdrop');

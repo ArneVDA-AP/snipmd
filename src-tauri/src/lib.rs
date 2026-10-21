@@ -13,6 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 
 mod backdrop;
 mod links;
+mod perf;
 
 type Allowed = Mutex<AllowedSet>;
 
@@ -146,7 +147,12 @@ fn file_path(tab: &Value) -> Option<&str> {
     tab.get("filePath").and_then(Value::as_str)
 }
 
-fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
+/// `%APPDATA%/snip-md`, or the absolute folder in `SNIPMD_DATA_DIR` (measuring and tests run there,
+/// so they never touch the user's session).
+pub(crate) fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(dir) = std::env::var_os("SNIPMD_DATA_DIR").map(PathBuf::from).filter(|d| d.is_absolute()) {
+        return Ok(dir);
+    }
     app.path().app_data_dir().map_err(|e| format!("Failed to resolve app_data_dir: {e}"))
 }
 
@@ -592,6 +598,7 @@ fn get_cli_startup_files(app: AppHandle) -> Vec<String> {
 }
 
 pub fn run() {
+    perf::start();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             let md_files = open_args(app, argv.into_iter().skip(1), Path::new(&cwd));
@@ -616,7 +623,7 @@ pub fn run() {
             if let Some(window) = handle.get_webview_window("main") {
                 backdrop::apply(&window);
             }
-            if let Ok(dir) = handle.path().app_data_dir() {
+            if let Ok(dir) = app_data(handle) {
                 allowed(handle).allow_dir(&dir);
                 start_cleanup(dir);
             }
@@ -659,7 +666,8 @@ pub fn run() {
             pick_open,
             pick_save,
             links::open_link,
-            backdrop::window_backdrop
+            backdrop::window_backdrop,
+            perf::perf_mark
         ])
         .run(tauri::generate_context!())
         .expect("error while running SnipMD tauri application");
