@@ -30,6 +30,12 @@ describe('renderRead sanitizing', () => {
     expect(el.textContent).toContain('y');
   });
 
+  it('drops classes a note writes, so it cannot draw a fake info bar', async () => {
+    const el = await render('<p class="infobar error">fake</p>\n\n```js\nx\n```');
+    expect(el.querySelector('[class*="infobar"]')).toBeNull();
+    expect(el.querySelector('code')!.hasAttribute('class')).toBe(false);
+  });
+
   it('a middle-click on a link does nothing in the webview', async () => {
     const el = await render('[x](https://example.org)');
     const e = new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true });
