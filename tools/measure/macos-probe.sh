@@ -315,45 +315,15 @@ fi
 
 echo "== Replace is Cmd+Option+F; Cmd+H hides the app (SPEC §13)"
 start replace
-# With the text selected, Find starts with a term and Replace gets the cursor (as Ctrl+H on Windows).
-if keys_to_app 'tell application "System Events" to keystroke "abc"' 'delay 0.3' \
+# End to end: with the word selected, Cmd+Option+F opens the panel with the word in Find and the
+# cursor in Replace (as Ctrl+H on Windows); typing there and Enter replace the word in the note.
+if keys_to_app 'tell application "System Events" to keystroke "oldword"' 'delay 0.3' \
   'tell application "System Events" to keystroke "a" using command down' 'delay 0.3' \
-  'tell application "System Events" to keystroke "f" using {command down, option down}'; then
+  'tell application "System Events" to keystroke "f" using {command down, option down}' 'delay 0.8' \
+  'tell application "System Events" to keystroke "newword"' 'delay 0.3' \
+  'tell application "System Events" to key code 36'; then
   sleep 1
   shot 06-replace >/dev/null
-  # "description|value|focused" for each text field of the page.
-  fields=$(osascript - "$PID" <<'APPLESCRIPT' 2>&1
-on run argv
-  set pid to (item 1 of argv) as integer
-  set out to ""
-  tell application "System Events"
-    set els to entire contents of window 1 of (first process whose unix id is pid)
-    repeat with i from 1 to count of els
-      set e to item i of els
-      try
-        if role of e is "AXTextField" then
-          set f to ""
-          try
-            set f to (value of attribute "AXFocused" of e) as text
-          end try
-          set out to out & (description of e) & "|" & ((value of e) as text) & "|" & f & linefeed
-        end if
-      end try
-    end repeat
-  end tell
-  return out
-end run
-APPLESCRIPT
-)
-  echo "-- text fields (description|value|focused):"
-  echo "$fields"
-  if echo "$fields" | grep -q '^Replace|.*|true$'; then
-    report replace PASS "Cmd+Option+F put the cursor in the Replace field"
-  elif echo "$fields" | grep -q '^Find|'; then
-    report replace FAIL "the find panel is open, but the Replace field does not have the cursor"
-  else
-    report replace FAIL "no find panel after Cmd+Option+F (see 06-replace.png)"
-  fi
   keys_to_app 'tell application "System Events" to keystroke "h" using command down' >/dev/null
   sleep 1
   visible=$(osascript -e "tell application \"System Events\" to get visible of (first process whose unix id is $PID)" 2>/dev/null)
@@ -362,10 +332,18 @@ APPLESCRIPT
   else
     report cmd-h FAIL "the app is still visible after Cmd+H (visible: ${visible:-unknown})"
   fi
+  quit_app
+  if session | grep -q newword && ! session | grep -q oldword; then
+    report replace PASS "Cmd+Option+F, a new word and Enter replaced the selected word"
+  elif session | grep -q newword; then
+    report replace FAIL "the new word went into the note instead of the Replace field (see 06-replace.png)"
+  else
+    report replace FAIL "the word was not replaced (see 06-replace.png)"
+  fi
 else
+  quit_app
   report replace BLOCKED "no keystrokes without Accessibility"
 fi
-quit_app
 
 echo "== Logs"
 for f in "$WORK"/*.log; do echo "-- $(basename "$f")"; tail -20 "$f"; done
