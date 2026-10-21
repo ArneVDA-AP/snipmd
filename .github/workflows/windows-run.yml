@@ -15,6 +15,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # install scripts and build.rs never see a write token
 
       - uses: actions/setup-node@v4
         with:
@@ -60,6 +62,8 @@ jobs:
 
       - name: Push results
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for f in findings/windows-ci/*.txt; do iconv -f UTF-16 -t UTF-8 "$f" > "$f.u" 2>/dev/null && mv "$f.u" "$f" || rm -f "$f.u"; done
           git config user.name ArneVDA-AP
@@ -67,4 +71,4 @@ jobs:
           git checkout -b "ci/windows-run-${{ github.run_number }}"
           git add findings/windows-ci findings/ui/windows-ci || true
           git commit -m "Windows run ${{ github.run_number }}: budgets and screenshots from a CI runner" -m "Co-Authored-By: Claude" || exit 0
-          git push origin "ci/windows-run-${{ github.run_number }}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "ci/windows-run-${{ github.run_number }}"
