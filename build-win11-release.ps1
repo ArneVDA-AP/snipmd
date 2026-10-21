@@ -6,16 +6,23 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
+# Runs a native command and stops the script when it exits with a non-zero code.
+function Invoke-Native {
+  param([string]$Name, [scriptblock]$Command)
+  Write-Host "> $Name"
+  & $Command
+  if ($LASTEXITCODE -ne 0) { throw "'$Name' failed with exit code $LASTEXITCODE" }
+}
+
 foreach ($cmd in 'node', 'npm', 'cargo') {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "'$cmd' is not on PATH (see RELEASE-WIN11.md)" }
 }
 $version = (Get-Content package.json | ConvertFrom-Json).version
 
-npm ci
-npm run lint
-npm test
-npx tauri build --bundles nsis,msi
-if ($LASTEXITCODE -ne 0) { throw 'tauri build failed' }
+Invoke-Native 'npm ci' { npm ci }
+Invoke-Native 'npm run lint' { npm run lint }
+Invoke-Native 'npm test' { npm test }
+Invoke-Native 'npx tauri build' { npx tauri build --bundles nsis,msi }
 
 $out = Join-Path $PSScriptRoot 'release-win11'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
