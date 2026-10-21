@@ -8,4 +8,4 @@ shot findings\ui\windows-ci\write-dark.png (1044 x 788)
 shot findings\ui\windows-ci\read-dark.png (1044 x 788)
 shot findings\ui\windows-ci\find-dark.png (1044 x 788)
 shot findings\ui\windows-ci\firstsave-dark.png (1044 x 788)
-Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-shots-e957a030
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-shots-47df7ab4
