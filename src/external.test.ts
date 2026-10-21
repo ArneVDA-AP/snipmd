@@ -11,25 +11,19 @@ const m = vi.hoisted(() => ({
   saveTab: vi.fn(),
   showInfo: vi.fn(),
   clearInfo: vi.fn(),
-  showError: vi.fn(),
-  applyToTab: vi.fn()
+  showError: vi.fn()
 }));
 vi.mock('./ipc', () => ({ statNote: m.statNote, readNote: m.readNote }));
 vi.mock('./tabs', () => ({
   getTabs: () => m.tabs,
-  getTab: (id: string) => m.tabs.find((t) => t.id === id),
+  openTab: (id: string) => m.tabs.find((t) => t.id === id),
   markSaved: m.markSaved,
   markDirty: (id: string) => void (m.tabs.find((t) => t.id === id).dirty = true),
   openCopy: m.openCopy,
   loadText: (t: any, text: string) => m.docs.set(t.id, text),
   textOf: (t: any) => m.docs.get(t.id)
 }));
-vi.mock('./saving', () => ({ saveTab: m.saveTab }));
 vi.mock('./infobar', () => ({ showInfo: m.showInfo, clearInfo: m.clearInfo, showError: m.showError }));
-vi.mock('./editor/registry', () => ({
-  getState: (id: string) => (m.docs.has(id) ? { doc: { toString: () => m.docs.get(id) } } : undefined),
-  applyToTab: m.applyToTab
-}));
 
 import { checkTabs, handleRefusedWrite, startExternalWatch } from './external';
 import { beginWrite, endWrite, inConflict, setConflict } from './diskState';
@@ -52,12 +46,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.tabs.length = 0;
   m.docs.clear();
-  m.applyToTab.mockImplementation((id: string, spec: any) => {
-    const { from, to, insert } = spec.changes;
-    const d = m.docs.get(id)!;
-    m.docs.set(id, d.slice(0, from) + insert + d.slice(to));
-    return true;
-  });
   m.statNote.mockResolvedValue(S1);
   m.readNote.mockResolvedValue({ text: 'hello brave world', format: fmt, stamp: S2 });
   ['a', 'b'].forEach((id) => setConflict(id, false)); // diskState is shared across tests

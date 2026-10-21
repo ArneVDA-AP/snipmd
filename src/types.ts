@@ -1,4 +1,4 @@
-// Shared types. contract.shared: changing this file needs the main session.
+// Shared types.
 
 export type TabMode = 'edit' | 'read';
 
@@ -29,6 +29,8 @@ export interface TabState {
   disk: DiskStamp | null;
   /** Format the note was read with, sent back on write; null lets Rust read it from the file. */
   format: TextFormat | null;
+  /** Set while the tab is closed (in memory only; the session file keeps closed tabs apart). */
+  closedAt?: number;
 }
 
 export interface ClosedTab {

@@ -105,6 +105,36 @@ fn unreferenced_old_item_of_a_tab_with_text_is_selected() {
 }
 
 #[test]
+fn an_image_named_by_another_tab_is_kept() {
+    // An old session with a repeated id: the closed copy got a new id, its text still names the images.
+    let root = scratch("crossid");
+    let dir = tab(&root, "t1", 20 * DAY, &[("snip-a.png", 20 * DAY), ("snip-b.png", 20 * DAY)]);
+    let l = live(&[("t1", Some("open text")), ("t2", Some("![](untitled.assets/snip-a.png)"))]);
+    assert_eq!(selected(&root, &l), vec![dir.join("snip-b.png")]);
+}
+
+#[test]
+fn a_dead_folder_whose_image_another_tab_names_is_kept() {
+    let root = scratch("crossdead");
+    tab(&root, "gone", 20 * DAY, &[("snip-a.png", 20 * DAY)]);
+    assert!(selected(&root, &live(&[("t2", Some("![](untitled.assets/snip-a.png)"))])).is_empty());
+}
+
+// Linux only: APFS refuses names that are not UTF-8, and Windows names are UTF-16.
+#[cfg(target_os = "linux")]
+#[test]
+fn an_item_whose_name_is_not_text_is_kept() {
+    use std::os::unix::ffi::OsStrExt;
+    let root = scratch("nonutf8");
+    let dir = tab(&root, "t1", 20 * DAY, &[]);
+    let p = dir.join(std::ffi::OsStr::from_bytes(b"snip-\xff.png"));
+    fs::write(&p, b"png").unwrap();
+    set_age(&p, 20 * DAY);
+    age_dir(&dir, 20 * DAY);
+    assert!(selected(&root, &live(&[("t1", Some("text"))])).is_empty());
+}
+
+#[test]
 fn items_of_a_tab_without_known_text_are_kept() {
     let root = scratch("none");
     tab(&root, "t1", 20 * DAY, &[("a.png", 20 * DAY), ("b.png", 30 * DAY)]);

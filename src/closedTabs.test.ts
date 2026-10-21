@@ -14,7 +14,7 @@ const m = vi.hoisted(() => ({
   clearTabInfo: vi.fn()
 }));
 vi.mock('./tabs', () => ({
-  getTab: (id: string) => m.tabs.find((t) => t.id === id),
+  openTab: (id: string) => m.tabs.find((t) => t.id === id),
   closeTab: m.closeTab,
   reopenClosed: m.reopenClosed,
   textOf: (t: any) => t.content

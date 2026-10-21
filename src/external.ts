@@ -3,7 +3,7 @@
 // and handleRefusedWrite. Bar actions hold only the tab id and look the tab up when they run.
 import type { DiskStamp, TabState } from './types';
 import { readNote, statNote } from './ipc';
-import { getTab, getTabs, loadText, markDirty, markSaved, openCopy } from './tabs';
+import { getTabs, loadText, markDirty, markSaved, openCopy, openTab } from './tabs';
 import { inConflict, isWriting, setConflict, writeGeneration } from './diskState';
 import { clearInfo, showError, showInfo } from './infobar';
 
@@ -13,8 +13,12 @@ const barKey = (id: string): string => `external:${id}`;
 const errorKey = (id: string): string => `external-error:${id}`;
 const same = (a: DiskStamp, b: DiskStamp): boolean => a.mtimeMs === b.mtimeMs && a.size === b.size;
 
-/** Saving, bound by startExternalWatch (saving imports this module, not the other way round). */
-let save: (id: string) => Promise<boolean> = async () => false;
+/** Saving, passed in by startExternalWatch (saving imports this module, not the other way round). */
+let saveTab: ((id: string) => Promise<boolean>) | null = null;
+function save(id: string): Promise<boolean> {
+  if (!saveTab) throw new Error('external watch used before startExternalWatch');
+  return saveTab(id);
+}
 
 /**
  * Loads the file into the tab and marks it saved. With `onlyIfClean`, edits typed during the read win:
@@ -22,7 +26,8 @@ let save: (id: string) => Promise<boolean> = async () => false;
  */
 async function reload(tab: TabState, onlyIfClean: boolean): Promise<void> {
   const file = await readNote(tab.filePath!);
-  if (onlyIfClean && tab.dirty) return raiseChanged(tab, file.stamp);
+  // A tab closed during the read gets no conflict bar; its close write reports what did not reach the disk.
+  if (onlyIfClean && tab.dirty) return openTab(tab.id) ? raiseChanged(tab, file.stamp) : undefined;
   loadText(tab, file.text);
   tab.format = file.format;
   markSaved(tab.id, { text: file.text, stamp: file.stamp });
@@ -42,7 +47,7 @@ function act(id: string, label: string, what: string, run: (tab: TabState) => Pr
     primary,
     keepOpen: true, // the bar goes through resolveConflict once the choice is made
     run: () => {
-      const tab = getTab(id);
+      const tab = openTab(id);
       if (!tab) return clearInfo(barKey(id));
       void Promise.resolve(run(tab)).catch((err) => showError(`${what} ${tab.title}`, err, errorKey(id)));
     }
@@ -103,7 +108,7 @@ async function outside(tab: TabState, stamp: DiskStamp | null): Promise<void> {
 
 /** Saving calls this when Rust refused a write because the file changed or went away meanwhile. */
 export function handleRefusedWrite(id: string, stamp: DiskStamp | null): void {
-  const tab = getTab(id);
+  const tab = openTab(id);
   if (tab?.filePath && !inConflict(id)) void outside(tab, stamp).catch(() => {});
 }
 
@@ -111,7 +116,7 @@ async function checkTab(tab: TabState): Promise<void> {
   const generation = writeGeneration(tab.id);
   const stamp = await statNote(tab.filePath!);
   // A write that started or ended during the stat makes its answer stale; the next check sees the truth.
-  if (writeGeneration(tab.id) !== generation || isWriting(tab.id) || inConflict(tab.id) || !getTab(tab.id)) return;
+  if (writeGeneration(tab.id) !== generation || isWriting(tab.id) || inConflict(tab.id) || !openTab(tab.id)) return;
   if (stamp && tab.disk && same(stamp, tab.disk)) clearInfo(barKey(tab.id));
   else await outside(tab, stamp);
 }
@@ -137,8 +142,8 @@ function start(): void {
  * Checks now (restored dirty tabs against their files, SPEC §7), on window focus, and every 2 s
  * while the window has focus. `saveTab` is how a conflict choice writes the tab.
  */
-export function startExternalWatch(saveTab: (id: string) => Promise<boolean>): void {
-  save = saveTab;
+export function startExternalWatch(save: (id: string) => Promise<boolean>): void {
+  saveTab = save;
   window.addEventListener('focus', start);
   window.addEventListener('blur', stop);
   if (document.hasFocus()) start();

@@ -108,7 +108,7 @@ const plain = (m: InfoMessage): boolean => !m.actions?.length && !m.body && !m.o
 const same = (a: InfoMessage, b: InfoMessage): boolean => a.kind === b.kind && a.text === b.text && plain(a) && plain(b);
 
 /**
- * T1. Shows a message. An unkeyed message replaces the previous unkeyed one in its position;
+ * Shows a message. An unkeyed message replaces the previous unkeyed one in its position;
  * a keyed one replaces its own earlier version in place. Returns dismiss.
  */
 export function showInfo(msg: InfoMessage): () => void {
@@ -164,7 +164,7 @@ export function errorText(err: unknown): string {
   }
 }
 
-/** T1. Error bar for a failed action: "Could not <what>: <reason>". With a key it lasts until clearInfo(key). */
+/** Error bar for a failed action: "Could not <what>: <reason>". With a key it lasts until clearInfo(key). */
 export function showError(what: string, err: unknown, key?: string, actions?: InfoMessage['actions']): () => void {
   return showInfo({ kind: 'error', text: `Could not ${what}: ${errorText(err)}`, key, actions });
 }

@@ -16,12 +16,12 @@ vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 vi.mock('./editor/links', () => ({ rewriteImagePrefix: vi.fn(), rewrittenText: vi.fn(() => 'rewritten') }));
 vi.mock('./tabs', () => ({
   getTab: (id: string) => h.tabs.find((t) => t.id === id),
-  findTab: (id: string) => h.tabs.find((t) => t.id === id),
+  openTab: (id: string) => h.tabs.find((t) => t.id === id),
   allTabs: () => h.tabs,
   textOf: (t: { text: string }) => t.text,
-  markSaved: vi.fn((id: string, w: { path?: string }) => {
+  markSaved: vi.fn((id: string, w: { text: string; path?: string }) => {
     const t = h.tabs.find((x) => x.id === id);
-    if (t) t.dirty = false;
+    if (t && t.text === w.text) t.dirty = false; // as tabs.ts: only when the text is still the written one
     if (t && w.path) t.filePath = w.path;
     h.log.push(`markSaved ${w.path ?? ''}`);
   }),

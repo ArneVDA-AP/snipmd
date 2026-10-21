@@ -1,6 +1,6 @@
-//! R5: Markdown link paths (SPEC §6.3, §6.4). Encode only; links are rewritten in the editor.
+//! Markdown link paths (SPEC §6.3, §6.4). Encode only; links are rewritten in the editor.
 
-/// R5. Percent-encodes exactly space, `(`, `)`, `#`, `%` and `&` (an entity like `&amp;` would
+/// Percent-encodes exactly space, `(`, `)`, `#`, `%` and `&` (an entity like `&amp;` would
 /// otherwise read differently in Markdown renderers); everything else stays.
 pub fn encode_link_path(p: &str) -> String {
     let mut out = String::with_capacity(p.len());

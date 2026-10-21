@@ -9,18 +9,18 @@ function imageHeaders(tabId: string, notePath: string | null): Record<string, st
   return notePath ? { 'x-tab-id': tabId, 'x-note-path': encodeURIComponent(notePath) } : { 'x-tab-id': tabId };
 }
 
-/** T3. Saves pasted image bytes (raw IPC body) into the tab's image folder. */
+/** Saves pasted image bytes (raw IPC body) into the tab's image folder. */
 export function saveImage(tabId: string, notePath: string | null, bytes: Uint8Array): Promise<SavedImage> {
   return invoke<SavedImage>('save_image', bytes, { headers: imageHeaders(tabId, notePath) });
 }
 
-/** T3b. Copies a dropped image file into the tab's image folder. Rust only accepts files that were dropped. */
+/** Copies a dropped image file into the tab's image folder. Rust only accepts files that were dropped. */
 export function importImage(tabId: string, notePath: string | null, src: string): Promise<SavedImage> {
   return invoke<SavedImage>('import_image', { tabId, notePath, src });
 }
 
 /**
- * T4. Writes a note in `format` (null: the format of the file on disk, or CRLF for a new one). With
+ * Writes a note in `format` (null: the format of the file on disk, or CRLF for a new one). With
  * `expected`, Rust refuses when the file's stamp differs (changed or gone outside SnipMD) and says so.
  */
 export function writeNote(path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<WriteOutcome> {
@@ -32,37 +32,37 @@ export function readNote(path: string): Promise<NoteFile> {
   return invoke<NoteFile>('read_markdown_file', { path });
 }
 
-/** T9. The note's current stamp, or null when the file is gone. */
+/** The note's current stamp, or null when the file is gone. */
 export function statNote(path: string): Promise<DiskStamp | null> {
   return invoke<DiskStamp | null>('stat_note', { path });
 }
 
-/** T10. First save: moves the untitled tab's images next to the new note. Null when it had none. */
+/** First save: moves the untitled tab's images next to the new note. Null when it had none. */
 export function promoteUntitled(tabId: string, notePath: string): Promise<PrefixMove | null> {
   return invoke<PrefixMove | null>('promote_untitled', { tabId, notePath });
 }
 
-/** T10. Save As: copies the note's image folder for the new note; the original stays. Null when there is none. */
+/** Save As: copies the note's image folder for the new note; the original stays. Null when there is none. */
 export function copyAssets(fromNote: string, toNote: string): Promise<PrefixMove | null> {
   return invoke<PrefixMove | null>('copy_assets', { fromNote, toNote });
 }
 
-/** T11. Documents\Notes, created if missing. */
+/** Documents\Notes, created if missing. */
 export function defaultNoteFolder(): Promise<string> {
   return invoke<string>('default_note_folder');
 }
 
-/** T11. Native folder picker for the first-save bar. */
+/** Native folder picker for the first-save bar. */
 export function pickFolder(): Promise<string | null> {
   return invoke<string | null>('pick_folder');
 }
 
-/** T11. True when `name` is a valid new note name in `folder` and no file has it yet. */
+/** True when `name` is a valid new note name in `folder` and no file has it yet. */
 export function noteNameFree(folder: string, name: string): Promise<boolean> {
   return invoke<boolean>('note_name_free', { folder, name });
 }
 
-/** T11. Creates `folder/name` as an empty file (never over an existing one) and returns its path. */
+/** Creates `folder/name` as an empty file (never over an existing one) and returns its path. */
 export function claimNewNote(folder: string, name: string): Promise<string> {
   return invoke<string>('claim_new_note', { folder, name });
 }
