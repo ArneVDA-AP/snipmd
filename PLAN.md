@@ -4,6 +4,17 @@ Goal: get the prototype to `SPEC.md` v1. One phase = one branch + PR + one run.
 Phase 0 is solo: the main session builds the shared foundation and the contract stubs.
 Phases 1-5 run as `thin-standard` workflows. The main session writes the `args` JSON for a phase only after the previous phase is merged, and shows it for approval before the run.
 
+## Goal (v1)
+Make SnipMD v1 the best small Markdown-and-screenshot notes app on Windows. SPEC.md is the scope (§12): go deep, not wide; ideas beyond it go to `PROPOSALS.md`, not into code. Done when all of this holds on `main` with CI green:
+1. Phases 5 and 6 merged; every open Windows test in Status run on the Windows machine and passed; every defect found fixed and counted in the run log's "Later" column.
+2. UI/UX at product level, judged on screenshots of the running app on Windows: one visual system (type scale, spacing, colour tokens; light and dark follow Windows; Windows 11 Mica where Tauri offers it); a polished tab strip, info bar, first-save bar, conflict bar and read mode; motion under 150 ms that respects reduced motion; an empty state that teaches the core loop; every action reachable by keyboard with visible focus; WCAG AA contrast; correct at 100-200% scaling. Before and after screenshots in `findings/ui/`.
+3. Find and replace (`Ctrl+F` / `Ctrl+H`) and light Markdown styling (SPEC §5, §10).
+4. Every SPEC §9 budget measured on Windows, recorded here and within target; the bundle split so startup loads only what the first paint needs.
+5. README, CHANGELOG and RELEASE-WIN11.md describe the app as it is; an installer under 10 MB built from tag `v1.0.0`, smoke-tested from a clean install.
+6. A final adversarial review (thin-review) of the whole app against SPEC.md and CLAUDE.md with no open blocker or major.
+
+Autonomous runs work toward this goal with the owner's authority (CLAUDE.md, Workflow). Each decision is recorded with its reason under Decisions below. Windows checks by computer use only between 04:30 and 09:00 Brussels time, when the Windows machine is free.
+
 ## Why this shape
 - Today `src/state/TabManager.ts` (924 lines) touches everything. Parallel units need disjoint files, so phase 0 splits the code into modules and freezes the seams as stubs. Without that, phases 1-5 cannot run in parallel.
 - `cargo check` of the Tauri crate fails on a Linux cloud box (no GTK). Pure logic therefore lives in a separate crate `snipmd-core` without Tauri. `cargo test -p snipmd-core` runs everywhere; that is what unit checks use.
@@ -131,6 +142,7 @@ Windows test: Ctrl+W on an untitled tab with images, restart, Ctrl+Shift+T: tab 
 Comparison run: phase 5 is also built solo (one session, same args as the brief, no workflow) in a separate worktree from the same base commit. Only the better of the two is merged; both get the same R1 review brief and are recorded in the run log below.
 
 ## Phase 6. Editor and measuring (solo)
+Goal items 2-5. Split into its own branches as the work shows (UI system, find and replace, measuring and bundle, release); each gets its own PR.
 Light Markdown styling, find and replace, read mode via `Ctrl+E`. Measure every SPEC §9 budget on Windows and record the values here. Anything over budget is fixed before v1.
 
 ## Run log
@@ -152,8 +164,11 @@ Phase 5 comparison. Tokens are the final context per agent; dollars come from ea
 - [x] 2 Storage foundation: PR #3 merged (review `review/phase2-R1.md`: D1-D4 fixed). **Windows test open**: paste, Alt+F4 at once, restart: image and text are there. Pull a USB stick with an open note: error bar, other tabs keep saving.
 - [x] 3 Images and paste: PR #4 merged (review `review/phase3-R1.md`: M1-M3 fixed, m4 m7 m8 m9 m10 fixed). **Windows test open**: 4K screenshot visible in under 150 ms; Excel cells paste as text; Ctrl+Shift+V with only an image does nothing; a jpg dropped mid-text lands on the drop line; two dropped images sit together. Until phase 4: do not first-save an untitled tab with images (its links stay `untitled.assets/`).
 - [x] 4 Saving flows: PR #5 merged (review `review/phase4-R1.md`: B1-B2 and M1-M10 fixed). **Windows test open**: untitled note with screenshots, Ctrl+S, Enter: file and folder side by side, `attrib` shows no H on the note; opens correctly in VS Code and on GitHub. Edit the note in Notepad while SnipMD has it open: a clean tab reloads, a dirty one shows the conflict bar. Save As to another drive copies the images.
-- [x] 5 Tabs and recovery: branch `claude/phase-5` (solo build; reviews `review/phase5-R1.md` thin and `review/phase5-solo-R1.md` solo, majors of both fixed). **Windows test open**: untitled tab with screenshots, Ctrl+W, restart, Ctrl+Shift+T: tab and images are back. Edit a note in Notepad while SnipMD has unsaved edits in it, then Ctrl+W: the warning bar "… closed with changes that are not on disk" with Restore. Ctrl+1 on AZERTY goes to the first tab; holding Ctrl+W closes one tab.
+- [x] 5 Tabs and recovery: PR #6 merged (solo build; reviews `review/phase5-R1.md` thin and `review/phase5-solo-R1.md` solo, majors of both fixed). **Windows test open**: untitled tab with screenshots, Ctrl+W, restart, Ctrl+Shift+T: tab and images are back. Edit a note in Notepad while SnipMD has unsaved edits in it, then Ctrl+W: the warning bar "… closed with changes that are not on disk" with Restore. Ctrl+1 on AZERTY goes to the first tab; holding Ctrl+W closes one tab.
 - [ ] 6 Editor and measuring
+
+## Decisions
+Autonomous runs add one line per decision: date, what, why.
 
 ## Handoff
 - Branches: `main` has phases 0-4 (phase 5 on `claude/phase-5`): SPEC.md, CLAUDE.md, PLAN.md, `.claude/` (thin-* agents, thin-standard workflow), the module layout, the security layer, the storage foundation, images and paste, saving flows. Phase 5 runs on `claude/phase-5`.
