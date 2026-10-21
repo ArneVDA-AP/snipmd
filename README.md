@@ -62,6 +62,8 @@ npx tauri build
 
 The installer is then in `src-tauri\target\release\bundle\nsis\`.
 
+**macOS** (13 Ventura or later, Apple Silicon and Intel) is in testing. Builds come as `SnipMD_<version>_universal.dmg`; until SnipMD has an Apple Developer ID they are ad-hoc signed, and the first start needs the steps in [`RELEASE-MACOS.md`](RELEASE-MACOS.md).
+
 ## Contributing
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). The behaviour is specified in [`SPEC.md`](SPEC.md), and the code is explained in [`ARCHITECTURE.md`](ARCHITECTURE.md). SnipMD is built with Claude (Anthropic) as the main author.
 

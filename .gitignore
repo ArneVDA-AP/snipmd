@@ -11,7 +11,7 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/WixTools/
 release-win11/
-release/
+/release/
 
 # Local tool output
 .claude/worktrees/

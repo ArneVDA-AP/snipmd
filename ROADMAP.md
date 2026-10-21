@@ -31,7 +31,7 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 | Double-click to typing, cold start | < 1 s | 722–784 ms |
 
 ## macOS (phase 7, after v1.0.0)
-Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a, 7b and 7c went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Next is 7d, the release.
+Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a to 7d went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Open: the tester's check (`RELEASE-MACOS.md`), and signing and notarization once there is a Developer ID.
 
 Most of the code is portable already: the Windows-only Rust sits behind `cfg(windows)`, keys accept `metaKey`, and paths parse POSIX. The work is in seven places:
 1. Quit. AppKit ends the app on `Cmd+Q`, the Dock's Quit and logout through `applicationWillTerminate`; Tauri 2.12 sends no `ExitRequested`, so the page never flushed. Done in 7b: `macos.rs` adds `applicationShouldTerminate:` to tao's delegate and answers later until the page has flushed (5 s at most).
@@ -79,6 +79,8 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - replace: Cmd+Option+F, a word and Enter replace the selected word.
 - cmd-h: Cmd+H hides the app.
 
+**7d result** (`release-macos.yml` run 2, 2026-10-21, on the branch before merging): `SnipMD_0.1.0_universal.dmg` is 3.8 MB. Gatekeeper rejects the downloaded ad-hoc app, as expected. Installed from the `.dmg` with the tester's first-start step, every probe PASS. The Developer ID path has not run: it needs the owner's Apple account.
+
 Items 5 and 6 are done. Accessibility sees only part of WKWebView's page (the hint is `aria-hidden`), and this session cannot download artifacts; the empty hint is judged on the tester's Mac.
 
 **What it cannot check:**
@@ -121,4 +123,5 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Start budget** (owner, 2026-10-21). SPEC §9 budgets SnipMD's own start (< 150 ms) and the cold start (< 1 s) instead of one 300 ms target. WebView2's own start takes about 600 ms on the owner's desktop before any page loads (tester probes on `test/w11-20261021`). A broker process that keeps WebView2 warm reaches about 320 ms but crashes SnipMD's start when its options differ, so it is out. Keeping SnipMD warm in the background is `PROPOSALS.md` #4, for after v1.
 - **macOS** comes after v1.0.0 (SPEC §13); Linux stays out. Most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop the Windows release depends on. The window keeps the native macOS buttons and an opaque bar, since vibrancy needs `macOSPrivateApi`. Closing the window quits the app, and new notes use LF.
 - **macOS keys.** Only Cmd is the app's modifier on macOS; Control keeps its text bindings (Control+E is end of line). The platform is read once from the engine's user agent, so the first paint is right. Paste as Plain Text goes through Rust's clipboard read, because WKWebView pastes only through the Edit menu.
+- **macOS releases are published by hand.** *Release macOS* adds the `.dmg` to a tag's release only when run on that tag with *publish* on, so tagging a Windows release never ships a macOS build the tester has not checked. Apple's secrets reach only the packaging step, which runs Apple's tools and no dependency code.
 - **macOS 13 Ventura or later, universal binary.** The owner wants Intel included; Ventura still runs on 2017 Intel Macs and its WebKit has everything the frontend uses. Without an Apple Developer account, builds are ad-hoc signed.
