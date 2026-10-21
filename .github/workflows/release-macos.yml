@@ -15,8 +15,6 @@ on:
         description: Add the .dmg to the release of the tag this run is on
         type: boolean
         default: false
-  push: # TEMPORARY: test runs before the workflow is on main; removed before merging
-    branches: [claude/macos-7d]
 
 permissions:
   contents: read

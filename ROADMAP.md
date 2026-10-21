@@ -31,7 +31,7 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 | Double-click to typing, cold start | < 1 s | 722–784 ms |
 
 ## macOS (phase 7, after v1.0.0)
-Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a, 7b and 7c went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Next is 7d, the release.
+Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a to 7d went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Open: the tester's check (`RELEASE-MACOS.md`), and signing and notarization once there is a Developer ID.
 
 Most of the code is portable already: the Windows-only Rust sits behind `cfg(windows)`, keys accept `metaKey`, and paths parse POSIX. The work is in seven places:
 1. Quit. AppKit ends the app on `Cmd+Q`, the Dock's Quit and logout through `applicationWillTerminate`; Tauri 2.12 sends no `ExitRequested`, so the page never flushed. Done in 7b: `macos.rs` adds `applicationShouldTerminate:` to tao's delegate and answers later until the page has flushed (5 s at most).
@@ -78,6 +78,8 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - paste-plain: Cmd+Shift+V pastes the clipboard's text.
 - replace: Cmd+Option+F, a word and Enter replace the selected word.
 - cmd-h: Cmd+H hides the app.
+
+**7d result** (`release-macos.yml` run 2, 2026-10-21, on the branch before merging): `SnipMD_0.1.0_universal.dmg` is 3.8 MB. Gatekeeper rejects the downloaded ad-hoc app, as expected. Installed from the `.dmg` with the tester's first-start step, every probe PASS. The Developer ID path has not run: it needs the owner's Apple account.
 
 Items 5 and 6 are done. Accessibility sees only part of WKWebView's page (the hint is `aria-hidden`), and this session cannot download artifacts; the empty hint is judged on the tester's Mac.
 
