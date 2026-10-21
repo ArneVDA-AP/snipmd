@@ -35,11 +35,19 @@ const highlight = HighlightStyle.define([
  */
 const markdownSupport = new LanguageSupport(markdownLanguage, [Prec.high(keymap.of(markdownKeymap)), pasteURLAsLink]);
 
+/**
+ * The style nonce Tauri puts into index.html and the CSP of a release build. CodeMirror injects its
+ * styles as <style> tags; without this nonce the CSP blocks them (no Markdown styling on Windows).
+ * Undefined in dev, where there is no CSP.
+ */
+const styleNonce = document.querySelector<HTMLStyleElement>('style[nonce]')?.nonce || undefined;
+
 export function createEditorState(tabId: string, doc: string): EditorState {
   return EditorState.create({
     doc,
     extensions: [
       tabIdFacet.of(tabId),
+      ...(styleNonce ? [EditorView.cspNonce.of(styleNonce)] : []),
       history(),
       drawSelection(),
       dropCursor(),

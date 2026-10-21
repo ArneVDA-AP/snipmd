@@ -5,8 +5,12 @@ Both come from `tools/ui-tour/tour.cjs`: the frontend in Chromium with a mocked 
 shot per scene in light and dark, and the writing scene at 150% and 200% scaling.
 
 These shots run on Linux, so Segoe UI and Cascadia Mono are replaced by fallback fonts and there is
-no Mica. They show layout, colour and states; the judgement on the real machine needs the Windows
-shots (`windows/`, taken by computer use on the Windows machine).
+no Mica. They show layout, colour and states.
+
+`windows-ci/` is the real release app on a Windows Server 2025 runner (`windows-run.yml`, run 3, after
+the fixes it led to): Segoe UI, WebView2, the app's CSP. Run 1 of that workflow showed the editor
+without any Markdown styling (CodeMirror's styles blocked by the CSP) and a focus ring around the
+text; both are fixed. The owner's machine is still the judge (`windows/`, by computer use).
 
 | Scene | What it shows |
 |---|---|

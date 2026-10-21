@@ -14,6 +14,11 @@ const SAFE_LINK = /^(?:mailto:|#)/i;
 const purify = DOMPurify(window);
 purify.addHook('afterSanitizeAttributes', (node) => {
   // Only web images survive here; the note's own images get their src after sanitizing.
+  // A note keeps no classes: the app's CSS is not scoped, so a class could draw a fake info bar.
+  // The only class kept is the one the app's own image renderer sets.
+  if (node.hasAttribute('class') && !(node.tagName === 'IMG' && node.getAttribute('class') === 'read-img')) {
+    node.removeAttribute('class');
+  }
   if (node.tagName === 'IMG') {
     // A data-own image never keeps a src from the note: it gets one only from own[] after sanitizing.
     if (node.hasAttribute('data-own')) node.removeAttribute('src');

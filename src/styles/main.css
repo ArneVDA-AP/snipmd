@@ -195,6 +195,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .read-pane:focus-visible { outline: none; }
 .editor-pane .cm-editor { height: 100%; background: var(--bg); color: var(--text); }
 .editor-pane .cm-editor.cm-focused { outline: none; }
+.editor-pane .cm-content:focus-visible { outline: none; } /* the caret shows where the keys go */
 .editor-pane .cm-scroller { font: var(--fs-body)/1.65 var(--font-ui); }
 .editor-pane .cm-content { max-width: 800px; margin: 0 auto; padding: var(--s6) var(--s6) 40vh; caret-color: var(--accent); }
 .editor-pane .cm-line { padding: 0; }
@@ -253,6 +254,9 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .editor-pane .cm-panels-bottom { border-top: 1px solid var(--line); }
 .editor-pane .cm-search { position: relative; padding: 6px 44px 6px var(--s4); line-height: 36px; }
 .editor-pane .cm-search > * { vertical-align: middle; margin: 0 var(--s1) 0 0; line-height: normal; }
+/* CodeMirror's base theme sets margins and padding on these with more specific selectors. */
+.editor-pane .cm-panel.cm-search .cm-textfield, .editor-pane .cm-panel.cm-search .cm-button { height: 28px; margin: 0 var(--s1) 0 0; padding-top: 0; padding-bottom: 0; line-height: 26px; vertical-align: middle; font-size: var(--fs-ui); }
+.editor-pane .cm-panel.cm-search label { margin: 0 var(--s2) 0 var(--s1); font-size: var(--fs-caption); vertical-align: middle; }
 .editor-pane .cm-search label { display: inline-flex; align-items: center; gap: var(--s1); margin: 0 var(--s2) 0 var(--s1); color: var(--text-muted); font-size: var(--fs-caption); line-height: 1; }
 .editor-pane .cm-textfield { width: 240px; height: 28px; margin: 0; padding: 0 var(--s2); border: 1px solid var(--line-strong); border-bottom: 2px solid var(--line-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--text); font: inherit; }
 .editor-pane .cm-textfield:focus { outline: none; border-bottom-color: var(--accent); }

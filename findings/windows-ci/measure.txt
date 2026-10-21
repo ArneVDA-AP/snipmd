@@ -1,0 +1,6 @@
+Double-click to typing, first start (ms, in process / from launch) 5583.2 / 6,085
+Double-click to typing, later starts (ms, median in process / from launch) 1126.4 / 1,169
+Ctrl+V to 4K screenshot visible (ms, median)               95.6
+Memory, 5 tabs and 20 images (MB private)                  128.5
+Installer (MB)                                             1.36
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-measure-89d727ba (delete when done)
