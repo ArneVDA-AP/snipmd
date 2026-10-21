@@ -23,10 +23,15 @@ fn resident() -> bool {
     std::env::var_os("PROBE_RESIDENT").is_some()
 }
 
+// A hidden broker that only keeps the WebView2 browser process alive for other hosts.
+fn hold() -> bool {
+    std::env::var_os("PROBE_HOLD").is_some()
+}
+
 #[tauri::command]
 fn mark(app: tauri::AppHandle, name: String) {
     log(&name);
-    if name == "exit" && !resident() {
+    if name == "exit" && !resident() && !hold() {
         app.exit(0);
     }
 }
@@ -68,7 +73,7 @@ fn main() {
                 .center()
                 .decorations(std::env::var_os("PROBE_FRAMELESS").is_none())
                 .transparent(std::env::var_os("PROBE_TRANSPARENT").is_some())
-                .visible(!resident());
+                .visible(!resident() && !hold());
             if let Ok(a) = std::env::var("PROBE_ARGS") {
                 wb = wb.additional_browser_args(&a);
             }
