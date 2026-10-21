@@ -148,7 +148,7 @@ function captureVisible(): void {
     setState(tab.id, view.state);
     if (tab.mode === 'edit') {
       tab.cursor = view.state.selection.main.head;
-      tab.scrollTop = view.scrollDOM.scrollTop;
+      if (!panes.editor.hidden) tab.scrollTop = view.scrollDOM.scrollTop; // a hidden pane reads 0
     }
   }
   const active = getActiveTab();
