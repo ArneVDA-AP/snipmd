@@ -157,15 +157,19 @@ describe('closed-tabs list', () => {
     expect(entry.disk).toEqual(stamp);
   });
 
-  it('reads a clean disk tab again on reopen, and keeps its closed text when the read fails', async () => {
+  it('reads a clean disk tab again on reopen; when the read fails it stays closed and its text opens as a read copy', async () => {
     vi.mocked(readNote).mockResolvedValue(note('v1'));
-    await restore(session([tab({ id: 'c', filePath: 'C:/n/c.md' }), tab({ id: 'u' })]));
+    await restore(session([tab({ id: 'c', title: 'c.md', filePath: 'C:/n/c.md' }), tab({ id: 'u' })]));
     await closeTab('c');
     vi.mocked(readNote).mockResolvedValueOnce(note('v2'));
     expect(textOf((await reopenClosed())!)).toBe('v2');
     await closeTab('c');
     vi.mocked(readNote).mockRejectedValueOnce(new Error('gone'));
-    expect(textOf((await reopenClosed())!)).toBe('v2');
+    expect(await reopenClosed()).toBeUndefined();
+    expect(snapshot().closedTabs.map((c) => c.tab.id)).toContain('c');
+    const copy = getTabs().find((t) => t.title === 'c.md (closed)');
+    expect(copy && textOf(copy)).toBe('v2');
+    expect(copy?.filePath).toBeNull();
   });
 
   it('activates a note that is open again instead of a second tab, and opens unsaved edits as a read copy', async () => {
