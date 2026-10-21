@@ -101,13 +101,15 @@ else
   report finder-open FAIL "the note is not in session.json (RunEvent::Opened not handled, PLAN phase 7 item 2)"
 fi
 
-# Types $2 in a fresh app (data folder $1), runs $3 to quit at once, and reports whether the text
-# reached session.json. Typing and the quit share one System Events call, so they are milliseconds apart.
+# Types $2 in a fresh app (data folder $1), runs $3 to quit 0.2 s later, and reports whether the
+# text reached session.json. Keystrokes queue behind the HID event queue while a quit Apple Event
+# arrives directly, so without the pause a Dock quit would overtake the typing. 0.2 s stays well
+# inside the 500 ms session debounce, so only the quit's flush can save the text.
 typed_then_quit() {
   start "$1"
   osascript -e "tell application id \"$ID\" to activate" >/dev/null 2>&1
   sleep 1
-  if ! osascript -e "tell application \"System Events\" to keystroke \"$2\"" -e "$3" 2>/dev/null; then
+  if ! osascript -e "tell application \"System Events\" to keystroke \"$2\"" -e "delay 0.2" -e "$3" 2>/dev/null; then
     quit_app
     report "$1" BLOCKED "no keystrokes without Accessibility"
     return
