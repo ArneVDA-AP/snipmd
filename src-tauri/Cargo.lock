@@ -3217,6 +3217,7 @@ name = "snip-md"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "objc2",
  "rand",
  "serde",
  "serde_json",

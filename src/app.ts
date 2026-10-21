@@ -9,7 +9,18 @@ import { markReady, markStep } from './perf';
 import { openFind } from './editor/search';
 import { getView } from './editor/registry';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
-import { getCliStartupFiles, onCloseRequested, onFilesDropped, onForwardedFiles, pickFileToOpen, windowBackdrop } from './ipc';
+import {
+  getCliStartupFiles,
+  onCloseRequested,
+  onFilesDropped,
+  onForwardedFiles,
+  onMenuCommand,
+  onOpenedNotes,
+  onQuitRequested,
+  pickFileToOpen,
+  takeOpenedNotes,
+  windowBackdrop
+} from './ipc';
 import {
   activate,
   cycle,
@@ -55,6 +66,26 @@ function findInEdit(replace: boolean): void {
   if (view) openFind(view, replace);
 }
 
+const onActive = (run: (id: string) => unknown) => {
+  const id = getActiveTab()?.id;
+  return id && run(id);
+};
+
+const find = (replace: boolean) => (getActiveTab()?.mode === 'read' ? findInRead(replace) : findInEdit(replace));
+
+/** SPEC §10, §13. The page's commands by name: the keys below and the macOS menu bar run them. */
+const COMMANDS: Record<string, () => unknown> = {
+  'new-tab': () => newUntitled(),
+  open: () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined)),
+  save: () => onActive(saveTab),
+  'save-as': () => onActive(saveAs),
+  'close-tab': () => onActive(closeTabWithRestore),
+  'reopen-tab': () => restoreClosedTab(),
+  'read-mode': () => toggleMode(),
+  find: () => find(false),
+  replace: () => find(true)
+};
+
 /** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
@@ -63,20 +94,18 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     return tab && (() => activate(tab.id));
   }
   const key = e.key.toLowerCase();
-  const id = getActiveTab()?.id;
-  const onActive = (run: (id: string) => unknown) => () => id && run(id);
   if (key === 'tab') return () => cycle(e.shiftKey ? -1 : 1);
-  if (e.shiftKey) return key === 's' ? onActive(saveAs) : key === 't' ? () => restoreClosedTab() : undefined;
+  if (e.shiftKey) return key === 's' ? COMMANDS['save-as'] : key === 't' ? COMMANDS['reopen-tab'] : undefined;
   switch (key) {
-    case 't': case 'n': return newUntitled;
-    case 'o': return () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined));
-    case 's': return onActive(saveTab);
-    case 'w': return onActive(closeTabWithRestore);
-    case 'e': return toggleMode;
+    case 't': case 'n': return COMMANDS['new-tab'];
+    case 'o': return COMMANDS.open;
+    case 's': return COMMANDS.save;
+    case 'w': return COMMANDS['close-tab'];
+    case 'e': return COMMANDS['read-mode'];
     case 'f': case 'h':
-      if (getActiveTab()?.mode === 'read') return () => findInRead(key === 'h');
-      // Outside the note (tab strip, a bar) CodeMirror does not see the key; open its panel here.
-      return document.activeElement?.closest('.cm-editor') ? undefined : () => findInEdit(key === 'h');
+      // In the note CodeMirror handles the key itself; outside it (tab strip, a bar) and in read mode, open the panel here.
+      if (getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
+      return COMMANDS[key === 'h' ? 'replace' : 'find'];
   }
   return undefined;
 }
@@ -147,28 +176,34 @@ export async function startApp(root: HTMLElement): Promise<void> {
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar, scheduleAutosave);
   registerKeys(titlebar);
 
-  const [session, cliFiles, mica] = await Promise.all([
+  const [session, cliFiles, finderNotes, mica] = await Promise.all([
     loadSession().catch(() => null),
     getCliStartupFiles().catch(() => []),
+    takeOpenedNotes().catch(() => []),
     windowBackdrop().catch(() => false)
   ]);
+  const startFiles = [...cliFiles, ...finderNotes];
   markStep('session');
   document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
-  else if (cliFiles.length === 0) await newUntitled();
+  else if (startFiles.length === 0) await newUntitled();
   // Writes start only now: a blur during the restore must not store an empty session over the real one.
-  // Everything below is in place before the files from the command line are read, so a slow or
-  // hung read of one never stops the session, the close flush, forwarded files or drops.
+  // Everything below is in place before the files from the command line or Finder are read, so a slow
+  // or hung read of one never stops the session, the close and quit flush, forwarded files or drops.
   startSessionWrites();
   startExternalWatch(saveTab);
   window.addEventListener('blur', () => void flushDirty());
   preloadReader();
+  // A hung note write (drive removed) must not keep the window open; the session was written first.
+  const flushForClose = () => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))]);
   await Promise.all([
-    // A hung note write (drive removed) must not keep the window open; the session was written first.
-    onCloseRequested(() => Promise.race([flushDirty(), new Promise<void>((r) => setTimeout(r, CLOSE_WAIT_MS))])),
+    onCloseRequested(flushForClose),
+    onQuitRequested(flushForClose),
     onForwardedFiles((paths) => void openPaths(paths)),
+    onOpenedNotes((paths) => void openPaths(paths)),
+    onMenuCommand((name) => void COMMANDS[name]?.()),
     onFilesDropped((d) => void handleDrop(d))
   ]);
-  await openPaths(cliFiles);
+  await openPaths(startFiles);
   markReady();
 }

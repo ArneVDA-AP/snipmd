@@ -13,6 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 
 mod backdrop;
 mod links;
+mod macos;
 mod perf;
 
 type Allowed = Mutex<AllowedSet>;
@@ -624,6 +625,7 @@ pub fn run() {
         )
         .manage(Allowed::new(AllowedSet::new()))
         .manage(Dropped(Mutex::new(AllowedSet::new())))
+        .manage(macos::OpenedNotes::default())
         .setup(|app| {
             let handle = app.handle();
             if let Some(window) = handle.get_webview_window("main") {
@@ -633,6 +635,8 @@ pub fn run() {
                 allowed(handle).allow_dir(&dir);
                 start_cleanup(dir);
             }
+            #[cfg(target_os = "macos")]
+            macos::setup(handle)?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -673,8 +677,16 @@ pub fn run() {
             pick_save,
             links::open_link,
             backdrop::window_backdrop,
-            perf::perf_mark
+            perf::perf_mark,
+            macos::take_opened_notes,
+            macos::quit_ready
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running SnipMD tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building SnipMD tauri application")
+        .run(|_app, _event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &_event {
+                macos::opened(_app, urls);
+            }
+        });
 }

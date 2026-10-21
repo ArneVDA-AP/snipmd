@@ -1,17 +1,25 @@
-// The startup order in app.ts: what must be in place before a file from the command line is read.
+// The startup order in app.ts: what must be in place before a file from the command line or Finder is read.
 import { expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
   order: [] as string[],
   onCloseRequested: vi.fn(async () => {}),
   onForwardedFiles: vi.fn(async () => {}),
-  onFilesDropped: vi.fn(async () => {})
+  onFilesDropped: vi.fn(async () => {}),
+  onQuitRequested: vi.fn(async () => {}),
+  onOpenedNotes: vi.fn(async () => {}),
+  onMenuCommand: vi.fn(async () => {})
 }));
 vi.mock('./ipc', () => ({
   getCliStartupFiles: async () => ['C:/n/hung.md'],
   onCloseRequested: m.onCloseRequested,
   onForwardedFiles: m.onForwardedFiles,
   onFilesDropped: m.onFilesDropped,
+  onQuitRequested: m.onQuitRequested,
+  onOpenedNotes: m.onOpenedNotes,
+  onMenuCommand: m.onMenuCommand,
+  pickFileToOpen: async () => null,
+  takeOpenedNotes: async () => ['/Users/x/hung.md'],
   windowBackdrop: async () => false
 }));
 vi.mock('./tabs', () => ({
@@ -40,11 +48,14 @@ vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClo
 
 import { startApp } from './app';
 
-it('a hung read of a command-line file leaves session writes, the close flush, forwarded files and drops working', async () => {
+it('a hung read of a command-line or Finder file leaves session writes, the close and quit flush, forwarded files, Finder, the menu and drops working', async () => {
   void startApp(document.createElement('div'));
   await new Promise((r) => setTimeout(r, 20));
   expect(m.order).toEqual(['restore', 'session writes', 'watch']);
   expect(m.onCloseRequested).toHaveBeenCalled();
   expect(m.onForwardedFiles).toHaveBeenCalled();
   expect(m.onFilesDropped).toHaveBeenCalled();
+  expect(m.onQuitRequested).toHaveBeenCalled();
+  expect(m.onOpenedNotes).toHaveBeenCalled();
+  expect(m.onMenuCommand).toHaveBeenCalled();
 });

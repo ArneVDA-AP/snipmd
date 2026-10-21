@@ -31,10 +31,10 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21):
 | Double-click to typing | < 300 ms | 690–730 ms, **open** |
 
 ## macOS (phase 7, after v1.0.0)
-Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Starts after the `v1.0.0` tag, except 7a, which only adds checks and can run now. Each step is its own branch and PR.
+Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a and 7b went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs; 7c waits for nothing but #24 and #31, which are merged.
 
 Most of the code is portable already: the Windows-only Rust sits behind `cfg(windows)`, keys accept `metaKey`, and paths parse POSIX. The work is in seven places:
-1. Quit. `Cmd+Q` sends `RunEvent::ExitRequested`, not the window's close-requested event, so today it skips the flush. The fix is `.build()` + `.run()`: prevent the exit, flush through the same frontend path, then exit.
+1. Quit. AppKit ends the app on `Cmd+Q`, the Dock's Quit and logout through `applicationWillTerminate`; Tauri 2.12 sends no `ExitRequested`, so the page never flushed. Done in 7b: `macos.rs` adds `applicationShouldTerminate:` to tao's delegate and answers later until the page has flushed (5 s at most).
 2. Opening from Finder. macOS hands files over as an Apple Event (`RunEvent::Opened`), not as argv, so double-click and Open With do nothing today. Route it through `allow_notes` and `open-files`.
 3. Menu. Tauri's default macOS menu binds `Cmd+W` to close window and `Cmd+H` to hide. SnipMD needs its own menu (SPEC §13) whose items emit the app's commands.
 4. Window. A `tauri.macos.conf.json` sets `decorations: true`, `titleBarStyle: "Overlay"`, `hiddenTitle`, `transparent: false` and the `dmg` / `app` targets. On macOS the title bar drops its own window buttons and leaves room for the system ones.
@@ -68,6 +68,8 @@ Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.r
 - The empty hint shows the Windows keys (item 5).
 - The runner's screen is 1024x768, smaller than the 1200x820 window, so the top bar sits under the menu bar in the screenshots. The 7b window config should cap the first size at the screen.
 - Run 1 never started the app (a relative path to `defaults read`) yet the job was green. The probe now fails the job when its harness breaks.
+
+**7b result** (PR #32, `macos-run.yml` run 4 on macOS 26.6 arm64, 2026-10-21): finder-open, quit-flush-cmdq, quit-flush-dock (a quit Apple Event) and close-tab (`Cmd+W`) PASS, as do launch and paste. Items 1-4 are done. The probe lines are in the run's log, and the screenshots are in its artifact.
 
 **What it cannot check:**
 - How the app feels next to native apps.

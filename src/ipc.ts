@@ -89,6 +89,11 @@ export function getCliStartupFiles(): Promise<string[]> {
   return invoke<string[]>('get_cli_startup_files');
 }
 
+/** Notes Finder handed over (macOS) and the page has not taken yet; always empty elsewhere. */
+export function takeOpenedNotes(): Promise<string[]> {
+  return invoke<string[]>('take_opened_notes');
+}
+
 export function pickFileToOpen(): Promise<string | null> {
   return invoke<string | null>('pick_open');
 }
@@ -123,6 +128,29 @@ export const appWindow = {
 export async function onForwardedFiles(callback: (paths: string[]) => void): Promise<void> {
   await listen<string[]>('open-files', (e) => {
     if (Array.isArray(e.payload) && e.payload.length > 0) callback(e.payload);
+  });
+}
+
+/** Notes Finder hands over while the app runs (macOS). Also takes any that arrived before the listener. */
+export async function onOpenedNotes(callback: (paths: string[]) => void): Promise<void> {
+  const take = async () => {
+    const paths = await takeOpenedNotes();
+    if (paths.length > 0) callback(paths);
+  };
+  await listen('notes-opened', () => void take());
+  await take();
+}
+
+/** A menu bar item (macOS) asks for the page command with this name. */
+export async function onMenuCommand(callback: (name: string) => void): Promise<void> {
+  await listen<string>('menu-command', (e) => callback(e.payload));
+}
+
+/** A quit (macOS: Cmd+Q, the Dock, logout) waits for `beforeQuit`, then Rust lets it go on. */
+export async function onQuitRequested(beforeQuit: () => Promise<void>): Promise<void> {
+  await listen('quit-requested', async () => {
+    await beforeQuit().catch(() => {});
+    await invoke('quit_ready');
   });
 }
 
