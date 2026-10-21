@@ -1,31 +1,33 @@
 name: Windows run
 
 # Manual: builds the release app on a Windows runner, measures the SPEC §9 budgets with
-# tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and pushes
-# the results to the branch ci/windows-run-<run number>. A runner is not the owner's laptop: the
-# numbers are a reference, the owner's machine is the judge.
+# tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and uploads
+# the results as a workflow artifact (kept 30 days). Nothing is committed or pushed. A runner is not
+# the owner's laptop: the numbers are a reference, the owner's machine is the judge.
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   run:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false # install scripts and build.rs never see a write token
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: './src-tauri -> target'
 
@@ -60,15 +62,19 @@ jobs:
           $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           powershell -ExecutionPolicy Bypass -File tools/measure/install-smoke.ps1 -Setup $setup.FullName 2>&1 | Tee-Object findings/windows-ci/install-smoke.txt
 
-      - name: Push results
+      - name: Convert result files to UTF-8
+        if: always()
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for f in findings/windows-ci/*.txt; do iconv -f UTF-16 -t UTF-8 "$f" > "$f.u" 2>/dev/null && mv "$f.u" "$f" || rm -f "$f.u"; done
-          git config user.name ArneVDA-AP
-          git config user.email arnevandenabbeele@hotmail.com
-          git checkout -b "ci/windows-run-${{ github.run_number }}"
-          git add findings/windows-ci findings/ui/windows-ci || true
-          git commit -m "Windows run ${{ github.run_number }}: budgets and screenshots from a CI runner" -m "Co-Authored-By: Claude" || exit 0
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "ci/windows-run-${{ github.run_number }}"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-run-${{ github.run_number }}
+          path: |
+            findings/windows-ci
+            findings/ui/windows-ci
+          if-no-files-found: warn
+          retention-days: 30
