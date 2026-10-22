@@ -36,10 +36,10 @@ import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } fr
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix } from './editor/links';
 import { markSaved } from './tabs';
-import { setConflict } from './diskState';
-import { handleRefusedWrite } from './external';
+import { isWriting, setConflict } from './diskState';
+import { handleRefusedWrite, resolveConflict } from './external';
 import { trackImageSave } from './editor/registry';
-import { flushSession } from './session';
+import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 
 const mk = (id: string) => ({ id, title: id, filePath: `/n/${id}.md`, dirty: true, text: `text ${id}` });
@@ -52,7 +52,7 @@ beforeEach(() => {
   h.tabs = [];
   h.log = [];
   vi.useRealTimers();
-  ['a', 's1', 's2', 'm1', 'f1', 'f2', 'c', 'u', 'd'].forEach((i) => setConflict(i, false));
+  ['a', 's1', 's2', 'm1', 'f1', 'f2', 'c', 'u', 'd', 'q1'].forEach((i) => setConflict(i, false));
   vi.mocked(flushSession).mockImplementation(() => Promise.resolve());
   vi.mocked(writeNote).mockResolvedValue(W);
   vi.mocked(showError).mockReturnValue(() => {});
@@ -127,6 +127,43 @@ describe('saveTab', () => {
     expect(clearInfo).not.toHaveBeenCalled();
     expect(await saveTab('s2')).toBe(true);
     expect(clearInfo).toHaveBeenCalledWith('save:s2');
+  });
+
+  it('marks the tab as writing while its write runs, so the watch leaves it alone', async () => {
+    h.tabs = [mk('wr')];
+    let release!: () => void;
+    vi.mocked(writeNote).mockImplementation(() => new Promise((r) => (release = () => r(W))));
+    const p = saveTab('wr');
+    await tick();
+    expect(isWriting('wr')).toBe(true);
+    release();
+    await p;
+    expect(isWriting('wr')).toBe(false);
+  });
+
+  it('a save queued behind a write is dropped when the tab went into conflict meanwhile', async () => {
+    h.tabs = [mk('q1')];
+    let release!: () => void;
+    vi.mocked(writeNote).mockImplementationOnce(() => new Promise((r) => (release = () => r(W))));
+    const first = saveTab('q1');
+    await tick();
+    const second = saveTab('q1');
+    setConflict('q1', true);
+    release();
+    expect(await Promise.all([first, second])).toEqual([true, false]);
+    expect(writeNote).toHaveBeenCalledTimes(1);
+    setConflict('q1', false);
+  });
+
+  it('a successful save writes the session at once; a failed one does not', async () => {
+    h.tabs = [mk('ss')];
+    expect(await saveTab('ss')).toBe(true);
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true });
+    vi.mocked(scheduleSessionSave).mockClear();
+    vi.mocked(writeNote).mockRejectedValueOnce('locked');
+    expect(await saveTab('ss')).toBe(false);
+    expect(scheduleSessionSave).not.toHaveBeenCalled();
+    expect(await saveTab('nope')).toBe(false);
   });
 
   it('saves asked for during a write merge into one follow-up write with the newest text', async () => {
@@ -244,6 +281,32 @@ describe('first save', () => {
     expect(promoteUntitled).toHaveBeenCalledWith('u', '/n/x.md');
     expect(rewriteImagePrefix).toHaveBeenCalledWith('u', MOVE);
     expect(h.log).toEqual(['claim', 'write', 'markSaved /n/x.md', 'lastFolder /n', 'promote', 'rewrite']);
+    expect(clearInfo).toHaveBeenCalledWith('save:u');
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true });
+  });
+
+  it('a second Ctrl+S while the bar is open joins it instead of opening another', async () => {
+    let choose!: (c: { folder: string; name: string }) => void;
+    vi.mocked(askFirstSave).mockReturnValue(new Promise((r) => (choose = r)));
+    vi.mocked(claimNewNote).mockResolvedValue('/n/x.md');
+    const first = saveTab('u');
+    const second = saveTab('u');
+    await tick();
+    expect(askFirstSave).toHaveBeenCalledTimes(1);
+    choose({ folder: '/n', name: 'x.md' });
+    expect(await Promise.all([first, second])).toEqual([true, true]);
+    expect(writeNote).toHaveBeenCalledTimes(1);
+    expect(claimNewNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('a note without images is saved without a rewrite or an error', async () => {
+    vi.mocked(askFirstSave).mockResolvedValue({ folder: '/n', name: 'x.md' });
+    vi.mocked(claimNewNote).mockResolvedValue('/n/x.md');
+    vi.mocked(promoteUntitled).mockResolvedValue(null);
+    expect(await saveTab('u')).toBe(true);
+    expect(rewriteImagePrefix).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+    expect(clearInfo).toHaveBeenCalledWith('images:u');
   });
 
   it('other uses pickSavePath', async () => {
@@ -271,7 +334,7 @@ describe('first save', () => {
     expect(promoteUntitled).not.toHaveBeenCalled();
     expect(rewriteImagePrefix).not.toHaveBeenCalled();
     expect(showError).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(showError).mock.calls[0][0]).toContain('Untitled-1');
+    expect(vi.mocked(showError).mock.calls[0][0]).toBe('save Untitled-1');
   });
 
   it('a failing move keeps the saved note, leaves the links and offers to try again', async () => {
@@ -314,6 +377,32 @@ describe('saveAs of a disk tab', () => {
     expect(rewriteImagePrefix).not.toHaveBeenCalled();
     expect(markSaved).not.toHaveBeenCalled();
     expect(h.tabs[0].filePath).toBe('/n/d.md');
+  });
+
+  it('a note without images is written and switched without a rewrite', async () => {
+    h.tabs = [mk('d')];
+    vi.mocked(pickSavePath).mockResolvedValue('/m/b.md');
+    vi.mocked(copyAssets).mockResolvedValue(null);
+    expect(await saveAs('d')).toBe(true);
+    expect(writeNote).toHaveBeenCalledWith('/m/b.md', 'text d', undefined, null);
+    expect(rewriteImagePrefix).not.toHaveBeenCalled();
+    expect(markSaved).toHaveBeenCalledWith('d', expect.objectContaining({ path: '/m/b.md', text: 'text d' }));
+    expect(resolveConflict).toHaveBeenCalledWith('d');
+    expect(h.log).toContain('lastFolder /m');
+    expect(clearInfo).toHaveBeenCalledWith('save:d');
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true });
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('a cancelled dialog changes nothing and reports nothing', async () => {
+    h.tabs = [mk('d')];
+    vi.mocked(pickSavePath).mockResolvedValue(null);
+    expect(await saveAs('d')).toBe(false);
+    expect(await saveAs('nope')).toBe(false);
+    expect(copyAssets).not.toHaveBeenCalled();
+    expect(writeNote).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+    expect(scheduleSessionSave).not.toHaveBeenCalled();
   });
 
   it('the same path is a plain save without copying', async () => {

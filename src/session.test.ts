@@ -35,10 +35,54 @@ describe('parseSession', () => {
 
   it('drops malformed tabs and rejects a session without usable tabs', () => {
     expect(parseSession(null)).toBeNull();
+    expect(parseSession('')).toBeNull();
     expect(parseSession('not json')).toBeNull();
-    expect(parseSession(JSON.stringify({ tabs: [{ title: 'no id' }, 7, null] }))).toBeNull();
+    expect(parseSession('"a string"')).toBeNull();
+    expect(parseSession('[1]')).toBeNull();
+    expect(parseSession(JSON.stringify({ tabs: [{ title: 'no id' }, { id: '' }, 7, null] }))).toBeNull();
+    expect(parseSession(JSON.stringify({ tabs: 'not a list' }))).toBeNull();
     const s = parseSession(JSON.stringify({ tabs: [{ id: 'ok' }, { title: 'no id' }] }))!;
     expect(s.tabs.map((t) => t.id)).toEqual(['ok']);
+    expect(s.tabs[0]).toEqual({ id: 'ok', title: 'Untitled', filePath: null, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null });
+    expect(s).toMatchObject({ activeTabId: 'ok', untitledCounter: 2, lastFolder: null, closedTabs: [] });
+  });
+
+  it('an empty file path is an untitled tab, so its text is restored instead of read from a file', () => {
+    const s = parseSession(JSON.stringify({ tabs: [{ id: 'e', filePath: '', content: 'draft', dirty: true }, { id: 'n', filePath: 'C:\\n\\a.md' }] }))!;
+    expect(s.tabs[0].filePath).toBeNull();
+    expect(s.tabs[0].content).toBe('draft');
+    expect(s.tabs[1].filePath).toBe('C:/n/a.md');
+  });
+
+  it('a stamp or format missing a field is unknown, not half known', () => {
+    const s = parseSession(JSON.stringify({ tabs: [
+      { id: 'a', disk: { mtimeMs: 1 }, format: { crlf: true } },
+      { id: 'b', disk: { mtimeMs: '1', size: 2 }, format: { crlf: 'yes', bom: false } },
+      { id: 'c', disk: { mtimeMs: 1, size: 2 }, format: { crlf: true, bom: false }, cursor: 'x', scrollTop: null, mode: 'preview' },
+      { id: 'd', filePath: 7, mode: 'read' },
+      { id: 5 }
+    ], lastFolder: '' }))!;
+    expect(s.tabs.map((t) => [t.disk, t.format])).toEqual([[null, null], [null, null], [{ mtimeMs: 1, size: 2 }, { crlf: true, bom: false }], [null, null]]);
+    expect(s.tabs[2]).toMatchObject({ cursor: 0, scrollTop: 0, mode: 'read' });
+    expect(s.tabs[3]).toMatchObject({ filePath: null, mode: 'read' });
+    expect(s.lastFolder).toBeNull();
+    expect(parseSession(JSON.stringify({ tabs: [{ id: 'k' }], lastFolder: 7 }))!.lastFolder).toBeNull();
+    expect(parseSession('null')).toBeNull();
+  });
+
+  it('closed tabs keep their tab and time; a time in the future is clamped to now, and an entry without a tab goes', () => {
+    const now = Date.now();
+    const s = parseSession(JSON.stringify({ tabs: [{ id: 'k' }], closedTabs: [
+      { tab: { id: 'c1', content: 'x' }, closedAt: now - 1000 },
+      { tab: { id: 'c2' }, closedAt: now + 1e9 },
+      { tab: { title: 'no id' }, closedAt: 1 },
+      { closedAt: 1 },
+      null
+    ] }))!;
+    expect(s.closedTabs.map((c) => c.tab.id)).toEqual(['c1', 'c2']);
+    expect(s.closedTabs[0].closedAt).toBe(now - 1000);
+    expect(s.closedTabs[1].closedAt).toBeLessThanOrEqual(Date.now());
+    expect(parseSession(JSON.stringify({ tabs: [{ id: 'k' }], closedTabs: 'no' }))!.closedTabs).toEqual([]);
   });
 });
 
@@ -55,6 +99,7 @@ describe('session writes', () => {
     info = await import('./infobar');
     vi.mocked(ipc.saveSessionRaw).mockReset().mockResolvedValue(undefined);
     vi.mocked(info.showError).mockReset();
+    vi.mocked(info.clearInfo).mockReset();
     m = await import('./session');
     n = 0;
     m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', untitledCounter: ++n, lastFolder: null, tabs: [], closedTabs: [] }));
@@ -76,6 +121,8 @@ describe('session writes', () => {
     expect(ipc.saveSessionRaw).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(ipc.saveSessionRaw).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2000); // the later calls started no timer of their own
+    expect(ipc.saveSessionRaw).toHaveBeenCalledTimes(1);
   });
 
   it('flushSession resolves only after the write resolved and cancels the debounce', async () => {
@@ -94,10 +141,17 @@ describe('session writes', () => {
     expect(ipc.saveSessionRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('flushSession resolves when the write rejected and reports it', async () => {
+  it('flushSession resolves when the write rejected and reports it once, keyed, until a write succeeds', async () => {
     vi.mocked(ipc.saveSessionRaw).mockRejectedValue(new Error('disk full'));
     await expect(m.flushSession()).resolves.toBeUndefined();
     expect(info.showError).toHaveBeenCalledTimes(1);
+    expect(info.showError).toHaveBeenCalledWith('save the session', expect.any(Error), 'session');
+    await m.flushSession();
+    expect(info.showError).toHaveBeenCalledTimes(1);
+    expect(info.clearInfo).not.toHaveBeenCalled();
+    vi.mocked(ipc.saveSessionRaw).mockResolvedValue(undefined);
+    await m.flushSession();
+    expect(info.clearInfo).toHaveBeenCalledWith('session');
   });
 
   it('a failed write is retried by the next save of the same snapshot', async () => {

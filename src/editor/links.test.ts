@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { undo } from '@codemirror/commands';
 import { createEditorState } from './setup';
 import { dropState, getState, initRegistry, setState } from './registry';
-import { rewriteImagePrefix } from './links';
+import { rewriteImagePrefix, rewrittenText } from './links';
 
 initRegistry({ filePathOf: () => null, onChange: () => {} });
 
@@ -53,5 +53,13 @@ describe('rewriteImagePrefix', () => {
 
   it('returns 0 for an unknown tab', () => {
     expect(rewriteImagePrefix('nope', MOVE)).toBe(0);
+  });
+
+  it('rewrittenText is the text a Save As writes: rewritten, with the tab itself untouched', () => {
+    const doc = '![a](untitled.assets/1.png) `![b](untitled.assets/2.png)`';
+    open('t4', doc);
+    expect(rewrittenText('t4', MOVE)).toBe('![a](note.assets/1.png) `![b](untitled.assets/2.png)`');
+    expect(text('t4')).toBe(doc);
+    expect(rewrittenText('nope', MOVE)).toBe('');
   });
 });

@@ -51,6 +51,14 @@ describe('closeTabWithRestore', () => {
     expect(m.showInfo).not.toHaveBeenCalled();
   });
 
+  it('an empty untitled tab closes without a bar', async () => {
+    addTab('e', { filePath: null });
+    m.closeTab.mockResolvedValueOnce(undefined);
+    await closeTabWithRestore('e');
+    expect(m.showInfo).not.toHaveBeenCalled();
+    expect(m.clearTabInfo).not.toHaveBeenCalled();
+  });
+
   it('saves a dirty disk tab before it closes', async () => {
     addTab('a', { dirty: true });
     await closeTabWithRestore('a');

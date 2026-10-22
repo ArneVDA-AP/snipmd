@@ -183,17 +183,121 @@ describe('checkTabs', () => {
   });
 
   it('a write that ends during the stat makes the answer stale: no reload, no conflict', async () => {
+    // The stat may have seen the file before our own write landed; the next check sees the truth.
     const tab = addTab('a', true);
     let answer!: (s: unknown) => void;
     m.statNote.mockReturnValueOnce(new Promise((r) => (answer = r)));
     const check = checkTabs();
     beginWrite('a');
     endWrite('a');
-    tab.disk = S2;
-    answer(S2);
+    answer(S2); // not the stamp the tab knows
     await check;
     expect(inConflict('a')).toBe(false);
+    expect(m.showInfo).not.toHaveBeenCalled();
     expect(m.readNote).not.toHaveBeenCalled();
+    expect(tab.disk).toEqual(S1);
+  });
+
+  it('a write still running when the stat answers, or a conflict raised meanwhile, makes it stale too', async () => {
+    addTab('a');
+    let answer!: (s: unknown) => void;
+    m.statNote.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    const check = checkTabs();
+    beginWrite('a');
+    answer(S2);
+    await check;
+    endWrite('a');
+    expect(m.readNote).not.toHaveBeenCalled();
+    m.statNote.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    const again = checkTabs();
+    setConflict('a', true); // a refused write put the tab in conflict during the stat
+    answer(S2);
+    await again;
+    expect(m.readNote).not.toHaveBeenCalled();
+    expect(m.showInfo).not.toHaveBeenCalled();
+    setConflict('a', false);
+  });
+
+  it('a stamp that differs in only the time or only the size is a change', async () => {
+    const tab = addTab('a');
+    m.statNote.mockResolvedValue({ mtimeMs: 1, size: 11 });
+    await checkTabs();
+    expect(m.markSaved).toHaveBeenCalledTimes(1);
+    tab.disk = { mtimeMs: 1, size: 11 };
+    m.statNote.mockResolvedValue({ mtimeMs: 2, size: 11 });
+    await checkTabs();
+    expect(m.markSaved).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips untitled tabs and disk tabs without a stamp', async () => {
+    m.tabs.push({ id: 'u', title: 'Untitled-1', filePath: null, dirty: true, disk: null });
+    m.tabs.push({ id: 'n', title: 'n.md', filePath: 'C:/n/n.md', dirty: true, disk: null });
+    await checkTabs();
+    expect(m.statNote).not.toHaveBeenCalled();
+  });
+
+  it('the gone bar cannot be dismissed either, and Save again is its primary choice', async () => {
+    addTab('a');
+    m.statNote.mockResolvedValue(null);
+    await checkTabs();
+    expect(lastBar().sticky).toBe(true);
+    expect(lastBar().kind).toBe('warning');
+    expect(action('Save again').primary).toBe(true);
+    expect(action('Save again').keepOpen).toBe(true);
+    setConflict('a', false);
+  });
+
+  it('Keep mine is the primary choice of the changed bar', async () => {
+    addTab('a', true);
+    m.statNote.mockResolvedValue(S2);
+    await checkTabs();
+    expect(lastBar().kind).toBe('warning');
+    expect(lastBar().actions!.map((a) => a.primary ?? false)).toEqual([false, false, true]);
+    setConflict('a', false);
+  });
+
+  it('a choice made after the tab closed only takes its bar away', async () => {
+    addTab('a', true);
+    m.statNote.mockResolvedValue(S2);
+    await checkTabs();
+    m.tabs.length = 0;
+    action('Reload').run();
+    await flush();
+    expect(m.clearInfo).toHaveBeenCalledWith('external:a');
+    expect(m.readNote).not.toHaveBeenCalled();
+    expect(m.showError).not.toHaveBeenCalled();
+    setConflict('a', false);
+  });
+
+  it('a successful choice also clears an error left by an earlier failed one', async () => {
+    addTab('a', true);
+    m.statNote.mockResolvedValue(S2);
+    await checkTabs();
+    m.readNote.mockRejectedValueOnce('locked');
+    action('Reload').run();
+    await flush();
+    expect(m.showError).toHaveBeenCalledTimes(1);
+    action('Reload').run();
+    await flush();
+    expect(m.clearInfo).toHaveBeenCalledWith('external-error:a');
+    expect(inConflict('a')).toBe(false);
+  });
+
+  it('a refused write for a tab already in conflict, or a closed one, raises nothing more', async () => {
+    addTab('a', true);
+    handleRefusedWrite('a', S2);
+    await flush();
+    expect(m.showInfo).toHaveBeenCalledTimes(1);
+    handleRefusedWrite('a', null);
+    await flush();
+    expect(m.showInfo).toHaveBeenCalledTimes(1);
+    expect(lastBar().text).toBe('a.md was changed outside SnipMD and you have changes too.');
+    setConflict('a', false);
+    m.tabs.length = 0;
+    handleRefusedWrite('a', null);
+    await flush();
+    expect(m.showInfo).toHaveBeenCalledTimes(1);
+    expect(inConflict('a')).toBe(false);
   });
 
   it('a write Rust refused puts a dirty tab in conflict', async () => {
@@ -248,5 +352,24 @@ describe('startExternalWatch', () => {
     window.dispatchEvent(new Event('focus'));
     await vi.advanceTimersByTimeAsync(0);
     expect(m.statNote).toHaveBeenCalledTimes(4);
+  });
+
+  it('a second focus event does not double the checks', async () => {
+    startExternalWatch(m.saveTab);
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    m.statNote.mockClear();
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(m.statNote).toHaveBeenCalledTimes(2);
+  });
+
+  it('without focus at start it checks once and does not poll', async () => {
+    focused = false;
+    startExternalWatch(m.saveTab);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(m.statNote).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(m.statNote).toHaveBeenCalledTimes(1);
   });
 });

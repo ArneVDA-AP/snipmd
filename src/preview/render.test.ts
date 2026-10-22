@@ -15,6 +15,7 @@ const openLink = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('../ipc', () => ({ openLink }));
 
 import { renderRead } from './render';
+import { ensureResolved } from '../editor/imageWidget';
 
 async function render(md: string): Promise<HTMLElement> {
   const el = document.createElement('div');
@@ -109,6 +110,35 @@ describe('renderRead sanitizing', () => {
     expect(srcs).toEqual([OWN_URL]);
     expect(el.querySelector('a')?.hasAttribute('href')).toBe(false);
   });
+  it('drops srcset and background, which would load a file past the src check', async () => {
+    const el = await render('<img src="https://e.com/a.png" srcset="http://asset.localhost/C%3A%2Fsecret.png 1x">\n\n<table background="http://asset.localhost/C%3A%2Fx.png"><tr><td>t</td></tr></table>');
+    expect(el.querySelector('img')?.getAttribute('src')).toBe('https://e.com/a.png');
+    expect(el.innerHTML).not.toContain('srcset');
+    expect(el.innerHTML).not.toContain('background');
+  });
+
+  it('drops style elements and forms: the app\'s CSS is not scoped and nothing is submitted', async () => {
+    const el = await render('<style>body{display:none}</style>\n\n<form action="https://e.com"><input name="x"></form>\n\ntext');
+    expect(el.querySelector('style, form')).toBeNull();
+    expect(el.innerHTML).not.toContain('display:none');
+    expect(el.textContent).toContain('text');
+  });
+
+  it('keeps only mailto and fragment links among the non-web schemes', async () => {
+    const el = await render('[t](tel:123#x) [m](mailto:a@b.c#x) [f](#top)');
+    const hrefs = [...el.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual([null, 'mailto:a@b.c#x', '#top']);
+  });
+
+  it('keeps its own image class and puts the alt text in as written', async () => {
+    const el = await render('![a "quoted" <b>](own.png) ![](https://e.com/a.png)');
+    const imgs = [...el.querySelectorAll('img')];
+    expect(imgs.map((i) => i.className)).toEqual(['read-img', 'read-img']);
+    expect(imgs[0].alt).toBe('a "quoted" <b>');
+    expect(imgs[0].getAttribute('onerror')).toBeNull();
+    expect(ensureResolved).toHaveBeenCalledWith('t1', 'own.png');
+  });
+
   it('removes src from non-image elements and drops ids', async () => {
     const el = await render('<video src="https://e.com/v.mp4" poster="https://e.com/p.png"></video>\n\n<div id="titlebar">x</div>');
     expect(el.innerHTML).not.toContain('src=');
