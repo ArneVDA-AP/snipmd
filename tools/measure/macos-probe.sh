@@ -98,7 +98,7 @@ quit_app
 if session | grep -q 'finder-open.md'; then
   report finder-open PASS "the note is a tab in session.json"
 else
-  report finder-open FAIL "the note is not in session.json (RunEvent::Opened not handled, PLAN phase 7 item 2)"
+  report finder-open FAIL "the note is not in session.json (RunEvent::Opened not handled)"
 fi
 
 # Types $2 in a fresh app (data folder $1), runs $3 to quit 0.2 s later, and reports whether the
@@ -121,7 +121,7 @@ typed_then_quit() {
   elif session | grep -q "$2"; then
     report "$1" PASS "text typed just before the quit is in session.json"
   else
-    report "$1" FAIL "text typed just before the quit is missing (PLAN phase 7 item 1)"
+    report "$1" FAIL "text typed just before the quit is missing (the quit did not wait for the page's flush)"
   fi
 }
 

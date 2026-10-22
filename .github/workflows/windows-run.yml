@@ -3,7 +3,7 @@ name: Windows run
 # Manual: builds the release app on a Windows runner, measures the SPEC §9 budgets with
 # tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and uploads
 # the results as a workflow artifact (kept 30 days). Nothing is committed or pushed. A runner is not
-# the owner's laptop: the numbers are a reference, the owner's machine is the judge.
+# an ordinary laptop: the numbers are a reference; release budgets are measured on real hardware.
 on:
   workflow_dispatch:
 
@@ -39,34 +39,34 @@ jobs:
       - name: Windows version
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path findings/windows-ci | Out-Null
+          New-Item -ItemType Directory -Force -Path results/windows-ci | Out-Null
           $v = [Environment]::OSVersion.Version
-          "Runner: $((Get-CimInstance Win32_OperatingSystem).Caption) build $($v.Build), $((Get-CimInstance Win32_Processor | Select-Object -First 1).Name), $([Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)) GB" | Tee-Object findings/windows-ci/runner.txt
+          "Runner: $((Get-CimInstance Win32_OperatingSystem).Caption) build $($v.Build), $((Get-CimInstance Win32_Processor | Select-Object -First 1).Name), $([Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)) GB" | Tee-Object results/windows-ci/runner.txt
 
       - name: Measure budgets
         continue-on-error: true
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File tools/measure/measure.ps1 -Exe src-tauri/target/release/snip-md.exe -Runs 5 -Pastes 3 2>&1 | Tee-Object findings/windows-ci/measure.txt
+          powershell -ExecutionPolicy Bypass -File tools/measure/measure.ps1 -Exe src-tauri/target/release/snip-md.exe -Runs 5 -Pastes 3 2>&1 | Tee-Object results/windows-ci/measure.txt
 
       - name: Screenshots
         continue-on-error: true
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out findings/ui/windows-ci 2>&1 | Tee-Object findings/windows-ci/shots.txt
+          powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/ui 2>&1 | Tee-Object results/windows-ci/shots.txt
 
       - name: Clean-install smoke test
         continue-on-error: true
         shell: powershell
         run: |
           $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
-          powershell -ExecutionPolicy Bypass -File tools/measure/install-smoke.ps1 -Setup $setup.FullName 2>&1 | Tee-Object findings/windows-ci/install-smoke.txt
+          powershell -ExecutionPolicy Bypass -File tools/measure/install-smoke.ps1 -Setup $setup.FullName 2>&1 | Tee-Object results/windows-ci/install-smoke.txt
 
       - name: Convert result files to UTF-8
         if: always()
         shell: bash
         run: |
-          for f in findings/windows-ci/*.txt; do iconv -f UTF-16 -t UTF-8 "$f" > "$f.u" 2>/dev/null && mv "$f.u" "$f" || rm -f "$f.u"; done
+          for f in results/windows-ci/*.txt; do iconv -f UTF-16 -t UTF-8 "$f" > "$f.u" 2>/dev/null && mv "$f.u" "$f" || rm -f "$f.u"; done
 
       - name: Upload results
         if: always()
@@ -74,7 +74,7 @@ jobs:
         with:
           name: windows-run-${{ github.run_number }}
           path: |
-            findings/windows-ci
-            findings/ui/windows-ci
+            results/windows-ci
+            results/ui
           if-no-files-found: warn
           retention-days: 30

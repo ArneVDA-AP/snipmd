@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
   Screenshots of the real SnipMD window on Windows, in light and dark: the empty start, a note with
-  a screenshot, read mode, and find and replace. Each run uses its own data folder (SNIPMD_DATA_DIR),
+  a screenshot, read mode, find and replace, and the first-save bar. Each run uses its own data folder (SNIPMD_DATA_DIR),
   so the user's session is never touched. SnipMD must not be running.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File tools\measure\shots.ps1 -Exe src-tauri\target\release\snip-md.exe -Out findings\ui\windows
+  powershell -ExecutionPolicy Bypass -File tools\measure\shots.ps1 -Exe src-tauri\target\release\snip-md.exe -Out shots\windows
 #>
 param(
   [string]$Exe = "$env:LOCALAPPDATA\SnipMD\snip-md.exe",
-  [string]$Out = 'findings\ui\windows'
+  [string]$Out = 'shots\windows'
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing

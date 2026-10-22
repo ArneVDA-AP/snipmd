@@ -1,6 +1,6 @@
 # Proposals
 
-Ideas outside SPEC.md v1 (§12). Nothing here is built without the owner's agreement.
+Ideas outside SPEC.md v1 (§12). Nothing here is built without the maintainer's agreement.
 
 | # | Idea | Why | Cost |
 |---|---|---|---|

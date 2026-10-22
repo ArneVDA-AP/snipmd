@@ -10,13 +10,13 @@ minder kosten dan solo ($7,66 tegen $11,18). Op de Pro-taken, waar de sessie zel
 thin-standard evenveel als solo; de variant met thin-orchestrator en kit kostte daar het dubbele.
 
 **Tegen B' (dezelfde briefs, door de hoofdsessie zelf uitgezet met de Agent-tool) is het verschil klein** (observed,
-N=1 B' per taak, A N=2 op H1): gelijke kwaliteit, A kostte 0,82× B' op H1 en 1,00× op P-AN. Volgens TESTPLAN §7 blijft
+N=1 B' per taak, A N=2 op H1): gelijke kwaliteit, A kostte 0,82× B' op H1 en 1,00× op P-AN. Volgens het testplan (niet in deze repo) blijft
 thin-standard de standaard. De besparing tegenover solo komt dus vooral uit het delegeren zelf, niet uit het script
-(inferred). Details: `results/L3-bprime.md`.
+(inferred). Ruwe resultaten: niet in deze repo.
 
 ## Token-efficiëntie
 
-Details en ruwe cijfers: `results/L3-efficiency.md`. Kosten berekend met `cost.py` uit de transcripts.
+Kosten berekend uit de transcripts; ruwe cijfers en scripts zijn niet in deze repo.
 
 | Taak | Solo | thin-standard | Verschil | Beurten hoofdsessie solo / A |
 |---|---|---|---|---|
@@ -136,14 +136,7 @@ past bij wat wij zagen.
 | B' en herhaling A (4 runs) | $5,90 |
 | **Totaal** | **$91,43** |
 
-Coördinatie van de B'-test zelf (sessie local_3b3c3601) zit niet in dit totaal.
+Coördinatie van de B'-test zelf zit niet in dit totaal.
 
 De coördinerende sessie kostte bijna de helft. Dat bevestigt punt 2: lange hoofdsessies met veel beurten zijn de
 grootste kostenpost.
-
-## Wat blijft staan
-
-`~/.claude/workflows/thin-standard.js` (met L0), `~/.claude/orchestration-kit/` (kit-3.1),
-`~/.claude/workflows-tests/thin-standard/` (plan, fixtures, antwoorden, scripts, resultaten),
-`C:\dev\l3-bench` (SWE-bench Pro-harness, 54 GB images in WSL) en de run-mappen onder `C:\dev\l2-runs` en
-`C:\dev\l3-runs`.

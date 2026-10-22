@@ -1,4 +1,4 @@
-//! path Checks (SPEC §8). Purely lexical, no file system access.
+//! Path checks (SPEC §8). Purely lexical, no file system access.
 use crate::PathError;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -104,7 +104,7 @@ pub fn resolve_image(note_dir: &Path, link: &str) -> Result<PathBuf, PathError> 
     Ok(out)
 }
 
-/// R1b. Resolves `untitled.assets/<file>` against the tab's scratch folder.
+/// Resolves `untitled.assets/<file>` against the tab's scratch folder.
 pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError> {
     let p = resolve_image(Path::new(""), link)?;
     match p.strip_prefix("untitled.assets") {
@@ -113,14 +113,14 @@ pub fn resolve_untitled(tab_dir: &Path, link: &str) -> Result<PathBuf, PathError
     }
 }
 
-/// R1b. 1 to 64 chars of `[A-Za-z0-9_-]`.
+/// 1 to 64 chars of `[A-Za-z0-9_-]`.
 pub fn valid_tab_id(id: &str) -> bool {
     (1..=64).contains(&id.len())
         && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
         && !windows_device(id)
 }
 
-/// R2b. A plain `.md` file name for a new note.
+/// A plain `.md` file name for a new note.
 pub fn valid_note_name(name: &str) -> bool {
     if name.chars().count() > 255 || name.ends_with('.') || name.ends_with(' ') {
         return false;

@@ -15,7 +15,8 @@ release-win11/
 
 # Local tool output
 .claude/worktrees/
-findings/ui/shots/
+/shots/
+/results/
 
 # OS & Editor files
 .DS_Store

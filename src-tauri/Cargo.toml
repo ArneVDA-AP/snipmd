@@ -1,7 +1,7 @@
 [package]
 name = "snip-md"
 version = "1.0.0"
-description = "Frameless Windows 11 Markdown & Snipping Tool Note-Taking Workspace"
+description = "Markdown notes with instant screenshot paste"
 authors = ["SnipMD Contributors"]
 edition = "2021"
 

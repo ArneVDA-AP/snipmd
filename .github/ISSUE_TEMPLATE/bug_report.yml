@@ -1,41 +1,47 @@
-name: Bug Report
-description: Report a bug in SnipMD's editor, clipboard snipping, .assets/ GC, or Windows 11 desktop shell
+name: Bug report
+description: Report a bug in SnipMD.
 title: "[Bug]: "
 labels: ["bug"]
 body:
-  - type: markdown
+  - type: input
+    id: version
     attributes:
-      value: |
-        Thanks for taking the time to report a bug in **SnipMD**!
+      label: SnipMD version
+      description: Shown in Settings → Apps on Windows, or the release you downloaded.
+      placeholder: "1.0.0"
+    validations:
+      required: true
   - type: dropdown
-    id: runtime
+    id: platform
     attributes:
-      label: Runtime Environment
+      label: Platform
       options:
-        - Windows 11 Native Desktop (.exe / .msi)
-        - Tauri v2 Dev Mode (npm run tauri:dev)
-        - Browser Web Preview (npm run dev)
+        - Windows 11 (installer)
+        - Windows 10 (installer)
+        - macOS (test build)
+        - Built from source (npm run tauri dev)
     validations:
       required: true
   - type: textarea
     id: description
     attributes:
       label: What happened?
-      description: A clear description of the unexpected behavior.
+      description: What you expected, and what happened instead.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to Reproduce
+      label: Steps to reproduce
       placeholder: |
-        1. Open an unsaved scratch tab (`Ctrl+T`)
-        2. Paste a snip (`Win+Shift+S` -> `Ctrl+V`)
+        1. Open a new tab (`Ctrl+T`)
+        2. Paste a screenshot (`Win+Shift+S`, then `Ctrl+V`)
         3. Press `Ctrl+S` to save...
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Console or Build Logs (if applicable)
+      label: Error messages (if any)
+      description: The text of any error bar, or console output when built from source.
       render: shell

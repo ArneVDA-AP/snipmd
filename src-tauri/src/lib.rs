@@ -41,7 +41,7 @@ fn dropped(app: &AppHandle) -> std::sync::MutexGuard<'_, AllowedSet> {
     app.state::<Dropped>().inner().0.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// The one path into the allowed set for a note (C3). The asset protocol scope is not widened
+/// The one path into the allowed set for a note. The asset protocol scope is not widened
 /// here: it gets single image files, granted where Rust hands an image path to the frontend.
 fn allow_note(app: &AppHandle, note: &Path) {
     allowed(app).allow_note(note);
@@ -584,7 +584,7 @@ fn save_session(app: AppHandle, request: Request<'_>) -> Result<(), String> {
     // A path outside the allowed set is dropped (the tab restores as untitled; a clean tab's
     // text is not in the session, so it comes back empty),
     // so a compromised webview cannot plant paths for the next start. Normal use never gets
-    // here, and the save itself must not fail over it (guardrail 5), so it is only logged.
+    // here, and the save itself must not fail over it (SPEC §6.1: a failing write never blocks the session save), so it is only logged.
     let mut dropped = 0usize;
     if parsed.get("lastFolder").and_then(Value::as_str).is_some_and(|f| !allowed(&app).may_create_in(Path::new(f))) {
         parsed["lastFolder"] = Value::Null;

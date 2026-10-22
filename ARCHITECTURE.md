@@ -16,7 +16,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 ```
 - **One store**: `%APPDATA%/com.snipmd.desktop/session.json` holds tabs, untitled text, closed tabs and the last folder. It is written atomically, debounced while typing and at once after a paste, a save, a close or blur (`session.ts`). A session that cannot be read is moved aside, never overwritten (`core/src/session.rs`).
 - **Untitled tabs** keep their images in `%APPDATA%/com.snipmd.desktop/scratch/<tab id>/`, linked as `untitled.assets/…`. The first save writes the note, then moves that folder to `<stem>.assets/` and rewrites the links in one undoable step.
-- **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per folder at runtime.
+- **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per image file at runtime.
 
 ## Frontend
 - `app.ts` is the only place that connects modules: it builds the DOM skeleton, owns the named commands that the keyboard table (SPEC §10) and the macOS menu bar both run, the F6 focus regions, and the flush on the window's close-requested event and on a macOS quit.
@@ -31,7 +31,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 ## Rust
 - Every command that touches the disk is async, so a slow or removed drive never freezes the window.
 - New images are created with `create_new` and a unique name; notes and the session are written to a temp file in the same folder, flushed and renamed.
-- The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab or closed tab.
+- The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab, no closed tab and no session kept aside as unreadable.
 - `macos.rs` (SPEC §13) builds the menu bar, reads the clipboard's text for Paste as Plain Text, queues notes Finder hands over (`RunEvent::Opened`) until the page takes them, and answers AppKit's `applicationShouldTerminate:` with "later" until the page has flushed (5 s at most). Tao has no such hook, so it is added to tao's app delegate at startup. Only its two commands compile on Windows. `tauri.macos.conf.json` swaps the frameless window for native buttons over the bar.
 - `SNIPMD_DATA_DIR` points the app at another data folder and `SNIPMD_TRACE` writes budget marks to `perf.log` there; `tools/measure/measure.ps1` uses both.
 
