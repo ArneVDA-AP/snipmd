@@ -27,7 +27,7 @@ export function writeNote(path: string, text: string, format: TextFormat | null,
   return invoke<WriteOutcome>('write_markdown_file', { path, content: text, format, expected });
 }
 
-/** T4 */
+/** A note's text, line-ending format and disk stamp, read from one open file. */
 export function readNote(path: string): Promise<NoteFile> {
   return invoke<NoteFile>('read_markdown_file', { path });
 }

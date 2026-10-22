@@ -2,12 +2,16 @@
 
 What is open, and the decisions still in force. Replace a section when it changes; history lives in git and in the `archive/v1-process` branch (the v1 plan, every review, findings and run args up to 2026-10-21).
 
-## v1.0.0: release
-All of SPEC.md v1 is on `main` with CI green, and the version is 1.0.0.
+## v1.0.0: released
+Published 2026-10-22 from the tag `v1.0.0` on 1c3a3fe: the Windows installer, MSI and portable exe, and a macOS preview (`SnipMD_1.0.0_universal.preview.dmg`, ad-hoc signed, every runner probe passed). The v0.1.0 release is marked as the prototype.
 
-1. **Windows tests on the owner's PC: passed** (2026-10-21/22, report on the unmerged `test/w11-20261021` branch). Security with `fixtures/evil.md`, paste then Alt+F4, paste and drop, first save, external edits with the conflict bar, Save As to another drive, closed tabs, held Ctrl+W, browser keys off, F6 and the tab strip, Mica, the installed app, Obsidian both ways, and 100%, 150% and 200% scaling. Three defects were found and fixed: autofill over the find fields (#20), code blocks that did not wrap in read mode (#36), and a first window taller than the screen at high scaling (#37). Left for after the release: a pulled USB stick and Ctrl+1 on a real AZERTY keyboard (the code handles it), and the first window sitting 7 px above the screen when it is shrunk to fit.
-2. **Final whole-app review: done** (2026-10-22). Two blockers (a session that could not be read was overwritten; a note that crashed the read-mode renderer stopped every later startup) and four majors were fixed in #38, each with a test, over three review rounds. Minor findings are in #39.
-3. **Tag `v1.0.0`** (owner's go), then smoke-test the published installer (RELEASE-WIN11.md).
+Before the release: the Windows tests on the owner's PC passed (report on the unmerged `test/w11-20261021` branch; three defects fixed in #20, #36, #37), and the final whole-app review's two blockers and four majors were fixed in #38 (minor findings: #39). A whole-repo hygiene pass followed in #42.
+
+Open:
+1. **Smoke test** of the published Windows installer (RELEASE-WIN11.md, steps 1-7, without uninstalling), reported on `test/w11-20261021`.
+2. **Test-suite audit**: a child session runs mutation testing and opens a PR on `claude/test-audit`; the owner decides on the merge.
+3. **macOS on a real Mac**: the checklist in RELEASE-MACOS.md (#30). Until it passes, macOS stays a preview and the repo description names only Windows.
+4. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen).
 
 Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on `main` e951acb):
 
@@ -19,71 +23,10 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 | SnipMD's own start (page load to typing) | < 150 ms | 131–139 ms |
 | Double-click to typing, cold start | < 1 s | 722–784 ms |
 
-## macOS (phase 7, after v1.0.0)
-Goal: SPEC §13 on `main`, with CI green on Windows and macOS. Each step is its own branch and PR; open work is tracked in #30. 7a to 7d went ahead of v1.0.0 (owner, 2026-10-21) because they change nothing Windows runs. Open: the tester's check (`RELEASE-MACOS.md`), and signing and notarization once there is a Developer ID.
-
-Most of the code is portable already: the Windows-only Rust sits behind `cfg(windows)`, keys accept `metaKey`, and paths parse POSIX. The work is in seven places:
-1. Quit. AppKit ends the app on `Cmd+Q`, the Dock's Quit and logout through `applicationWillTerminate`; Tauri 2.12 sends no `ExitRequested`, so the page never flushed. Done in 7b: `macos.rs` adds `applicationShouldTerminate:` to tao's delegate and answers later until the page has flushed (5 s at most).
-2. Opening from Finder. macOS hands files over as an Apple Event (`RunEvent::Opened`), not as argv, so double-click and Open With do nothing today. Route it through `allow_notes` and `open-files`.
-3. Menu. Tauri's default macOS menu binds `Cmd+W` to close window and `Cmd+H` to hide. SnipMD needs its own menu (SPEC §13) whose items emit the app's commands.
-4. Window. A `tauri.macos.conf.json` sets `decorations: true`, `titleBarStyle: "Overlay"`, `hiddenTitle`, `transparent: false` and the `dmg` / `app` targets. On macOS the title bar drops its own window buttons and leaves room for the system ones.
-5. Labels and hints: platform key labels, the macOS core loop in the empty hint, and `Cmd+Option+F` for replace.
-6. New notes in LF on macOS (`ipc.ts` format default, Rust write path).
-7. Release: a universal `.dmg`, signed and notarized; `release-macos.yml`, `RELEASE-MACOS.md`, README.
-
-| Step | What | Where | Verified by |
-|---|---|---|---|
-| 7a | `macos-latest` job in `ci.yml` (core tests, `cargo check`), and a manual `macos-run.yml` spike like `windows-run.yml`: build the app, launch it with `SNIPMD_DATA_DIR`, screenshot it, find out which automation the runner allows | cloud | the runner's output, pushed to `ci/macos-run-<n>` |
-| 7b | items 1-4 (Rust and config) | cloud | core tests, macOS CI, `macos-run.yml` |
-| 7c | items 5-6 (frontend) | cloud | Vitest, browser tour, `macos-run.yml` screenshots |
-| 7d | item 7 (release) | cloud, plus the owner's Apple account | a notarized `.dmg` from a tag, opened on a clean runner |
-
-Run card: Opus, medium, no worktree, cloud. The steps touch shared files (`lib.rs`, `app.ts`, `titlebar.ts`), so solo, not thin-standard.
-
-**What the macOS runner can check** (GitHub's `macos-latest`, Apple Silicon, free for a public repo):
-- Building and launching the app.
-- Opening a file through LaunchServices: `open -a SnipMD note.md` sends the same Apple Event as a Finder double-click.
-- Quitting: `osascript -e 'tell application "SnipMD" to quit'` sends the same event as `Cmd+Q`.
-- The result of open and quit, read from `session.json` in `SNIPMD_DATA_DIR`.
-- An image on the clipboard: `osascript` with `«class PNGf»` needs no permission.
-- `Cmd+V` and typing through System Events, and screenshots: the runner grants Accessibility and Screen Recording (7a, run 2).
-- The §9 budgets, as a reference: the runner is a VM, not a laptop.
-- Gatekeeper on the downloaded `.dmg`: `spctl --assess` with the quarantine flag set.
-
-**7a result** (`macos-run.yml` run 2 on macOS 26.6 arm64, 2026-10-21; `findings/macos-ci/probe.txt` on `ci/macos-run-2`):
-- The Tauri crate compiles for both architectures. The universal app builds and gets an ad-hoc signature.
-- launch, quit Apple Event and **paste: PASS**. WKWebView hands a clipboard PNG to the page, and `placeImages` saves it and shows it inline with no change to the code.
-- finder-open and quit-flush: FAIL, as expected (items 2 and 1). These two probes are the acceptance tests for 7b.
-- The empty hint shows the Windows keys (item 5).
-- The runner's screen is 1024x768, smaller than the 1200x820 window, so the top bar sits under the menu bar in the screenshots. Startup now shrinks a first window that does not fit the work area, on every platform.
-- Run 1 never started the app (a relative path to `defaults read`) yet the job was green. The probe now fails the job when its harness breaks.
-
-**7b result** (PR #32, `macos-run.yml` run 4 on macOS 26.6 arm64, 2026-10-21): finder-open, quit-flush-cmdq, quit-flush-dock (a quit Apple Event) and close-tab (`Cmd+W`) PASS, as do launch and paste. Items 1-4 are done. The probe lines are in the run's log, and the screenshots are in its artifact.
-
-**7c result** (PR #34, `macos-run.yml` run 11, 2026-10-21): every probe PASS. New probes, read through Accessibility or the session, not by eye:
-- traffic-lights: the close button's centre is at y 17 in the 34 pt bar.
-- own-buttons and key-labels: the page has no window buttons, and + reads "New tab (⌘T)".
-- close-once: one Cmd+W closes one tab, so the page and the menu never both run a command.
-- paste-plain: Cmd+Shift+V pastes the clipboard's text.
-- replace: Cmd+Option+F, a word and Enter replace the selected word.
-- cmd-h: Cmd+H hides the app.
-
-**7d result** (`release-macos.yml` run 2, 2026-10-21, on the branch before merging): `SnipMD_0.1.0_universal.dmg` is 3.8 MB. Gatekeeper rejects the downloaded ad-hoc app, as expected. Installed from the `.dmg` with the tester's first-start step, every probe PASS. The Developer ID path has not run: it needs the owner's Apple account.
-
-Items 5 and 6 are done. Accessibility sees only part of WKWebView's page (the hint is `aria-hidden`), and this session cannot download artifacts; the empty hint is judged on the tester's Mac.
-
-**What it cannot check:**
-- How the app feels next to native apps.
-- iCloud-synced `~/Documents` changing file stamps (false conflict bars?).
-- The first-run privacy prompt for `~/Documents`.
-- Retina judgement by eye.
-
-These need one session on a real Mac before the first macOS release.
-
-**Settled with the owner (2026-10-21):**
-- No Apple Developer account yet. Builds are ad-hoc signed; the tester clears quarantine with `xattr -dr com.apple.quarantine /Applications/SnipMD.app`, or uses Open Anyway in System Settings › Privacy & Security. Signing and notarization stay in 7d, behind secrets, for when the account exists.
-- Universal binary (Apple Silicon and Intel), macOS 13 Ventura or later.
-- A tester with a Mac does the final check; 7d writes their test list in `RELEASE-MACOS.md`.
+## macOS
+SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` builds a universal `.dmg` and runs the acceptance probes on the installed copy. A tag push does not publish it: a run with *publish* on adds the `.dmg` to a tag's release. Open, tracked in #30:
+- **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `RELEASE-MACOS.md` covers them.
+- **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `RELEASE-MACOS.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
@@ -108,7 +51,8 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.
 - **Windows testing.** A tester session on the owner's PC tests and reports; the cloud session fixes. That keeps one writer for the code.
-- **v1.0.0** is tagged after the Windows tests and a final review, on the owner's go.
+- **Releases** are tagged on the owner's go, after the Windows tests and a final review. A cloud session cannot push tags; the owner pushes the tag, and *Release macOS* is then run on it with *publish* for a macOS preview.
+- **Health checks.** CI runs weekly as well as on every push, and Dependabot proposes grouped updates weekly. A repo-wide hygiene pass (no internal references, comments true to the code) runs before each release.
 - **Start budget** (owner, 2026-10-21). SPEC §9 budgets SnipMD's own start (< 150 ms) and the cold start (< 1 s) instead of one 300 ms target. WebView2's own start takes about 600 ms on the owner's desktop before any page loads (tester probes on `test/w11-20261021`). A broker process that keeps WebView2 warm reaches about 320 ms but crashes SnipMD's start when its options differ, so it is out. Keeping SnipMD warm in the background is `PROPOSALS.md` #4, for after v1.
 - **macOS** comes after v1.0.0 (SPEC §13); Linux stays out. Most code is portable already, and the gaps (quit, Finder open, menu) touch the run loop the Windows release depends on. The window keeps the native macOS buttons and an opaque bar, since vibrancy needs `macOSPrivateApi`. Closing the window quits the app, and new notes use LF.
 - **macOS keys.** Only Cmd is the app's modifier on macOS; Control keeps its text bindings (Control+E is end of line). The platform is read once from the engine's user agent, so the first paint is right. Paste as Plain Text goes through Rust's clipboard read, because WKWebView pastes only through the Edit menu.

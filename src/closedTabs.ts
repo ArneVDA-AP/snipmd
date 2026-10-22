@@ -1,4 +1,4 @@
-// closing a Tab (Ctrl+W, middle-click, ×) and restoring it (Ctrl+Shift+T, the bar's Restore). SPEC §7.
+// Closing a tab (Ctrl+W, middle-click, ×) and restoring it (Ctrl+Shift+T, the bar's Restore). SPEC §7.
 import { clearInfo, clearTabInfo, showInfo } from './infobar';
 import { saveTab } from './saving';
 import { closeTab, openTab, reopenClosed, textOf } from './tabs';

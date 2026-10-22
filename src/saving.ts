@@ -45,7 +45,7 @@ function writeTab(tab: TabState): Promise<boolean> {
   const next: Promise<boolean> = (running.get(tab.id) ?? Promise.resolve(true)).then(async () => {
     queued.delete(tab.id);
     running.set(tab.id, next);
-    // Read when the write starts, so it carries the newest text. A closed tab keeps its text in content.
+    // Read when the write starts, so it carries the newest text. textOf covers a closed tab too: its kept editor state, or its content after a restart.
     const text = textOf(tab);
     try {
       if (inConflict(tab.id)) return false;

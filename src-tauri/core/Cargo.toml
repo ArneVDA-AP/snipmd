@@ -2,7 +2,7 @@
 name = "snipmd-core"
 version = "0.1.0"
 edition = "2021"
-description = "SnipMD logic without Tauri: paths, naming, links, text, notes, assets, cleanup, session. Tested with `cargo test -p snipmd-core`."
+description = "SnipMD logic without Tauri: paths, atomic writes, naming, links, text, notes, assets, session, cleanup. Tested with `cargo test -p snipmd-core`."
 
 [dependencies]
 chrono = "0.4"

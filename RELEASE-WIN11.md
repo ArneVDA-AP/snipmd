@@ -1,9 +1,9 @@
 # Releasing SnipMD for Windows
 
-SnipMD ships as a per-user NSIS installer (`SnipMD_<version>_x64-setup.exe`), an MSI for managed installs, and the bare `snip-md.exe`. All three run on Windows 10 and 11 (x64) with WebView2; the installer fetches WebView2 when it is missing. Target size: under 10 MB (SPEC §9).
+SnipMD ships as a per-user NSIS installer (`SnipMD_<version>_x64-setup.exe`), an MSI for managed installs, and a portable `SnipMD_<version>_x64_portable.exe`. All three run on Windows 10 and 11 (x64) with WebView2; the installer fetches WebView2 when it is missing. Target size: under 10 MB (SPEC §9).
 
 ## From a tag (the normal way)
-1. Set the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and move the `CHANGELOG.md` section from *unreleased* to the date.
+1. Set the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and add a `## [<version>] - <date>` section to `CHANGELOG.md`.
 2. Merge to `main` with CI green.
 3. Push a tag `v<version>` on that commit. The workflow *Release Windows* (`.github/workflows/release-win11.yml`) has two jobs. `build` (read-only token) checks the tag against `package.json`, runs the typecheck and tests, builds on `windows-latest`, checks the installer size and uploads the three files as an artifact. `publish` (the only job with write access) downloads that artifact and publishes a GitHub release.
 

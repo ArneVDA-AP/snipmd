@@ -4,7 +4,7 @@
 - `SPEC.md` decides what SnipMD does. If your change alters behaviour, change the spec first and say why.
 - `CLAUDE.md` lists the guardrails (data safety, security, editor, UX) and the code conventions. They apply to every change, whoever writes it.
 - v1 scope is `SPEC.md` §12. Ideas outside it go to `PROPOSALS.md` as a row, not into code.
-- `ROADMAP.md` says what is open; known follow-ups are GitHub issues. The plan, reviews and findings of the v1 build are on the `archive/v1-process` branch.
+- `ROADMAP.md` says what is open; known follow-ups are GitHub issues. The design history of v1 is on the `archive/v1-process` branch.
 
 ## Setup
 Node.js 22 and Rust stable; Windows 10 or 11 to run the app (`npm run tauri dev`).
@@ -14,7 +14,7 @@ npm ci
 npm run lint && npm test && npm run build
 cd src-tauri && cargo test -p snipmd-core && cargo check
 ```
-CI runs the same on `windows-latest` for every push.
+CI runs the same on `windows-latest` for every push and pull request, and checks the Rust side on `macos-latest`.
 
 ## Pull requests
 - One concern per PR, on its own branch; CI green before review.

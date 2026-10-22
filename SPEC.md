@@ -1,6 +1,6 @@
 # SnipMD — Product Specification
 
-Status: v0.4 draft, 2026-10-21 (adds §13 macOS; v0.3 agreed 2026-10-20). This file is the single source of truth for what SnipMD is and does.
+Applies to SnipMD 1.0. This file is the single source of truth for what SnipMD is and does.
 
 ## 1. North star
 
@@ -110,7 +110,7 @@ Opening a Markdown file from someone else must never run code or touch files.
 - Read mode HTML is sanitized (DOMPurify or equivalent): no scripts, no event handlers, no iframes, no `javascript:` URLs. Images only from the note's own folders or `http(s)`.
 - Strict CSP in `tauri.conf.json` (no `unsafe-inline` scripts, `connect-src` none beyond IPC).
 - Rust commands only read or write paths inside an **allowed set**: files the user opened (dialog, CLI, drag-drop, single-instance forward, session restore), their `<stem>.assets/` folders, and `%APPDATA%/com.snipmd.desktop/`. Relative image paths are resolved and checked to stay inside the note's folder (no `..`, no absolute paths).
-- Asset protocol scope is extended at runtime per allowed folder, not `**/*`.
+- Asset protocol scope is extended at runtime per image file the app resolved or saved, never a folder or `**/*`.
 - No `tauri-plugin-fs`; all file access goes through the scoped commands.
 
 ## 9. Quality bar
@@ -160,9 +160,9 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
 
-**v1 — deliberately out:** theme gallery, font choice, settings screen; folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; macOS and Linux builds.
+**v1 — deliberately out:** theme gallery, font choice, settings screen; folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
 
-**After v1.0:** a macOS build as §13 describes, once v1.0.0 is tagged on Windows. Linux stays out.
+**macOS:** in testing as §13 describes; ad-hoc signed builds until there is a Developer ID. Linux stays out.
 
 **v1.1:** `Ctrl+P` quick open over recent files. Share as one file: export to TextPack (zip of note + images) and import `.textpack` / `.textbundle`. The working format stays plain Markdown.
 
@@ -184,7 +184,7 @@ The empty-tab hint shows both.
 Labels and tooltips show the macOS keys (⌘ ⌥ ⇧ ⌃).
 
 **Menu bar.** macOS needs one: the webview's clipboard keys only work through an Edit menu.
-- SnipMD: About, Hide, Hide Others, Quit.
+- SnipMD: About, Hide, Hide Others, Show All, Quit.
 - File: New Tab, Open…, Save, Save As…, Close Tab, Reopen Closed Tab.
 - Edit: Undo, Redo, Cut, Copy, Paste, Paste as Plain Text, Select All, Find, Replace.
 - View: Read Mode, Enter Full Screen.

@@ -15,7 +15,7 @@ impl TextFormat {
     pub const NEW_FILE: TextFormat = TextFormat { crlf: cfg!(windows), bom: false };
 }
 
-/// R6b. Reads the format from raw bytes. Never fails. Without a line break, a new note's line breaks apply.
+/// Reads the format from raw bytes. Never fails. Without a line break, a new note's line breaks apply.
 pub fn sniff(bytes: &[u8]) -> TextFormat {
     let crlf = match bytes.iter().position(|&b| b == b'\n') {
         Some(i) => i > 0 && bytes[i - 1] == b'\r',

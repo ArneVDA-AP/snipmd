@@ -18,7 +18,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 ```
 - **One store**: `%APPDATA%/com.snipmd.desktop/session.json` holds tabs, untitled text, closed tabs and the last folder. It is written atomically, debounced while typing and at once after a paste, a save, a close or blur (`session.ts`). A session that cannot be read is moved aside, never overwritten (`core/src/session.rs`).
 - **Untitled tabs** keep their images in `%APPDATA%/com.snipmd.desktop/scratch/<tab id>/`, linked as `untitled.assets/…`. The first save writes the note, then moves that folder to `<stem>.assets/` and rewrites the links in one undoable step.
-- **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per folder at runtime.
+- **The allowed set** (Rust): every path a command touches must be a file the user opened, its `<stem>.assets/` folder, or the app data folder. Paths are checked lexically in `snipmd-core::paths`, the way Windows reads them; the asset protocol is granted per image file at runtime.
 
 ## Frontend
 - `app.ts` is the only place that connects modules: it builds the DOM skeleton, owns the named commands that the keyboard table (SPEC §10) and the macOS menu bar both run, the F6 focus regions, and the flush on the window's close-requested event and on a macOS quit.
@@ -34,7 +34,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - Every command that touches the disk is async, so a slow or removed drive never freezes the window.
 - `lib.rs` only checks paths and wires: what a command decides (a stamped write, which session texts the cleanup may trust, which session paths are dropped) lives in `snipmd-core`, where it is tested.
 - New images are created with `create_new` and a unique name; notes and the session are written to a temp file in the same folder, flushed and renamed.
-- The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab or closed tab.
+- The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab, no closed tab and no session kept aside as unreadable.
 - `macos.rs` (SPEC §13) builds the menu bar, reads the clipboard's text for Paste as Plain Text, queues notes Finder hands over (`RunEvent::Opened`) until the page takes them, and answers AppKit's `applicationShouldTerminate:` with "later" until the page has flushed (5 s at most). Tao has no such hook, so it is added to tao's app delegate at startup. Only its two commands compile on Windows. `tauri.macos.conf.json` swaps the frameless window for native buttons over the bar.
 - `SNIPMD_DATA_DIR` points the app at another data folder and `SNIPMD_TRACE` writes budget marks to `perf.log` there; `tools/measure/measure.ps1` uses both.
 
@@ -42,7 +42,6 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `npm test`: Vitest with jsdom: a test file per feature module, and `src/integration.test.ts`, which runs tabs, the editor registry, paste and saving together with only the Rust side stubbed.
 - `cargo test -p snipmd-core`: the Rust logic, on any OS.
 - CI on `windows-latest` runs both, builds the frontend and checks the Tauri crate on every push; a `macos-latest` job checks the crate for Apple Silicon and Intel.
-- `tools/ui-tour/tour.cjs`: screenshots of every UI state in light and dark (the write scene also at 150% and 200%) in a browser with a mocked backend. It runs without Tauri's CSP, so check style or script changes in the real window too.
 - `.github/workflows/windows-run.yml` (manual): builds the release app on a Windows runner, measures the SPEC §9 budgets and screenshots the real window; the results are a workflow artifact.
 - `.github/workflows/macos-run.yml` (manual): builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W closing one tab, paste and plain paste, replace and Cmd+H, and the top bar read through Accessibility; the results are in the log and a workflow artifact.
 - `.github/workflows/release-macos.yml` (manual): builds the universal app, packs it with `tools/release/macos-package.sh` (Developer ID signing and notarization when the secrets exist, ad-hoc otherwise), installs it from the `.dmg` and runs the same probes on that copy. On a tag with *publish* on, it adds the `.dmg` to the release. See `RELEASE-MACOS.md`.

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for SnipMD frameless window and file dialogs",
+  "description": "Window controls for SnipMD's own top bar. File dialogs run inside Rust commands and need no permission here.",
   "windows": ["main"],
   "permissions": [
     "core:default",

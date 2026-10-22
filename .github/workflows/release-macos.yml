@@ -1,10 +1,10 @@
 name: Release macOS
 
 # The universal macOS app as a .dmg (SPEC §13). Every run builds it, installs it from the .dmg the
-# way a tester does, runs the acceptance probes on that copy, and uploads the .dmg as a workflow
+# way a user does, runs the acceptance probes on that copy, and uploads the .dmg as a workflow
 # artifact. Publishing is a separate choice: run the workflow on a version tag with "publish" on,
 # and the .dmg joins that tag's release. A tag push alone does not publish, so tagging a Windows
-# release never ships a macOS build the tester has not checked.
+# release never ships a macOS build that has not passed the manual checklist.
 # The build job has a read-only token. Apple's secrets reach only the packaging step, which runs
 # Apple's tools and none of the dependencies' code. Only the publish job can write, and it runs no
 # project code.
@@ -87,7 +87,7 @@ jobs:
           echo "$(basename "$dmg"): $((bytes / 1024)) KB" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$bytes" -lt 10485760 ] || { echo "Over the 10 MB budget"; exit 1; }
 
-      - name: Install from the .dmg as a tester does, and run the probes on that copy
+      - name: Install from the .dmg as a user does, and run the probes on that copy
         shell: bash # pipefail: a broken probe harness fails the step through tee
         run: |
           out="$RUNNER_TEMP/probe"
@@ -104,7 +104,7 @@ jobs:
           if [ "$DEVELOPER_ID" = "true" ]; then
             echo "$verdict" | grep -q accepted || { echo "A Developer ID build must pass Gatekeeper"; exit 1; }
           fi
-          # The tester's step for an ad-hoc build (RELEASE-MACOS.md); harmless on a notarized one.
+          # The first-start step for an ad-hoc build (RELEASE-MACOS.md); harmless on a notarized one.
           xattr -dr com.apple.quarantine "$app"
           tools/measure/macos-probe.sh "$app" "$out" 2>&1 | tee release/probe.txt
           if grep -E ': (FAIL|BLOCKED) - ' release/probe.txt; then
@@ -138,5 +138,5 @@ jobs:
           append_body: true
           body: |
 
-            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal.dmg`. Open it and drag SnipMD to Applications. Until SnipMD has a Developer ID, the first start needs the steps in RELEASE-MACOS.md.
+            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal*.dmg`. Open it and drag SnipMD to Applications. A `.preview` build is not signed by Apple yet, so its first start needs the steps in RELEASE-MACOS.md.
           files: release/*.dmg

@@ -4,7 +4,7 @@ export const meta = {
   whenToUse: 'Any multi-agent job the main session has already designed: it passes the contract and every brief in args; the script only dispatches and gates.',
 }
 
-// Standard workflow shape (Arne, 2026-10-16). The main session designs; this script decides nothing.
+// Standard workflow shape. The main session designs; this script decides nothing.
 // It is self-contained: no kit, no substrate, no handoff files. The brief goes in the prompt and the
 // handoff comes back through the HANDOFF schema.
 //
@@ -30,7 +30,7 @@ export const meta = {
 //     { title: 'Verify', units: [{ id: 'V1', agentType: 'thin-verifier', owns: ['findings/V1.md'], inputs_from: ['B1'], ... }] },
 //     { title: 'Review', units: [{ id: 'R1', agentType: 'thin-review', owns: ['review/R1.md'], inputs_from: ['B1', 'V1'], ... }] },
 //   ],
-//   allow_chrome: false,                          // thin-web acts in Arne's own Chrome; refused unless true
+//   allow_chrome: false,                          // thin-web acts in the user's own Chrome; refused unless true
 //   disk_check: true,                             // default true: a thin-mech unit lists dirty files (git status) before
 //                                                 // phase 1 and after every phase; a new or changed path outside the
 //                                                 // owns of the units so far, or inside contract.shared, stops the run.
@@ -134,7 +134,7 @@ function validate(a) {
       if (!u.id || seen.has(u.id) || here.has(u.id)) errors.push(`${where}: missing or duplicate id`)
       here.add(u.id)
       if (!AGENT_TYPES.includes(u.agentType)) errors.push(`${where}: agentType must be one of ${AGENT_TYPES.join(', ')}`)
-      if (u.agentType === 'thin-web' && !a.allow_chrome) errors.push(`${where}: thin-web uses Arne's Chrome; set allow_chrome: true only with his go-ahead`)
+      if (u.agentType === 'thin-web' && !a.allow_chrome) errors.push(`${where}: thin-web uses the user's Chrome; set allow_chrome: true only with their go-ahead`)
       if (!u.task || !u.output) errors.push(`${where}: task and output are required`)
       if (u.findings !== undefined && typeof u.findings !== 'boolean') errors.push(`${where}: findings must be true or false`)
       if (WRITERS.includes(u.agentType) && !(u.owns || []).length) errors.push(`${where}: a writer needs owns`)
@@ -260,7 +260,7 @@ for (const [i, ph] of args.phases.entries()) {
     log(`stopped after ${ph.title}: ${problems.length} problem(s)`)
     return { status: 'stopped', stopped_at: ph.title, problems, findings: findingsOf(report.flatMap(r => r.units)), disk, report }
   }
-  // Stop rule (Arne): a blocker or major from a review returns to the main session before any later phase runs.
+  // Stop rule: a blocker or major from a review returns to the main session before any later phase runs.
   const serious = findingsOf(report.at(-1).units).filter(d => d.severity !== 'minor')
   if (serious.length && ph !== args.phases.at(-1)) {
     log(`needs decision after ${ph.title}: ${serious.length} blocker/major finding(s)`)
