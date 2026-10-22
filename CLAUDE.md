@@ -73,4 +73,5 @@ Before finishing a change, run `/simplify`. A recurring lesson goes into an exis
 - Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and pick one; then write the contract.
 - Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); see `.claude/workflows-tests/thin-standard/CONCLUSION.md`.
 - Every session or task card you propose states: recommended model, effort, worktree yes/no, local or cloud, with a one-line reason.
+- Sessions are started from the coordinating session (`create_session`), so they show as its children, and are titled `<ddmon>-snipmd-<topic>` (for example `22okt-snipmd-test-audit`).
 - `thin-web` needs the Claude in Chrome extension; it does not work in cloud sessions.

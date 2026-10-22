@@ -138,5 +138,5 @@ jobs:
           append_body: true
           body: |
 
-            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal.dmg`. Open it and drag SnipMD to Applications. Until SnipMD has a Developer ID, the first start needs the steps in RELEASE-MACOS.md.
+            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal*.dmg`. Open it and drag SnipMD to Applications. A `.preview` build is not signed by Apple yet, so its first start needs the steps in RELEASE-MACOS.md.
           files: release/*.dmg
