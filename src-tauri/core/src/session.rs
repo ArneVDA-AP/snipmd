@@ -1,6 +1,11 @@
 //! Reading `session.json` at startup without ever letting a fresh session overwrite one that could
-//! not be read: it holds the only copy of every untitled note.
+//! not be read: it holds the only copy of every untitled note. The session's shape is the page's
+//! (`src/session.ts` parses it); Rust reads it leniently, only for file paths and texts, and must
+//! never refuse one.
 
+use crate::paths::AllowedSet;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -54,4 +59,91 @@ pub fn set_aside(dir: &Path) -> Vec<PathBuf> {
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("session.unreadable-") && n.ends_with(".json")))
         .collect()
+}
+
+/// Every tab object in a session: `tabs[]` and `closedTabs[].tab`.
+pub fn tabs(session: &Value) -> Vec<&Value> {
+    let Some(obj) = session.as_object() else { return Vec::new() };
+    let mut out = Vec::new();
+    for (key, val) in obj {
+        let Some(list) = val.as_array() else { continue };
+        match key.as_str() {
+            "tabs" => out.extend(list.iter()),
+            "closedTabs" => out.extend(list.iter().filter_map(|c| c.get("tab"))),
+            _ => {}
+        }
+    }
+    out
+}
+
+fn tabs_mut(session: &mut Value) -> Vec<&mut Value> {
+    let Some(obj) = session.as_object_mut() else { return Vec::new() };
+    let mut out = Vec::new();
+    for (key, val) in obj.iter_mut() {
+        let Some(list) = val.as_array_mut() else { continue };
+        match key.as_str() {
+            "tabs" => out.extend(list.iter_mut()),
+            "closedTabs" => out.extend(list.iter_mut().filter_map(|c| c.get_mut("tab"))),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// The note a tab is bound to, if any.
+pub fn file_path(tab: &Value) -> Option<&str> {
+    tab.get("filePath").and_then(Value::as_str)
+}
+
+/// Every session tab id (open and closed) with its text when the session holds it: an untitled
+/// tab's text is its content; a tab with a file path has no known text (None), so cleanup keeps
+/// its scratch items. An id seen twice keeps both texts; once None, it stays None.
+pub fn live_tabs(session: &Value) -> HashMap<String, Option<String>> {
+    let mut live: HashMap<String, Option<String>> = HashMap::new();
+    for tab in tabs(session) {
+        let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
+        let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
+        match (live.entry(id.to_string()).or_insert_with(|| Some(String::new())), text) {
+            (Some(all), Some(t)) => all.extend(["\n", t]),
+            (known, _) => *known = None,
+        }
+    }
+    live
+}
+
+/// The texts the startup cleanup (SPEC §6.5) may trust, read from `session.json` in `app_data`.
+/// None means nothing may be cleaned this run: no session, one that cannot be read or parsed, one
+/// without open tabs (the page discards it), or a set-aside session that cannot be read (it names
+/// unknown images). A set-aside session that can be read counts as one more known text: it was set
+/// aside because it does not parse, but its raw text still spells every name it links.
+pub fn known_texts(app_data: &Path) -> Option<HashMap<String, Option<String>>> {
+    let raw = fs::read_to_string(app_data.join("session.json")).ok()?;
+    let session = serde_json::from_str::<Value>(&raw).ok()?;
+    if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
+        return None;
+    }
+    let mut live = live_tabs(&session);
+    for aside in set_aside(app_data) {
+        let bytes = fs::read(&aside).ok()?;
+        live.insert(format!("set-aside:{}", aside.display()), Some(String::from_utf8_lossy(&bytes).into_owned()));
+    }
+    Some(live)
+}
+
+/// Nulls every file path (open and closed tabs) and `lastFolder` outside `allowed`, so a compromised
+/// page cannot plant paths for the next start; a tab without a path restores as untitled. Returns
+/// how many were dropped.
+pub fn drop_unallowed(session: &mut Value, allowed: &AllowedSet) -> usize {
+    let mut dropped = 0;
+    if session.get("lastFolder").and_then(Value::as_str).is_some_and(|f| !allowed.may_create_in(Path::new(f))) {
+        session["lastFolder"] = Value::Null;
+        dropped += 1;
+    }
+    for tab in tabs_mut(session) {
+        if file_path(tab).is_some_and(|p| allowed.check(Path::new(p)).is_err()) {
+            tab["filePath"] = Value::Null;
+            dropped += 1;
+        }
+    }
+    dropped
 }
