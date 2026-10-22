@@ -61,7 +61,7 @@ Before finishing a change, run `/simplify`. A recurring lesson goes into an exis
 - Tauri crate: `cargo check` in `src-tauri/`. It needs the GTK system libraries on Linux; without them it fails on `gdk-3.0`, which is the environment, not the code. CI checks it on Windows for every push. Say which one ran.
 - UI in a browser: `npx vite` plus a page with a mocked `window.__TAURI_INTERNALS__` (invoke, transformCallback, convertFileSrc, metadata) gives a quick smoke test; it does not replace the Windows test.
 - Behavior that only exists on Windows (clipboard, Explorer, file association) can't be verified here; write down a concrete Windows test.
-- The browser tour runs without Tauri's CSP. Anything that injects styles or scripts at run time looks right there and can be blocked in the app; check it in a release build (`windows-run.yml` screenshots the real window on a Windows runner).
+- The browser smoke test runs without Tauri's CSP. Anything that injects styles or scripts at run time looks right there and can be blocked in the app; check it in a release build (`windows-run.yml` screenshots the real window on a Windows runner).
 
 ## Delegation
 - The `thin-*` agents and the `thin-standard` workflow live in this repo: `.claude/agents/`, `.claude/workflows/thin-standard.js`. They load at session start, also in cloud sessions. Self-test (no tokens):
