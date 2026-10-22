@@ -52,3 +52,23 @@ fn lone_cr_survives_decode() {
     let (t, _) = decode(b"a\rb\nc").unwrap();
     assert_eq!(t, "a\rb\nc");
 }
+
+#[test]
+fn a_note_that_starts_with_a_line_break_sniffs_without_looking_before_it() {
+    assert!(!sniff(b"\nsecond line\r\n").crlf);
+    assert!(sniff(b"\r\nsecond line\n").crlf);
+    assert!(!sniff(b"\n").crlf);
+}
+
+#[test]
+fn a_lone_cr_is_kept_in_both_formats() {
+    assert_eq!(encode("a\rb\n", TextFormat { crlf: true, bom: false }), b"a\rb\r\n");
+    assert_eq!(encode("a\rb\n", TextFormat { crlf: false, bom: false }), b"a\rb\n");
+    assert_eq!(encode("a\r", TextFormat { crlf: true, bom: false }), b"a\r");
+    round(b"a\rb\r\nc\r");
+}
+
+#[test]
+fn errors_name_their_cause() {
+    assert_eq!(TextError::NotUtf8.to_string(), "file is not valid UTF-8");
+}

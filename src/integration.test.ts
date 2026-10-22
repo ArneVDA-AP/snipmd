@@ -200,9 +200,13 @@ describe('startup, restore and reopen', () => {
     expect(tabsMod.getActiveTab()?.id).toBe('fb');
 
     await closeTab('fn');
+    await tabsMod.newUntitled(); // fa, fb, fc: closing fb shows fc, not the reopened tab at the end
+    const fc = tabsMod.getActiveTab()!.id;
+    await tabsMod.activate('fb');
     vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r(note('t')))));
     const closedShown = reopenClosed('fn');
     await closeTab('fb');
+    expect(tabsMod.getActiveTab()?.id).toBe(fc);
     release();
     await closedShown;
     expect(tabsMod.getActiveTab()?.id).toBe('fn');

@@ -13,7 +13,9 @@ import { showError } from '../infobar';
 import { scheduleSessionSave } from '../session';
 import { createEditorState } from './setup';
 import { pastePlainText, placeImages } from './paste';
-import { getState, initRegistry, setState, setView } from './registry';
+import { applyToTab, getState, initRegistry, setState, setView } from './registry';
+import { primeAssetCache } from './imageWidget';
+import { markPasteVisible } from '../perf';
 
 initRegistry({ filePathOf: () => null, onChange: () => {} });
 
@@ -35,12 +37,15 @@ function file(): File {
   return f;
 }
 
-function paste(text: string, withImage: boolean): void {
+/** A clipboard like WebView2's: the text item comes first, an image item after it. */
+function paste(text: string, withImage: boolean, extraItems: { type: string; getAsFile: () => File | null }[] = []): Event {
   const ev = new Event('paste', { bubbles: true, cancelable: true });
-  const items = withImage ? [{ type: 'image/png', getAsFile: file }] : [{ type: 'text/plain', getAsFile: () => null }];
-  Object.defineProperty(ev, 'clipboardData', { value: { getData: () => text, items } });
+  const items = [{ type: 'text/plain', getAsFile: () => null }, ...(withImage ? [{ type: 'image/png', getAsFile: file }] : []), ...extraItems];
+  Object.defineProperty(ev, 'clipboardData', { value: { getData: (t: string) => (t === 'text/plain' ? text : ''), items } });
   view.contentDOM.dispatchEvent(ev);
+  return ev;
 }
+const keydown = (init: KeyboardEventInit) => view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
 
 const img = (link: string) => ({ link, absPath: `/abs/${link}` });
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -57,15 +62,61 @@ describe('paste rules', () => {
     paste('hello', true);
     await flush();
     expect(mockSave).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe('hello'); // CodeMirror's own paste handled it
   });
 
   it('image only saves once and links on its own line, cursor on the next line', async () => {
     mount('abc', 1);
-    paste('', true);
+    const ev = paste('', true);
+    expect(ev.defaultPrevented).toBe(true);
     await flush();
     expect(mockSave).toHaveBeenCalledTimes(1);
+    expect(mockSave).toHaveBeenCalledWith('a', null, new Uint8Array([1, 2, 3]));
     expect(view.state.doc.toString()).toBe('abc\n![snip](a.assets/s.png)\n');
     expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    expect(primeAssetCache).toHaveBeenCalledWith('a', 'a.assets/s.png', '/n/a.assets/s.png');
+    expect(markPasteVisible).toHaveBeenCalledWith('/n/a.assets/s.png', ev.timeStamp);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('a clipboard with neither text nor an image is left to CodeMirror', async () => {
+    mount('x');
+    paste('', false, [{ type: 'text/html', getAsFile: () => null }]);
+    await flush();
+    expect(view.state.doc.toString()).toBe('x');
+    expect(mockSave).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('a failed image save is reported and leaves the note as it was', async () => {
+    mount('x');
+    mockSave.mockRejectedValue(new Error('disk full'));
+    paste('', true);
+    await flush();
+    expect(showError).toHaveBeenCalledWith('save the image', expect.any(Error));
+    expect(view.state.doc.toString()).toBe('x');
+    expect(scheduleSessionSave).not.toHaveBeenCalled();
+  });
+
+  it('other keys with Shift or Ctrl do not turn the next paste into a plain one', async () => {
+    mount('');
+    keydown({ key: 'V', code: 'KeyV', shiftKey: true }); // typing a capital V
+    paste('', true);
+    keydown({ key: 'T', code: 'KeyT', ctrlKey: true, shiftKey: true });
+    paste('', true);
+    keydown({ key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('', true);
+    await flush();
+    expect(mockSave).toHaveBeenCalledTimes(3);
+  });
+
+  it('the key watcher swallows no key: typing and shortcuts still reach the editor', () => {
+    mount('');
+    for (const init of [{ key: 'a', code: 'KeyA' }, { key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true }]) {
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+      view.contentDOM.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+    }
   });
 
   it('Ctrl+Shift+V with only an image saves nothing', async () => {
@@ -108,6 +159,22 @@ describe('placeImages', () => {
     placeImages('a', [img('l.png')]);
     expect(view.state.doc.toString()).toBe('hello\n![snip](l.png)\n\nworld');
     expect(view.state.selection.main.head).toBe('hello\n![snip](l.png)\n'.length);
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true }); // SPEC §7: right after a paste
+    expect(primeAssetCache).toHaveBeenCalledWith('a', 'l.png', '/abs/l.png');
+  });
+
+  it('a tab that is gone takes nothing and throws nothing', () => {
+    mount('A');
+    expect(() => placeImages('nope', [img('l.png')])).not.toThrow();
+    expect(view.state.doc.toString()).toBe('A');
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true });
+  });
+
+  it('applyToTab reports whether the tab had a document', () => {
+    mount('A');
+    expect(applyToTab('a', { changes: { from: 1, insert: 'B' } })).toBe(true);
+    expect(view.state.doc.toString()).toBe('AB');
+    expect(applyToTab('nope', { changes: { from: 0, insert: 'x' } })).toBe(false);
   });
 
   it('an empty line takes the link and the cursor stays on an empty line before the next text', () => {

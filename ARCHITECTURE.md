@@ -6,11 +6,13 @@ How the code is laid out and why. Behaviour is defined in `SPEC.md`; the rules f
 ```
 WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                      snipmd-core (no Tauri)
   app.ts  wiring, keys, lifecycle              lib.rs  commands, allowed set,        paths    lexical path checks
-  tabs.ts tab list, editor/read panes                  drop, setup, session          atomic   temp + flush + rename
+  tabs.ts tab list, editor/read panes                  drop, setup, dialogs          atomic   temp + flush + rename
   saving / external / closedTabs / drop        backdrop.rs  Windows 11 Mica          naming   snip-…png, create_new
-  editor/  states, paste, images, search       links.rs     links open outside       assets   move/copy image folders
-  preview/ read mode (loaded on first use)     perf.rs      budget marks             text     line endings, BOM
-  infobar / titlebar / firstSaveBar            macos.rs     menu, Finder, quit       cleanup  startup scratch cleanup
+  editor/  states, paste, images, search       links.rs     links open outside       note     read, stamped write
+  preview/ read mode (loaded on first use)     perf.rs      budget marks             assets   move/copy image folders
+  infobar / titlebar / firstSaveBar            macos.rs     menu, Finder, quit       text     line endings, BOM
+                                                                                    session  load, texts, path filter
+                                                                                    cleanup  startup scratch cleanup
         │  invoke (typed wrappers in ipc.ts)        │  calls
         └──────────────────────────────────────────┘
 ```
@@ -30,6 +32,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 
 ## Rust
 - Every command that touches the disk is async, so a slow or removed drive never freezes the window.
+- `lib.rs` only checks paths and wires: what a command decides (a stamped write, which session texts the cleanup may trust, which session paths are dropped) lives in `snipmd-core`, where it is tested.
 - New images are created with `create_new` and a unique name; notes and the session are written to a temp file in the same folder, flushed and renamed.
 - The scratch cleanup runs once at startup from `.setup()` on its own thread, only inside the scratch folder, and only deletes what is older than 14 days and referenced by no tab, no closed tab and no session kept aside as unreadable.
 - `macos.rs` (SPEC §13) builds the menu bar, reads the clipboard's text for Paste as Plain Text, queues notes Finder hands over (`RunEvent::Opened`) until the page takes them, and answers AppKit's `applicationShouldTerminate:` with "later" until the page has flushed (5 s at most). Tao has no such hook, so it is added to tao's app delegate at startup. Only its two commands compile on Windows. `tauri.macos.conf.json` swaps the frameless window for native buttons over the bar.

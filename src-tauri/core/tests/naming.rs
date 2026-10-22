@@ -44,7 +44,8 @@ fn create_snip_writes_new_file_and_never_overwrites() {
 #[test]
 fn create_snip_in_missing_folder_errs_and_creates_nothing() {
     let d = dir("missing").join("nope");
-    assert!(create_snip(&d, "png", b"x").is_err());
+    // The folder's own error, not "no free file name" after 64 tries at the same missing folder.
+    assert_eq!(create_snip(&d, "png", b"x").unwrap_err().kind(), std::io::ErrorKind::NotFound);
     assert!(!d.exists());
 }
 

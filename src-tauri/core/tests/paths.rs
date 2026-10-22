@@ -178,3 +178,33 @@ fn may_create_in_folders() {
     assert!(!s.may_create_in(Path::new("C:/notes-other")));
     assert!(s.check(Path::new("C:/other/x.md")).is_err());
 }
+
+#[test]
+fn a_name_whose_last_bytes_split_a_character_is_refused_without_a_panic() {
+    use snipmd_core::paths::valid_note_name;
+    // "€" is three bytes: the ".md" check must not slice into it (the app aborts on a panic).
+    for bad in ["a€", "ab€€", "€", "a€d", "x.m€"] {
+        assert!(!valid_note_name(bad), "{bad}");
+    }
+    assert!(valid_note_name("日本.md"));
+}
+
+#[test]
+fn a_note_named_only_by_its_extension_gets_the_folder_std_gives_it() {
+    use snipmd_core::assets::assets_dir_for;
+    // `.md` has no extension for std, so its image folder is `.md.assets`; allow_note must agree.
+    assert_eq!(assets_dir_for(Path::new("/n/.md")), Path::new("/n/.md.assets"));
+    let mut s = AllowedSet::new();
+    s.allow_note(Path::new("/n/.md"));
+    assert!(s.check(Path::new("/n/.md.assets/x.png")).is_ok());
+    assert!(s.check(Path::new("/n/.assets/x.png")).is_err());
+}
+
+#[test]
+fn errors_name_the_path_they_refused() {
+    assert_eq!(resolve_image(dir(), "../x.png").unwrap_err().to_string(), "path leaves its folder: ../x.png");
+    assert_eq!(resolve_image(dir(), "/x.png").unwrap_err().to_string(), "not a relative path: /x.png");
+    assert_eq!(resolve_image(dir(), "ab:c").unwrap_err().to_string(), "forbidden path: ab:c");
+    assert_eq!(resolve_image(dir(), "%zz").unwrap_err().to_string(), "invalid path: %zz");
+    assert_eq!(set().check(Path::new("C:/other.md")).unwrap_err().to_string(), "path not allowed: C:/other.md");
+}

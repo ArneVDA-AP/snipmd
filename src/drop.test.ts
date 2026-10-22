@@ -58,6 +58,9 @@ describe('handleDrop', () => {
     expect(m.placeImages).toHaveBeenCalledTimes(1);
     expect(m.placeImages.mock.calls[0][1].map((i: { link: string }) => i.link)).toEqual(['l/1.png', 'l/2.png', 'l/3.png']);
     expect(m.placeImages.mock.calls[0][2]).toBe(42);
+    expect(m.showError).not.toHaveBeenCalled();
+    expect(m.openPaths).not.toHaveBeenCalled();
+    expect(m.activate).not.toHaveBeenCalled();
   });
 
   it('uses the cursor in read mode', async () => {

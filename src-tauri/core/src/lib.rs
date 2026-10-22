@@ -9,6 +9,7 @@ pub mod atomic;
 pub mod cleanup;
 pub mod links;
 pub mod naming;
+pub mod note;
 pub mod paths;
 pub mod session;
 pub mod text;

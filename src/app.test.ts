@@ -25,7 +25,11 @@ const m = vi.hoisted(() => {
     pasteText: null as null | ((text: string) => void),
     mac: false,
     beforeClose: null as null | (() => Promise<void>),
-    beforeQuit: null as null | (() => Promise<void>)
+    beforeQuit: null as null | (() => Promise<void>),
+    forwarded: null as null | ((paths: string[]) => void),
+    opened: null as null | ((paths: string[]) => void),
+    dropped: null as null | ((d: unknown) => void),
+    handleDrop: vi.fn(async () => {})
   };
 });
 vi.mock('./ipc', () => ({
@@ -33,10 +37,10 @@ vi.mock('./ipc', () => ({
   onCloseRequested: async (f: () => Promise<void>) => void (m.beforeClose = f),
   onQuitRequested: async (f: () => Promise<void>) => void (m.beforeQuit = f),
   onMenuCommand: async (f: (name: string) => void) => void (m.menu = f),
-  onOpenedNotes: async () => {},
+  onOpenedNotes: async (f: (paths: string[]) => void) => void (m.opened = f),
   onPasteText: async (f: (text: string) => void) => void (m.pasteText = f),
-  onFilesDropped: async () => {},
-  onForwardedFiles: async () => {},
+  onFilesDropped: async (f: (d: unknown) => void) => void (m.dropped = f),
+  onForwardedFiles: async (f: (paths: string[]) => void) => void (m.forwarded = f),
   pickFileToOpen: m.pickFileToOpen,
   takeOpenedNotes: async () => ['/Users/x/finder.md'],
   windowBackdrop: async () => false
@@ -60,7 +64,7 @@ vi.mock('./saving', () => ({ flushDirty: m.flushDirty, saveAs: m.saveAs, saveTab
 vi.mock('./session', () => ({ loadSession: async () => ({ session: null, setAside: null }) }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
-vi.mock('./drop', () => ({ handleDrop: async () => {} }));
+vi.mock('./drop', () => ({ handleDrop: m.handleDrop }));
 vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar, showError: vi.fn(), showInfo: vi.fn() }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
@@ -98,7 +102,9 @@ const calledOnly = (f: (typeof commands)[number]) => {
 
 let startupOpened: unknown[][] = [];
 beforeAll(async () => {
-  await startApp(document.createElement('div'));
+  const root = document.createElement('div');
+  document.body.append(root);
+  await startApp(root);
   startupOpened = m.openPaths.mock.calls.slice();
   m.newUntitledAtStart = m.newUntitled.mock.calls.length;
 });
@@ -244,7 +250,7 @@ describe('F6 moves between page, info bar and tab strip', () => {
 describe('WebView2 browser keys and menu', () => {
   it.each([
     ['F5', {}], ['F3', {}], ['F7', {}], ['r', { ctrlKey: true }], ['R', { ctrlKey: true, shiftKey: true }], ['p', { ctrlKey: true }],
-    ['j', { ctrlKey: true }], ['u', { ctrlKey: true }], ['ArrowLeft', { altKey: true }], ['BrowserBack', {}]
+    ['j', { ctrlKey: true }], ['u', { ctrlKey: true }], ['ArrowLeft', { altKey: true }], ['BrowserBack', {}], ['BrowserForward', {}], ['BrowserRefresh', {}]
   ] as const)('%s %o does nothing', (key, init) => {
     const e = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
     window.dispatchEvent(e);
@@ -281,6 +287,43 @@ describe('find in edit mode', () => {
     expect(press(key).defaultPrevented).toBe(true);
     ed.remove();
     calledOnly(undefined as never);
+  });
+});
+
+describe('lifecycle (SPEC §6.1, §11)', () => {
+  it('builds the page with the elements the modules are mounted on', () => {
+    for (const id of ['titlebar', 'infoTop', 'infoBottom', 'editorPane', 'readPane']) {
+      expect(document.getElementById(id), id).not.toBeNull();
+    }
+  });
+
+  it('a window blur writes every dirty note', () => {
+    window.dispatchEvent(new Event('blur'));
+    expect(m.flushDirty).toHaveBeenCalledTimes(1);
+  });
+
+  it('a close waits for the flush, but not forever: a hung write must not keep the window open', async () => {
+    vi.useFakeTimers();
+    try {
+      m.flushDirty.mockReturnValueOnce(new Promise(() => {}));
+      let closed = false;
+      void m.beforeClose!().then(() => (closed = true));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('files from a second instance, from Finder and from a drop reach the page', () => {
+    m.forwarded!(['C:/n/a.md']);
+    m.opened!(['/Users/x/b.md']);
+    expect(m.openPaths.mock.calls).toEqual([[['C:/n/a.md']], [['/Users/x/b.md']]]);
+    const d = { notes: [], images: ['C:/p.png'], x: 1, y: 2 };
+    m.dropped!(d);
+    expect(m.handleDrop).toHaveBeenCalledWith(d);
   });
 });
 

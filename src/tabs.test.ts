@@ -7,11 +7,16 @@ vi.mock('./preview/render', () => ({
   renderRead: vi.fn(async (_id: string, text: string) => Object.assign(document.createElement('article'), { textContent: text }))
 }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
+vi.mock('./session', () => ({ bindSessionSource: vi.fn(), scheduleSessionSave: vi.fn() }));
 
 import { readNote } from './ipc';
 import { renderRead } from './preview/render';
 import { clearTabInfo, showError } from './infobar';
-import { activate, closeTab, getActiveTab, initTabs, loadText, markSaved, openPath, reopenClosed, restore, snapshot, getTabs, textOf } from './tabs';
+import { scheduleSessionSave } from './session';
+import {
+  activate, closeTab, cycle, getActiveTab, getLastFolder, getTab, initTabs, loadText, markDirty, markSaved, newUntitled, openCopy, openPath,
+  openPaths, openTab, reopenClosed, restore, setLastFolder, snapshot, getTabs, textOf, toggleMode
+} from './tabs';
 import { inConflict, setConflict } from './diskState';
 import { applyToTab, filePathFor, getState, getView, trackImageSave } from './editor/registry';
 
@@ -23,15 +28,18 @@ const session = (tabs: TabState[], active = tabs[0]?.id ?? ''): SessionFile => (
   version: 3, activeTabId: active, untitledCounter: 2, lastFolder: null, tabs, closedTabs: []
 });
 
+const render = vi.fn();
+const onEdit = vi.fn();
+const pane = (id: string) => document.getElementById(id)!;
+
 beforeEach(() => {
   vi.mocked(readNote).mockReset();
   vi.mocked(showError).mockReset();
+  vi.mocked(scheduleSessionSave).mockReset();
+  render.mockReset();
+  onEdit.mockReset();
   document.body.innerHTML = '<div id="e"></div><div id="r"></div>';
-  initTabs(
-    { editor: document.getElementById('e')!, read: document.getElementById('r')! },
-    { render: vi.fn() } as never,
-    () => {}
-  );
+  initTabs({ editor: pane('e'), read: pane('r') }, { render } as never, onEdit);
   vi.stubGlobal('requestAnimationFrame', () => 0);
 });
 
@@ -65,9 +73,9 @@ describe('restore', () => {
     expect(textOf(getTabs()[0])).toBe('mine');
   });
 
-  it('drops a tab whose read fails, keeps the others and shows one error', async () => {
+  it('drops a tab whose read fails, keeps the others and shows one error with the first cause', async () => {
     vi.mocked(readNote).mockImplementation(async (p: string) => {
-      if (p.includes('bad')) throw new Error('gone');
+      if (p.includes('bad')) throw new Error(`gone ${p}`);
       return note('ok');
     });
     await restore(session([
@@ -77,7 +85,22 @@ describe('restore', () => {
     ], 'b1'));
     expect(getTabs().map((t) => t.id)).toEqual(['g']);
     expect(showError).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(showError).mock.calls[0][0]).toBe('reopen bad1.md, bad2.md');
+    expect(showError).toHaveBeenCalledWith('reopen bad1.md, bad2.md', new Error('gone C:/n/bad1.md'));
+    expect(getActiveTab()?.id).toBe('g');
+  });
+
+  it('a cursor past the end of the file (the file shrank outside) is clamped, not an error', async () => {
+    await restore(session([tab({ id: 'cl', mode: 'edit', content: 'abc', cursor: 999 })]));
+    expect(getView()!.state.selection.main.head).toBe(3);
+    expect(getActiveTab()?.id).toBe('cl');
+  });
+
+  it('shows the editor pane for a writing tab and the read pane for a reading one', async () => {
+    await restore(session([tab({ id: 'pe', mode: 'edit', content: 'e' }), tab({ id: 'pr', mode: 'read', content: 'r' })]));
+    expect([pane('e').hidden, pane('r').hidden]).toEqual([false, true]);
+    await activate('pr');
+    expect([pane('e').hidden, pane('r').hidden]).toEqual([true, false]);
+    expect(pane('r').textContent).toBe('r');
   });
 
   it('opens a new untitled tab when every tab failed', async () => {
@@ -133,6 +156,7 @@ describe('closed-tabs list', () => {
     expect(back?.id).toBe('cb');
     expect(textOf(back!)).toBe('two');
     expect(getTabs().map((t) => t.id)).toEqual(['cc', 'cb']);
+    expect(getActiveTab()?.id).toBe('cb');
     await reopenClosed('ca');
     expect(snapshot().closedTabs).toEqual([]);
   });
@@ -331,3 +355,297 @@ describe('read mode', () => {
   });
 });
 
+
+describe('the session and the tab strip follow every change', () => {
+  it('a close, a new tab, a reopen, a save and a gone file write the session at once; an edit is debounced', async () => {
+    await restore(session([tab({ id: 'sw-a', mode: 'edit', content: 'a' }), tab({ id: 'sw-b', filePath: 'C:/n/b.md', dirty: true, content: 'b' })]));
+    vi.mocked(scheduleSessionSave).mockClear();
+    const debounced = () => expect(vi.mocked(scheduleSessionSave).mock.calls.at(-1)?.[0]).toBeUndefined();
+    applyToTab('sw-a', { changes: { from: 1, insert: '!' } });
+    expect(onEdit).toHaveBeenCalledWith('sw-a');
+    expect(scheduleSessionSave).toHaveBeenCalledTimes(1);
+    debounced();
+    expect(getTab('sw-a')?.dirty).toBe(true);
+    applyToTab('sw-a', { changes: { from: 2, insert: '?' } }); // already dirty: still written, still debounced
+    expect(onEdit).toHaveBeenCalledTimes(2);
+    expect(scheduleSessionSave).toHaveBeenCalledTimes(2);
+    debounced();
+
+    for (const [what, run] of [
+      ['close', () => closeTab('sw-a')],
+      ['new', () => newUntitled()],
+      ['reopen', () => reopenClosed('sw-a')],
+      ['save', () => Promise.resolve(markSaved('sw-b', { text: 'b', stamp: { mtimeMs: 1, size: 1 } }))],
+      ['gone', () => Promise.resolve(markDirty('sw-b'))],
+      ['copy', () => openCopy('x (disk)', 'x')]
+    ] as const) {
+      vi.mocked(scheduleSessionSave).mockClear();
+      await run();
+      expect(scheduleSessionSave, what).toHaveBeenCalledWith({ immediate: true });
+    }
+    vi.mocked(scheduleSessionSave).mockClear();
+    markDirty('sw-b'); // already dirty: nothing changed
+    expect(scheduleSessionSave).not.toHaveBeenCalled();
+    await activate('sw-b'); // the active tab is session state too
+    expect(scheduleSessionSave).toHaveBeenCalledTimes(1);
+    debounced();
+  });
+
+  it('redraws the strip with the open tabs and the active one', async () => {
+    await restore(session([tab({ id: 'st-a', content: 'a' }), tab({ id: 'st-b', content: 'b' })], 'st-b'));
+    render.mockClear();
+    await closeTab('st-b');
+    const [tabs, active] = render.mock.calls.at(-1)!;
+    expect(tabs.map((t: TabState) => t.id)).toEqual(['st-a']);
+    expect(active).toBe('st-a');
+  });
+});
+
+describe('open, closed and the active tab', () => {
+  it('openTab sees only open tabs, getTab both', async () => {
+    await restore(session([tab({ id: 'oc-a', content: 'a' }), tab({ id: 'oc-b', content: 'b' })]));
+    await closeTab('oc-a');
+    expect(openTab('oc-a')).toBeUndefined();
+    expect(getTab('oc-a')?.id).toBe('oc-a');
+    expect(openTab('oc-b')?.id).toBe('oc-b');
+    expect(openTab('nope')).toBeUndefined();
+  });
+
+  it('closing the active tab shows its right neighbour, or the last tab', async () => {
+    await restore(session([tab({ id: 'n-a', content: 'a' }), tab({ id: 'n-b', content: 'b' }), tab({ id: 'n-c', content: 'c' })], 'n-b'));
+    await closeTab('n-b');
+    expect(getActiveTab()?.id).toBe('n-c');
+    await closeTab('n-c');
+    expect(getActiveTab()?.id).toBe('n-a');
+    await activate('n-a');
+    await closeTab('n-a');
+    expect(getTabs()).toHaveLength(1);
+    expect(getTabs()[0].filePath).toBeNull(); // the last tab closed: a new untitled one
+    expect(getActiveTab()?.id).toBe(getTabs()[0].id);
+  });
+
+  it('closing a tab that is not active keeps the active one', async () => {
+    await restore(session([tab({ id: 'k-a', content: 'a' }), tab({ id: 'k-b', content: 'b' })], 'k-b'));
+    await closeTab('k-a');
+    expect(getActiveTab()?.id).toBe('k-b');
+  });
+
+  it('an empty untitled tab that closes is gone with its editor state', async () => {
+    await restore(session([tab({ id: 'eg', mode: 'edit' }), tab({ id: 'eh', mode: 'edit', content: 'x' })]));
+    expect(await closeTab('eg')).toBeUndefined();
+    expect(getTabs().map((t) => t.id)).toEqual(['eh']);
+    expect(getTab('eg')).toBeUndefined();
+    expect(getState('eg')).toBeUndefined();
+  });
+
+  it('an empty note on disk is kept when closed, so it can be restored', async () => {
+    vi.mocked(readNote).mockResolvedValue(note(''));
+    await restore(session([tab({ id: 'en', title: 'en.md', filePath: 'C:/n/en.md' }), tab({ id: 'eo', content: 'x' })]));
+    expect((await closeTab('en'))?.id).toBe('en');
+    expect(snapshot().closedTabs.map((c) => c.tab.id)).toEqual(['en']);
+  });
+
+  it('two closes in the same millisecond keep their order', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(2026, 9, 22, 10, 0, 0));
+      await restore(session([tab({ id: 'ms-a', content: 'a' }), tab({ id: 'ms-b', content: 'b' }), tab({ id: 'ms-c', content: 'c' })]));
+      await closeTab('ms-a');
+      await closeTab('ms-b');
+      expect(snapshot().closedTabs.map((c) => c.tab.id)).toEqual(['ms-b', 'ms-a']);
+      expect((await reopenClosed())?.id).toBe('ms-b');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reopens the closed tab asked for by id, not the most recent one', async () => {
+    await restore(session([tab({ id: 'id-a', content: 'a' }), tab({ id: 'id-b', content: 'b' }), tab({ id: 'id-c', content: 'c' })]));
+    await closeTab('id-a');
+    await closeTab('id-b');
+    expect((await reopenClosed('id-a'))?.id).toBe('id-a');
+    expect(getTabs().map((t) => t.id)).toEqual(['id-c', 'id-a']);
+    expect(await reopenClosed('id-a')).toBeUndefined(); // open already
+    expect(await reopenClosed('nope')).toBeUndefined();
+  });
+
+  it('a clean closed copy of a note that is open again just activates it', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('disk'));
+    await restore(session([tab({ id: 'cc', title: 'd.md', filePath: 'C:/n/d.md' }), tab({ id: 'cu', content: 'k' })]));
+    await closeTab('cc');
+    await openPath('C:/n/D.md'); // the closed note comes back as itself
+    expect(getTabs().map((t) => t.id)).toEqual(['cu', 'cc']);
+    await activate('cu');
+    await closeTab('cc');
+    vi.mocked(readNote).mockResolvedValue(note('disk v2')); // the file changed: a clean copy has nothing to keep
+    await addTabForPath('C:/n/d.md');
+    const again = getTabs().find((t) => t.filePath === 'C:/n/d.md' && t.id !== 'cc')!;
+    expect(await reopenClosed('cc')).toBeUndefined();
+    expect(getActiveTab()?.id).toBe(again.id);
+    expect(getTabs().filter((t) => t.title.endsWith('(closed)'))).toEqual([]);
+    expect(snapshot().closedTabs).toEqual([]);
+  });
+});
+
+/** Opens a note in a new tab even when a closed tab holds it (as a drop of the file would, after the closed one was pruned). */
+async function addTabForPath(path: string): Promise<void> {
+  const closed = snapshot().closedTabs.map((c) => c.tab.id);
+  for (const id of closed) {
+    const t = getTab(id)!;
+    t.filePath = null; // keep the entry, but off this path, so openPath reads the file
+  }
+  await openPath(path);
+  for (const id of closed) getTab(id)!.filePath = path;
+}
+
+describe('opening notes', () => {
+  it('a note already open is activated, however its path is spelled', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('t'));
+    await restore(session([tab({ id: 'op-a', content: 'a' }), tab({ id: 'op-n', title: 'n.md', filePath: 'C:/n/n.md' })]));
+    vi.mocked(readNote).mockClear();
+    await openPath('c:\\N\\n.md');
+    expect(getActiveTab()?.id).toBe('op-n');
+    expect(readNote).not.toHaveBeenCalled();
+    expect(getTabs()).toHaveLength(2);
+  });
+
+  it('a new note is read and opened after the active tab list, with its stamp and format', async () => {
+    await restore(session([tab({ id: 'nn-a', content: 'a' })]));
+    vi.mocked(readNote).mockResolvedValue({ text: 'new', format: { crlf: false, bom: true }, stamp: { mtimeMs: 7, size: 3 } });
+    await openPath('C:\\n\\new.md');
+    expect(readNote).toHaveBeenCalledWith('C:/n/new.md');
+    const t = getActiveTab()!;
+    expect(t).toMatchObject({ title: 'new.md', filePath: 'C:/n/new.md', dirty: false, mode: 'edit', disk: { mtimeMs: 7, size: 3 }, format: { crlf: false, bom: true } });
+    expect(textOf(t)).toBe('new');
+    expect(getTabs().map((x) => x.id)).toEqual(['nn-a', t.id]);
+  });
+
+  it('a note that cannot be read opens nothing and is reported by name', async () => {
+    await restore(session([tab({ id: 'nr-a', content: 'a' })]));
+    vi.mocked(readNote).mockRejectedValue(new Error('locked'));
+    await openPath('C:/n/locked.md');
+    expect(getTabs()).toHaveLength(1);
+    expect(showError).toHaveBeenCalledWith('open locked.md', new Error('locked'));
+  });
+
+  it('several paths open in order', async () => {
+    await restore(session([tab({ id: 'sp-a', content: 'a' })]));
+    vi.mocked(readNote).mockImplementation(async (p: string) => note(p));
+    await openPaths(['C:/n/1.md', 'C:/n/2.md']);
+    expect(getTabs().map((t) => t.title)).toEqual(['x', '1.md', '2.md']);
+    expect(getActiveTab()?.title).toBe('2.md');
+  });
+
+  it('new untitled tabs count up from the session counter, writing, clean', async () => {
+    await restore(session([tab({ id: 'u-a', content: 'a' })]));
+    await newUntitled();
+    await newUntitled();
+    expect(getTabs().slice(1).map((t) => [t.title, t.mode, t.dirty, t.filePath, textOf(t)])).toEqual([['Untitled-2', 'edit', false, null, ''], ['Untitled-3', 'edit', false, null, '']]);
+    expect(snapshot().untitledCounter).toBe(4);
+    expect(getActiveTab()?.title).toBe('Untitled-3');
+  });
+
+  it('a copy opens next to its tab, in read mode', async () => {
+    await restore(session([tab({ id: 'cp-a', content: 'a' }), tab({ id: 'cp-b', content: 'b' })]));
+    await openCopy('a.md (disk)', 'disk text', 'cp-b');
+    expect(getTabs().map((t) => t.title)).toEqual(['x', 'x', 'a.md (disk)']);
+    const copy = getTabs()[2];
+    expect(copy).toMatchObject({ mode: 'read', filePath: null, dirty: false });
+    expect(textOf(copy)).toBe('disk text');
+    expect(getActiveTab()?.id).toBe(copy.id);
+    await openCopy('loose', 'l'); // without a neighbour: at the end
+    expect(getTabs().at(-1)?.title).toBe('loose');
+  });
+
+  it('remembers the last folder', () => {
+    setLastFolder('C:/n/sub');
+    expect(getLastFolder()).toBe('C:/n/sub');
+  });
+});
+
+describe('loadText', () => {
+  it('a deletion in the middle, an insertion at the end and a cursor before the change are handled minimally', async () => {
+    await restore(session([tab({ id: 'ld', mode: 'edit', content: 'one two three' })]));
+    const view = getView()!;
+    view.dispatch({ selection: { anchor: 2 } });
+    loadText(getTabs()[0], 'one three');
+    expect(textOf(getTabs()[0])).toBe('one three');
+    expect(view.state.selection.main.head).toBe(2); // the cursor sits in the unchanged start
+    loadText(getTabs()[0], 'one three four');
+    expect(textOf(getTabs()[0])).toBe('one three four');
+    expect(view.state.selection.main.head).toBe(2);
+    loadText(getTabs()[0], 'one three four');
+    expect(textOf(getTabs()[0])).toBe('one three four');
+    view.dispatch({ selection: { anchor: 12 } }); // in "four", after the change
+    loadText(getTabs()[0], 'one 3 four');
+    expect(textOf(getTabs()[0])).toBe('one 3 four');
+    expect(view.state.selection.main.head).toBe(8); // moved with the unchanged end
+    loadText(getTabs()[0], '');
+    expect(textOf(getTabs()[0])).toBe('');
+  });
+});
+
+describe('cursor, modes and cycling', () => {
+  it('a tab keeps its cursor while another tab is shown', async () => {
+    await restore(session([tab({ id: 'cu-a', mode: 'edit', content: 'abcdef' }), tab({ id: 'cu-b', mode: 'edit', content: 'x' })]));
+    getView()!.dispatch({ selection: { anchor: 4 } });
+    expect(snapshot().tabs[0].cursor).toBe(4); // a session write sees it without a tab switch
+    await activate('cu-b');
+    expect(getTab('cu-a')?.cursor).toBe(4);
+    expect(snapshot().tabs[0].cursor).toBe(4);
+    await activate('cu-a');
+    expect(getView()!.state.selection.main.head).toBe(4);
+  });
+
+  it('Ctrl+E toggles between writing and reading', async () => {
+    await restore(session([tab({ id: 'tm', mode: 'edit', content: 'text' })]));
+    await toggleMode();
+    expect(getActiveTab()?.mode).toBe('read');
+    expect([pane('e').hidden, pane('r').hidden]).toEqual([true, false]);
+    expect(pane('r').textContent).toBe('text');
+    await toggleMode();
+    expect(getActiveTab()?.mode).toBe('edit');
+    expect([pane('e').hidden, pane('r').hidden]).toEqual([false, true]);
+  });
+
+  it('Ctrl+Tab cycles forward and back with wrap-around, and does nothing with one tab', async () => {
+    await restore(session([tab({ id: 'cy-a', content: 'a' }), tab({ id: 'cy-b', content: 'b' }), tab({ id: 'cy-c', content: 'c' })], 'cy-c'));
+    await cycle(1);
+    expect(getActiveTab()?.id).toBe('cy-a');
+    await cycle(-1);
+    expect(getActiveTab()?.id).toBe('cy-c');
+    await cycle(-1);
+    expect(getActiveTab()?.id).toBe('cy-b');
+    await restore(session([tab({ id: 'cy-one', content: 'a' })]));
+    await cycle(1);
+    expect(getActiveTab()?.id).toBe('cy-one');
+  });
+});
+
+describe('markSaved and markDirty', () => {
+  it('a tab edited during the write stays dirty; the stamp is stored either way', async () => {
+    await restore(session([tab({ id: 'ms', filePath: 'C:/n/ms.md', dirty: true, content: 'v1', mode: 'edit' }), tab({ id: 'mt', content: 'k' })]));
+    const stamp = { mtimeMs: 3, size: 2 };
+    applyToTab('ms', { changes: { from: 2, insert: '!' } });
+    markSaved('ms', { text: 'v1', stamp });
+    expect(getTab('ms')).toMatchObject({ dirty: true, disk: stamp });
+    markSaved('ms', { text: 'v1!', stamp: { mtimeMs: 4, size: 3 } });
+    expect(getTab('ms')).toMatchObject({ dirty: false, disk: { mtimeMs: 4, size: 3 } });
+    markSaved('nope', { text: '', stamp });
+  });
+
+  it('a first save gives the tab its path and title', async () => {
+    await restore(session([tab({ id: 'fs', title: 'Untitled-1', dirty: true, content: 'draft' })]));
+    markSaved('fs', { text: 'draft', stamp: { mtimeMs: 1, size: 5 }, path: 'C:\\n\\draft.md' });
+    expect(getTab('fs')).toMatchObject({ filePath: 'C:/n/draft.md', title: 'draft.md', dirty: false });
+    expect(filePathFor('fs')).toBe('C:/n/draft.md');
+  });
+
+  it('markDirty keeps the text in the session for a note that is gone', async () => {
+    await restore(session([tab({ id: 'md', filePath: 'C:/n/md.md', content: 'kept' })]));
+    expect(snapshot().tabs[0].content).toBe('');
+    markDirty('md');
+    expect(getTab('md')?.dirty).toBe(true);
+    expect(snapshot().tabs[0].content).toBe('kept');
+  });
+});

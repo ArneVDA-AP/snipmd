@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::fs;
-use std::io::{ErrorKind, Read};
-use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, paths::{self, resolve_image, AllowedSet}, session, text};
+use std::io::ErrorKind;
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, note::{self, note_name, DiskStamp, NoteFile, WriteOutcome}, paths::{self, resolve_image, AllowedSet}, session, text::TextFormat};
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request};
@@ -126,26 +125,6 @@ async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
 pub struct SavedImage {
     pub link: String,
     pub abs_path: String,
-}
-
-/// Every tab object in a session (open and closed). Read leniently: the TypeScript parser is
-/// the authority on the format, Rust only needs the file paths and must never refuse a session.
-fn session_tabs(v: &mut Value) -> Vec<&mut Value> {
-    let Some(obj) = v.as_object_mut() else { return Vec::new() };
-    let mut out = Vec::new();
-    for (key, val) in obj.iter_mut() {
-        let Some(list) = val.as_array_mut() else { continue };
-        match key.as_str() {
-            "tabs" => out.extend(list.iter_mut()),
-            "closedTabs" => out.extend(list.iter_mut().filter_map(|c| c.get_mut("tab"))),
-            _ => {}
-        }
-    }
-    out
-}
-
-fn file_path(tab: &Value) -> Option<&str> {
-    tab.get("filePath").and_then(Value::as_str)
 }
 
 /// `%APPDATA%/com.snipmd.desktop`, or the absolute folder in `SNIPMD_DATA_DIR` (measuring and tests run there,
@@ -292,138 +271,33 @@ fn resolve_asset_abs_path(
     Ok(displayable(&app, &resolved))
 }
 
-fn note_name(path: &Path) -> String {
-    path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned()
-}
-
-/// TextFormat as the frontend sends and receives it (the core crate has no serde).
-#[derive(Serialize, Deserialize, Clone, Copy)]
-struct Format {
-    crlf: bool,
-    bom: bool,
-}
-
-impl From<text::TextFormat> for Format {
-    fn from(f: text::TextFormat) -> Self {
-        Format { crlf: f.crlf, bom: f.bom }
-    }
-}
-
-impl From<Format> for text::TextFormat {
-    fn from(f: Format) -> Self {
-        text::TextFormat { crlf: f.crlf, bom: f.bom }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct DiskStamp {
-    mtime_ms: f64,
-    size: u64,
-}
-
-/// A write either happened, or was refused because the file is no longer the one the tab knows.
-#[derive(Serialize)]
-#[serde(untagged)]
-enum WriteOutcome {
-    Written { written: DiskStamp },
-    Changed { changed: Option<DiskStamp> },
-}
-
-#[derive(Serialize)]
-struct NoteFile {
-    text: String,
-    format: Format,
-    stamp: DiskStamp,
-}
-
 #[derive(Serialize)]
 struct PrefixMove {
     from: String,
     to: String,
 }
 
-/// The file's stamp, or None when it does not exist.
-fn stamp(p: &Path) -> std::io::Result<Option<DiskStamp>> {
-    match fs::metadata(p) {
-        Ok(m) => stamp_of(&m).map(Some),
-        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e),
-    }
-}
-
-fn stamp_of(meta: &fs::Metadata) -> std::io::Result<DiskStamp> {
-    let ms = meta
-        .modified()?
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64() * 1000.0)
-        .unwrap_or(0.0);
-    Ok(DiskStamp { mtime_ms: ms.floor(), size: meta.len() })
-}
-
 #[tauri::command(async)]
 fn read_markdown_file(app: AppHandle, path: String) -> Result<NoteFile, String> {
-    let checked = check_path(&app, &path)?;
-    let name = note_name(&checked);
-    // Bytes and stamp from one open file, so a write in between cannot pair new bytes with an old stamp.
-    let read = || -> std::io::Result<(Vec<u8>, DiskStamp)> {
-        let mut file = fs::File::open(&checked)?;
-        let meta = file.metadata()?;
-        let mut bytes = Vec::with_capacity(meta.len() as usize);
-        file.read_to_end(&mut bytes)?;
-        Ok((bytes, stamp_of(&meta)?))
-    };
-    let (bytes, stamp) = read().map_err(|e| format!("Failed to read {name}: {e}"))?;
-    let (text, fmt) = text::decode(&bytes).map_err(|_| format!("{name} is not UTF-8 text"))?;
-    Ok(NoteFile { text, format: fmt.into(), stamp })
+    note::read(&check_path(&app, &path)?)
 }
 
-/// Enough of a note to read its format: sniff needs the BOM and the first line break.
-const HEAD_BYTES: u64 = 64 * 1024;
-
-fn read_head(p: &Path) -> std::io::Result<Vec<u8>> {
-    let mut head = Vec::new();
-    fs::File::open(p)?.take(HEAD_BYTES).read_to_end(&mut head)?;
-    Ok(head)
-}
-
+/// Never writes over a change made outside SnipMD since the tab last read or wrote the file (SPEC §6.1).
 #[tauri::command(async)]
 fn write_markdown_file(
     app: AppHandle,
     path: String,
     content: String,
-    format: Option<Format>,
+    format: Option<TextFormat>,
     expected: Option<DiskStamp>,
 ) -> Result<WriteOutcome, String> {
-    let checked = check_path(&app, &path)?;
-    let name = note_name(&checked);
-    // Never write over a change made outside SnipMD since the tab last read or wrote the file (SPEC §6.1).
-    if let Some(expected) = expected {
-        let now = stamp(&checked).map_err(|e| format!("Failed to check {name} before saving: {e}"))?;
-        if now != Some(expected) {
-            return Ok(WriteOutcome::Changed { changed: now });
-        }
-    }
-    let fmt = match format {
-        Some(f) => f.into(),
-        None => match read_head(&checked) {
-            Ok(head) => text::sniff(&head),
-            Err(e) if e.kind() == ErrorKind::NotFound => text::TextFormat::NEW_FILE,
-            Err(e) => return Err(format!("Failed to read {name} before saving: {e}")),
-        },
-    };
-    atomic::atomic_write(&checked, &text::encode(&content, fmt)).map_err(|e| format!("Failed to write {name}: {e}"))?;
-    match stamp(&checked) {
-        Ok(Some(written)) => Ok(WriteOutcome::Written { written }),
-        Ok(None) => Err(format!("{name} vanished right after it was written")),
-        Err(e) => Err(format!("Failed to read the stamp of {name}: {e}")),
-    }
+    note::write(&check_path(&app, &path)?, &content, format, expected)
 }
 
 #[tauri::command(async)]
 fn stat_note(app: AppHandle, path: String) -> Result<Option<DiskStamp>, String> {
     let checked = check_path(&app, &path)?;
-    stamp(&checked).map_err(|e| format!("Failed to check {}: {e}", note_name(&checked)))
+    note::stamp(&checked).map_err(|e| format!("Failed to check {}: {e}", note_name(&checked)))
 }
 
 /// How links to a note's image folder start, as written in Markdown: `labo%2004.assets/`.
@@ -507,45 +381,15 @@ fn claim_new_note(app: AppHandle, folder: String, name: String) -> Result<String
 }
 
 /// SPEC §6.5: at startup, on its own thread so startup never waits, read session.json and clean
-/// the scratch folder. No session, an unreadable one or one without open tabs (the frontend
-/// discards it) cleans nothing. A tab with a file path has no known text (None): its scratch
-/// items are kept; an untitled tab's text is its content.
+/// the scratch folder with the texts it holds (`session::known_texts` says when nothing may go).
 fn start_cleanup(app_data: PathBuf) {
     std::thread::spawn(move || {
-        let Ok(raw) = fs::read_to_string(app_data.join("session.json")) else { return };
-        let Ok(mut session) = serde_json::from_str::<Value>(&raw) else { return };
-        if !session.get("tabs").and_then(Value::as_array).is_some_and(|t| !t.is_empty()) {
-            return;
-        }
-        let mut live = live_tabs(&mut session);
-        // A set-aside session still links its untitled notes' screenshots. It was set aside because it
-        // does not parse, but its raw text still spells every name it links, and names are matched as
-        // text across all tabs: it counts as one more known text. One that cannot be read at all
-        // names unknown images, so nothing is cleaned that run.
-        for aside in session::set_aside(&app_data) {
-            let Ok(bytes) = fs::read(&aside) else { return };
-            live.insert(format!("set-aside:{}", aside.display()), Some(String::from_utf8_lossy(&bytes).into_owned()));
-        }
+        let Some(live) = session::known_texts(&app_data) else { return };
         let removed = cleanup::clean_scratch(&app_data.join("scratch"), &live, SystemTime::now(), cleanup::SCRATCH_GRACE);
         if removed > 0 {
             eprintln!("cleanup: removed {removed} unused scratch item(s)");
         }
     });
-}
-
-/// Every session tab id (open and closed) with its text when the session holds it.
-fn live_tabs(session: &mut Value) -> HashMap<String, Option<String>> {
-    let mut live: HashMap<String, Option<String>> = HashMap::new();
-    for tab in session_tabs(session) {
-        let Some(id) = tab.get("id").and_then(Value::as_str) else { continue };
-        let text = file_path(tab).is_none().then(|| tab.get("content").and_then(Value::as_str).unwrap_or(""));
-        // An id seen twice keeps both texts; once None, it stays None.
-        match (live.entry(id.to_string()).or_insert_with(|| Some(String::new())), text) {
-            (Some(all), Some(t)) => all.extend(["\n", t]),
-            (known, _) => *known = None,
-        }
-    }
-    live
 }
 
 
@@ -567,8 +411,8 @@ fn load_session(app: AppHandle) -> Result<SessionLoad, String> {
         session::Loaded::Missing => return Ok(SessionLoad { raw: None, set_aside: None }),
         session::Loaded::SetAside(p) => return Ok(SessionLoad { raw: None, set_aside: Some(p.to_string_lossy().into_owned()) }),
     };
-    let Ok(mut parsed) = serde_json::from_str::<Value>(&raw) else { unreachable!("checked by session::load") };
-    for p in session_tabs(&mut parsed).into_iter().filter_map(|t| file_path(t)) {
+    let Ok(parsed) = serde_json::from_str::<Value>(&raw) else { unreachable!("checked by session::load") };
+    for p in session::tabs(&parsed).into_iter().filter_map(session::file_path) {
         allow_note(&app, Path::new(p));
     }
     if let Some(folder) = parsed.get("lastFolder").and_then(Value::as_str) {
@@ -581,21 +425,10 @@ fn load_session(app: AppHandle) -> Result<SessionLoad, String> {
 fn save_session(app: AppHandle, request: Request<'_>) -> Result<(), String> {
     let json = std::str::from_utf8(raw_body(&request)?).map_err(|_| "Session is not UTF-8 text".to_string())?;
     let mut parsed: Value = serde_json::from_str(json).map_err(|e| format!("Invalid session JSON: {e}"))?;
-    // A path outside the allowed set is dropped (the tab restores as untitled; a clean tab's
-    // text is not in the session, so it comes back empty),
-    // so a compromised webview cannot plant paths for the next start. Normal use never gets
-    // here, and the save itself must not fail over it (SPEC §6.1: a failing write never blocks the session save), so it is only logged.
-    let mut dropped = 0usize;
-    if parsed.get("lastFolder").and_then(Value::as_str).is_some_and(|f| !allowed(&app).may_create_in(Path::new(f))) {
-        parsed["lastFolder"] = Value::Null;
-        dropped += 1;
-    }
-    for tab in session_tabs(&mut parsed) {
-        if file_path(tab).is_some_and(|p| check_path(&app, p).is_err()) {
-            tab["filePath"] = Value::Null;
-            dropped += 1;
-        }
-    }
+    // A path outside the allowed set is dropped (the tab restores as untitled; a clean tab's text is
+    // not in the session, so it comes back empty). Normal use never gets here, and the save itself
+    // must not fail over it (SPEC §6.1: a failing write never blocks the session save), so it is only logged.
+    let dropped = session::drop_unallowed(&mut parsed, &allowed(&app));
     let json = if dropped == 0 { std::borrow::Cow::Borrowed(json) } else { parsed.to_string().into() };
     let app_data = app_data(&app)?;
     fs::create_dir_all(&app_data)

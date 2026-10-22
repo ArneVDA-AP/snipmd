@@ -94,3 +94,4 @@ fn read_only_target_is_refused_and_kept() {
     assert_eq!(fs::read(&t).unwrap(), b"keep");
     assert_eq!(fs::read_dir(&d).unwrap().count(), 1);
 }
+

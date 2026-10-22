@@ -1,9 +1,10 @@
 //! Keep a note's line endings and BOM (SPEC §6.1).
+use serde::{Deserialize, Serialize};
 
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// How a note was stored on disk.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TextFormat {
     pub crlf: bool,
     pub bom: bool,

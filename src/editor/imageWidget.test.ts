@@ -81,6 +81,33 @@ describe('imageWidget', () => {
     expect(resolve.mock.calls.map((c) => c[0]).sort()).toEqual([a, b].sort());
   });
 
+  it('a resolved image is looked up once, also when the note changes and when another tab shows it', async () => {
+    resolve.mockResolvedValue('/notes/a.assets/x.png');
+    const a = newId();
+    open(a, '![a](x.png)');
+    await flush();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    const { applyToTab } = await import('./registry');
+    applyToTab(a, { changes: { from: 0, insert: 'y\n' } });
+    open(newId(), '![b](x.png)'); // the same note, same link: the cache key is shared
+    await flush();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(widgets(getState(a)!)[0].querySelector('img')?.getAttribute('src')).toBe('asset:///notes/a.assets/x.png');
+  });
+
+  it('a prime during the lookup wins over its result', async () => {
+    let answer!: (p: string) => void;
+    resolve.mockReturnValue(new Promise((r) => (answer = r)));
+    const a = newId();
+    open(a, '![a](shared.png)');
+    await flush();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    primeAssetCache(a, 'shared.png', '/notes/primed.png');
+    answer('/notes/stale.png');
+    await flush();
+    expect(widgets(getState(a)!)[0].querySelector('img')?.getAttribute('src')).toBe('asset:///notes/primed.png');
+  });
+
   it('shows a primed image without a lookup', () => {
     const id = newId();
     primeAssetCache(id, 'p.png', '/notes/p.png');
