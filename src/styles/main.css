@@ -94,7 +94,7 @@
     color-scheme: dark;
   }
 }
-/* Windows 11: the top bar shows the window's Mica backdrop (set in Rust, see lib.rs). */
+/* Windows 11: the top bar shows the window's Mica backdrop (set in Rust, see backdrop.rs). */
 :root.mica { --chrome: transparent; background: transparent; }
 :root.mica body { background: transparent; }
 :root.mica .workspace, :root.mica .infobar-host { background: var(--bg); }

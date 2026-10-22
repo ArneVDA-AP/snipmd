@@ -17,7 +17,7 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     };
     let target = real.as_path();
     if fs::metadata(target).is_ok_and(|m| m.permissions().readonly()) {
-        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "read-only")); // D8
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "read-only"));
     }
     let name = target.file_name().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "target has no file name"))?;
     let tmp_name = || {
@@ -52,7 +52,7 @@ pub fn write_new(dir: &Path, name: impl FnMut() -> OsString, bytes: &[u8]) -> io
     })
 }
 
-/// R3b. Creates `dir/<name()>` with create_new; on AlreadyExists asks `name` again (64 attempts at most).
+/// Creates `dir/<name()>` with create_new; on AlreadyExists asks `name` again (64 attempts at most).
 /// Never creates folders. Any other error is returned at once.
 pub fn create_unique(dir: &Path, mut name: impl FnMut() -> OsString) -> io::Result<(PathBuf, File)> {
     for _ in 0..64 {

@@ -1,6 +1,6 @@
 // Tab list state and the visible workspace (editor or read view).
-// The text of a tab lives in its EditorState; TabState.content is only filled when the session is
-// written and used to create the editor state on restore. Read it through textOf().
+// The text of a tab lives in its EditorState; read it through textOf(). TabState.content seeds a tab's
+// editor state (new tab, restore, a file read before the editor exists); session snapshots are copies.
 // Open and closed tabs are one list: a closed tab is a tab with `closedAt` and no view, so a paste,
 // a link rewrite or a write still running for it lands in it. getTab finds either; the tab strip
 // and the keys work on getTabs (open only).

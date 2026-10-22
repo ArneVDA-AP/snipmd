@@ -1,19 +1,19 @@
-name: Feature Request
-description: Propose an ergonomic enhancement, keyboard shortcut, or theme for SnipMD
+name: Feature request
+description: Propose an improvement to SnipMD.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Workflow Problem or Motivation
-      description: What note-taking or screenshot workflow friction does this solve?
+      label: Problem or motivation
+      description: What in your note-taking or screenshot workflow does this solve?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed Solution
-      description: Describe how the feature should work while keeping SnipMD's <80ms cold-start and zero-bloat philosophy.
+      label: Proposed solution
+      description: How it should work. SnipMD keeps to the budgets in SPEC.md §9 (its own start under 150 ms, cold start under 1 s, installer under 10 MB); ideas outside the scope in SPEC.md §12 are collected in PROPOSALS.md.
     validations:
       required: true

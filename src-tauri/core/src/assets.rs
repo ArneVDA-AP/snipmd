@@ -1,4 +1,4 @@
-//! a Note's image folder (SPEC §6.3, §6.4).
+//! A note's image folder (SPEC §6.3, §6.4).
 use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};

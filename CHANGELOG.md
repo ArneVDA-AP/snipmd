@@ -4,7 +4,7 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 
 ## [1.0.0] - 2026-10-22
 
-The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; the session file and image folders of 0.1.0 are not carried over.
+The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; open tabs and untitled text from the 0.1.0 session are restored, but screenshots of untitled 0.1.0 notes (`scratchpad/.assets/`) are not carried over.
 
 ### Added
 - Screenshot paste: `Ctrl+V` with only an image on the clipboard saves it next to the note (`<stem>.assets/`) and links it on its own line; text on the clipboard always pastes as text; `Ctrl+Shift+V` is plain text.
@@ -25,7 +25,7 @@ The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; the sessi
 - The first window fits the screen, also on a small laptop at high scaling.
 
 ### Security
-- Every opened note is untrusted: strict CSP, sanitized read mode, links never navigate the window, Rust commands only touch files the user opened, their image folders and the app's own folder; the asset protocol is granted per folder.
+- Every opened note is untrusted: strict CSP, sanitized read mode, links never navigate the window, Rust commands only touch files the user opened, their image folders and the app's own folder; the asset protocol is granted per image file.
 
 ### Removed
 - The prototype's split view, theme gallery, side drawer, lightbox, HTML export and `localStorage` persistence (out of scope for v1, see `SPEC.md` §12).

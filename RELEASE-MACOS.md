@@ -7,11 +7,11 @@ The workflow *Release macOS* (`.github/workflows/release-macos.yml`) runs by han
 1. `build` (read-only token) runs the typecheck, the unit tests and the core tests on macOS, and builds the app.
 2. `tools/release/macos-package.sh` packs the app into the `.dmg`. With the Developer ID secrets below, it signs and notarizes first.
 3. The `.dmg` is checked against the size budget.
-4. The job installs the app from the `.dmg` the way a tester does: quarantine flag, Gatekeeper's verdict, then the tester's first-start step.
+4. The job installs the app from the `.dmg` the way a user does: quarantine flag, Gatekeeper's verdict, then the first-start step in *Installing an ad-hoc build*.
 5. It runs the acceptance probes (`tools/measure/macos-probe.sh`) on that copy. Any probe that does not pass fails the run.
 6. The `.dmg` and the probe results are a workflow artifact.
 
-To publish, run it on the version tag (the *Use workflow from* list → Tags → `v<version>`) with **publish** on. `publish` (the only job with write access) adds the `.dmg` to that tag's release, next to the Windows files. Pushing a tag alone publishes nothing for macOS, so a Windows release never ships a macOS build that has not passed the tester's check below.
+To publish, run it on the version tag (the *Use workflow from* list → Tags → `v<version>`) with **publish** on. `publish` (the only job with write access) adds the `.dmg` to that tag's release, next to the Windows files. Pushing a tag alone publishes nothing for macOS, so a Windows release never ships a macOS build that has not passed the checklist below.
 
 ## Signing and notarization
 Until SnipMD has an Apple Developer ID, builds are ad-hoc signed and Gatekeeper refuses them on first start (see *Installing an ad-hoc build*). With an Apple Developer account ($99 a year), add these repository secrets; the next run signs, notarizes and staples, and fails if Gatekeeper does not accept the result.
@@ -36,7 +36,7 @@ The signing path has not run yet; the first run with real secrets is its test.
 
    After that SnipMD starts normally.
 
-## Tester's checklist
+## Manual checklist
 The runner checks launch, open from Finder, the flush on Cmd+Q and on the Dock's Quit, Cmd+W, paste, plain paste, replace, Cmd+H and the top bar, on every build. This list is what it cannot judge. Note the Mac, its chip and macOS version, and report each item as OK or what happened, with a screenshot where it helps, as a comment on [#30](../../issues/30).
 
 1. **First start.** One empty tab with a hint showing ⌃⇧⌘4, ⌘V, ⌘S and the thumbnail tip. The bar follows the light or dark setting, and the close, minimize and zoom buttons sit centred at its left, before the first tab. The window drags from the empty part of the bar, and the green button goes to full screen and back.
