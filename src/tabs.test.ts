@@ -15,17 +15,18 @@ import { clearTabInfo, showError } from './infobar';
 import { scheduleSessionSave } from './session';
 import {
   activate, closeTab, cycle, getActiveTab, getLastFolder, getTab, initTabs, loadText, markDirty, markSaved, newUntitled, openCopy, openPath,
-  openPaths, openTab, reopenClosed, restore, setLastFolder, snapshot, getTabs, textOf, toggleMode
+  openPaths, openTab, reopenClosed, restore, setLastFolder, snapshot, getTabs, textOf, toggleMode, moveTab, moveActive, refreshRead
 } from './tabs';
 import { inConflict, setConflict } from './diskState';
 import { applyToTab, filePathFor, getState, getView, trackImageSave } from './editor/registry';
+import { parseSettings } from './settings';
 
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
 });
 const note = (text: string) => ({ text, format: { crlf: true, bom: false }, stamp: { mtimeMs: 1, size: text.length } });
 const session = (tabs: TabState[], active = tabs[0]?.id ?? ''): SessionFile => ({
-  version: 3, activeTabId: active, lastFolder: null, tabs, closedTabs: []
+  version: 3, activeTabId: active, lastFolder: null, tabs, closedTabs: [], settings: parseSettings(undefined)
 });
 
 const render = vi.fn();
@@ -332,7 +333,7 @@ describe('read mode', () => {
     slow.textContent = 'note A';
     vi.mocked(renderRead).mockReturnValueOnce(new Promise((r) => (release = () => r(slow))));
     const goingToA = activate('rm-a');
-    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-a', 'A')); // A is rendering
+    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-a', 'A', parseSettings(undefined))); // A is rendering
     await activate('rm-b');
     release();
     await goingToA;
@@ -346,7 +347,7 @@ describe('read mode', () => {
     const stale = Object.assign(document.createElement('article'), { textContent: 'old' });
     vi.mocked(renderRead).mockReturnValueOnce(new Promise((r) => (release = () => r(stale))));
     const first = activate('rm-s');
-    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-s', 'old'));
+    await vi.waitFor(() => expect(renderRead).toHaveBeenLastCalledWith('rm-s', 'old', parseSettings(undefined)));
     applyToTab('rm-s', { changes: { from: 0, insert: 'NEW ' } });
     await activate('rm-s');
     release();
@@ -398,6 +399,79 @@ describe('the session and the tab strip follow every change', () => {
     const [tabs, active] = render.mock.calls.at(-1)!;
     expect(tabs.map((t: TabState) => t.id)).toEqual(['st-a']);
     expect(active).toBe('st-a');
+  });
+});
+
+describe('tab order', () => {
+  const ids = () => getTabs().map((t) => t.id);
+
+  it('moves a tab left or right among the open tabs and writes the session at once', async () => {
+    await restore(session([tab({ id: 'm-a', content: 'a' }), tab({ id: 'm-b', content: 'b' }), tab({ id: 'm-c', content: 'c' })]));
+    vi.mocked(scheduleSessionSave).mockClear();
+    moveTab('m-c', 0);
+    expect(ids()).toEqual(['m-c', 'm-a', 'm-b']);
+    expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true });
+    moveTab('m-c', 2);
+    expect(ids()).toEqual(['m-a', 'm-b', 'm-c']);
+    expect(snapshot().tabs.map((t) => t.id)).toEqual(['m-a', 'm-b', 'm-c']);
+  });
+
+  it('keeps closed tabs out of the count and clamps the target', async () => {
+    await restore(session([tab({ id: 'k-a', content: 'a' }), tab({ id: 'k-b', content: 'b' }), tab({ id: 'k-c', content: 'c' })]));
+    await closeTab('k-b');
+    moveTab('k-a', 9);
+    expect(ids()).toEqual(['k-c', 'k-a']);
+    moveTab('k-b', 0); // closed: not moved
+    expect(ids()).toEqual(['k-c', 'k-a']);
+  });
+
+  it('moves the active tab one place and stops at either end', async () => {
+    await restore(session([tab({ id: 'e-a', content: 'a' }), tab({ id: 'e-b', content: 'b' })], 'e-a'));
+    moveActive(-1);
+    expect(ids()).toEqual(['e-a', 'e-b']);
+    moveActive(1);
+    expect(ids()).toEqual(['e-b', 'e-a']);
+    moveActive(1);
+    expect(ids()).toEqual(['e-b', 'e-a']);
+  });
+});
+
+describe('settings in the session and read mode', () => {
+  it('the snapshot carries the toggles', async () => {
+    await restore(session([tab({ id: 's-a', content: 'a' })]));
+    expect(snapshot().settings).toEqual(parseSettings(undefined));
+  });
+
+  it('refreshRead renders the active read tab again with the current toggles, and leaves a writing tab alone', async () => {
+    await restore(session([tab({ id: 'rr-a', content: 'a', mode: 'read' })]));
+    vi.mocked(renderRead).mockClear();
+    await refreshRead();
+    expect(renderRead).toHaveBeenCalledWith('rr-a', 'a', parseSettings(undefined));
+    await toggleMode();
+    vi.mocked(renderRead).mockClear();
+    await refreshRead();
+    expect(renderRead).not.toHaveBeenCalled();
+  });
+
+  it('a render in place leaves the focus where it is, so the command menu stays in use', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
+    document.body.insertAdjacentHTML('beforeend', '<div class="infobar-host"><input id="menu-field"></div>');
+    const field = document.getElementById('menu-field') as HTMLInputElement;
+    pane('r').tabIndex = -1; // as in the app, so the pane can take focus
+    await restore(session([tab({ id: 'rf-a', content: 'a', mode: 'read' })]));
+    frames.splice(0).forEach((f) => f(0)); // the switch to the tab focuses the pane, as it should
+    field.focus();
+    await refreshRead();
+    frames.forEach((f) => f(0));
+    expect(document.activeElement).toBe(field);
+  });
+
+  it('a note reloaded from disk shows its new text in read mode', async () => {
+    await restore(session([tab({ id: 'lr-a', content: 'old', mode: 'read' })]));
+    vi.mocked(renderRead).mockClear();
+    loadText(getTab('lr-a')!, 'new');
+    await vi.waitFor(() => expect(renderRead).toHaveBeenCalledWith('lr-a', 'new', parseSettings(undefined)));
   });
 });
 

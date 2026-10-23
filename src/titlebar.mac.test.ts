@@ -10,7 +10,7 @@ import { Titlebar } from './titlebar';
 
 it('draws no window buttons and starts with a draggable gap for the system ones', () => {
   const root = document.createElement('header');
-  new Titlebar(root, { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn() });
+  new Titlebar(root, { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn(), move: vi.fn() });
   expect(root.querySelector('.win-controls, .win-btn')).toBeNull();
   const first = root.firstElementChild!;
   expect(first.className).toBe('traffic-lights');

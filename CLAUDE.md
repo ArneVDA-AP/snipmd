@@ -8,7 +8,7 @@
 ## Workflow
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked, or in an autonomous run.
 - **Autonomous runs.** When the owner has handed over authority, the session decides: it commits, opens PRs and merges each once CI is green and its review has no open blocker or major. thin-standard args are written to `.claude/runs/` and used, not held for approval. Every decision gets a line in ROADMAP.md "Decisions in force"; the session ends with ROADMAP.md current, so a cold session can continue. The guardrails, the public-repo commit rules and "never rewrite `main`, never delete user data, never widen permissions" still hold.
-- **Process records stay off `main` once their work is merged.** Reviews (`review/`), findings (`findings/`) and run args (`.claude/runs/`) live on the working branch; at each milestone they move to an archive branch (`archive/v1-process` holds v1). Screenshots for a review are workflow artifacts or files on a `test/` branch, not commits to `main`.
+- **Process records stay off `main` once their work is merged.** Reviews (`review/`), findings (`findings/`) and run args (`.claude/runs/`) live on the working branch; at each milestone they move to an archive branch (`archive/v1-process` holds v1, `archive/1.1-process` what came after). Screenshots for a review are workflow artifacts or files on a `test/` branch, not commits to `main`.
 
 ## Stack
 - Tauri v2 (Rust) + vanilla TypeScript + Vite + CodeMirror 6 + `marked`.
@@ -53,7 +53,7 @@ Few rules, each general. A rule that a type, test or lint now enforces is delete
 9. **Rust commands.** Every command that touches the disk is async; a command resolves its target once into a type (`ImageHome`); a capability is as narrow as the user action that granted it.
 10. **Plain code.** Thin layers stay thin (`src/ipc.ts` only wraps); no dead exports or payloads nobody reads; independent I/O runs in parallel and one failure never blocks the rest; a failure never triggers the same work again; a held key acts once (only tab switching repeats). Comments say why, never which plan step, review or phase produced the code.
 
-Before finishing a change, run `/simplify`. A recurring lesson goes into an existing rule above or into a test, not into a new bullet.
+Before finishing a change, run `/simplify`. It reviews within the chosen approach; after a build of 3+ units, also run one thin-review whose only question is what can be deleted or written shorter while every SPEC behaviour holds (one key per binding, no module for one caller, no guard its callers rule out), and apply what it verifies. A recurring lesson goes into an existing rule above or into a test, not into a new bullet.
 
 ## Verification
 - Frontend: `npm run lint` (`tsc --noEmit`), `npm test` (Vitest, jsdom) and `npm run build`.

@@ -10,18 +10,46 @@ vi.mock('../editor/imageWidget', async () => {
     cachedUrl: (_f: string | null, href: string) => (href === 'own.png' ? OWN_URL : isWebUrl(href) ? href : undefined)
   };
 });
-vi.mock('../editor/registry', () => ({ filePathFor: () => 'C:/notes/a.md' }));
+const reg = vi.hoisted(() => ({ state: undefined as unknown, applyToTab: vi.fn(() => true) }));
+vi.mock('../editor/registry', async (importActual) => ({
+  ...(await importActual<typeof import('../editor/registry')>()),
+  filePathFor: () => 'C:/notes/a.md',
+  getState: () => reg.state,
+  applyToTab: reg.applyToTab
+}));
+const highlightCode = vi.hoisted(() => vi.fn(async () => true));
+vi.mock('../editor/codeLanguages', () => ({ highlightCode, codeParser: () => null, CODE_LANGUAGES: [] }));
+const info = vi.hoisted(() => ({ showInfo: vi.fn(), showError: vi.fn() }));
+vi.mock('../infobar', () => info);
 const openLink = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('../ipc', () => ({ openLink }));
 
 import { renderRead } from './render';
 import { ensureResolved } from '../editor/imageWidget';
+import { parseSettings } from '../settings';
+import { EditorState } from '@codemirror/state';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
-async function render(md: string): Promise<HTMLElement> {
+// The registry's states carry the Markdown language; the full editor setup is not needed for a task lookup.
+const createEditorState = (_tab: string, doc: string): EditorState => EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] });
+
+async function render(md: string, settings: Record<string, boolean> = {}): Promise<HTMLElement> {
   const el = document.createElement('div');
-  el.append(await renderRead('t1', md));
+  el.append(await renderRead('t1', md, parseSettings(settings)));
   return el;
 }
+
+describe('line breaks', () => {
+  it('joins the lines of a paragraph by default, as CommonMark does', async () => {
+    const el = await render('een\ntwee');
+    expect(el.querySelector('br')).toBeNull();
+  });
+
+  it('shows a single line break as a break with the toggle on', async () => {
+    const el = await render('een\ntwee', { lineBreaks: true });
+    expect(el.querySelector('p br')).not.toBeNull();
+  });
+});
 
 describe('renderRead sanitizing', () => {
   it('drops data-* attributes a note writes (no drag regions, no borrowed state)', async () => {
@@ -168,5 +196,117 @@ describe('renderRead links', () => {
     top.dispatchEvent(topClick);
     expect(topClick.defaultPrevented).toBe(false);
     expect(openLink).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('app controls only on app elements', () => {
+  it('a note cannot forge a Copy button, a live box or the attributes', async () => {
+    const el = await render(
+      '<pre><code data-code="forged-0">x</code></pre>\n\n<input type="checkbox" data-task="forged-0">',
+      { copyCode: true, taskClicks: true }
+    );
+    expect(el.querySelector('.code-copy')).toBeNull();
+    expect(el.querySelector('[data-code], [data-task]')).toBeNull();
+    const box = el.querySelector<HTMLInputElement>('input')!;
+    box.click();
+    expect(reg.applyToTab).not.toHaveBeenCalled();
+  });
+});
+
+describe('code blocks', () => {
+  it('has a Copy button with copyCode and none without', async () => {
+    const md = '```js\nlet a = 1;\n```';
+    expect((await render(md, { copyCode: true })).querySelectorAll('pre .code-copy')).toHaveLength(1);
+    expect((await render(md, { copyCode: false })).querySelector('.code-copy')).toBeNull();
+  });
+
+  it('copies the raw text and says Copied', async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const el = await render('```\na < b\n```', { copyCode: true });
+    const b = el.querySelector<HTMLButtonElement>('.code-copy')!;
+    b.click();
+    expect(writeText).toHaveBeenCalledWith('a < b');
+    await vi.waitFor(() => expect(b.textContent).toBe('Copied'));
+  });
+
+  it('reports a failed copy through the info bar', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => Promise.reject(new Error('no')) }, configurable: true });
+    const el = await render('```\nx\n```', { copyCode: true });
+    el.querySelector<HTMLButtonElement>('.code-copy')!.click();
+    await vi.waitFor(() => expect(info.showError).toHaveBeenCalledWith('copy the code', expect.any(Error)));
+  });
+
+  it('highlights each fenced block with a language once, and leaves one without alone', async () => {
+    highlightCode.mockClear();
+    const el = await render('```js\nlet a;\n```\n\n```py\nb = 1\n```\n\n```\nplain\n```');
+    expect(highlightCode).toHaveBeenCalledTimes(2);
+    expect(highlightCode.mock.calls.map((c) => [(c as unknown[])[1], (c as unknown[])[2]])).toEqual([
+      ['let a;', 'js'],
+      ['b = 1', 'py']
+    ]);
+    expect(el.querySelectorAll('pre')).toHaveLength(3);
+  });
+
+  it('keeps the block plain when highlighting rejects', async () => {
+    highlightCode.mockRejectedValueOnce(new Error('x'));
+    const el = await render('```js\nlet a;\n```');
+    expect(el.querySelector('code')!.textContent).toBe('let a;');
+  });
+});
+
+describe('task boxes', () => {
+  const md = '- [ ] a\n- [x] b';
+
+  it('are enabled only with taskClicks', async () => {
+    expect([...(await render(md, { taskClicks: true })).querySelectorAll('input')].map((i) => i.disabled)).toEqual([false, false]);
+    expect([...(await render(md, { taskClicks: false })).querySelectorAll('input')].map((i) => i.disabled)).toEqual([true, true]);
+  });
+
+  it('a click on a matching task changes the note of its tab', async () => {
+    reg.state = createEditorState('t1', md);
+    reg.applyToTab.mockClear();
+    const el = await render(md, { taskClicks: true });
+    el.querySelectorAll<HTMLInputElement>('input')[0].click();
+    await vi.waitFor(() => expect(reg.applyToTab).toHaveBeenCalledWith('t1', { changes: { from: 3, to: 4, insert: 'x' }, userEvent: 'input' }));
+  });
+
+  it('puts the box back and shows a warning when the note no longer matches', async () => {
+    reg.state = createEditorState('t1', '- [ ] a');
+    reg.applyToTab.mockClear();
+    info.showInfo.mockClear();
+    const el = await render(md, { taskClicks: true });
+    const box = el.querySelectorAll<HTMLInputElement>('input')[1];
+    box.click();
+    await vi.waitFor(() => expect(info.showInfo).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning', key: 'task:t1' })));
+    expect(box.checked).toBe(true);
+    expect(reg.applyToTab).not.toHaveBeenCalled();
+  });
+  it('writes nothing when the note changed since it was rendered, even with the same tasks reordered', async () => {
+    reg.state = createEditorState('t1', '- [ ] buy milk\n- [ ] pay rent');
+    reg.applyToTab.mockClear();
+    info.showInfo.mockClear();
+    const el = await render('- [ ] buy milk\n- [ ] pay rent', { taskClicks: true });
+    reg.state = createEditorState('t1', '- [ ] pay rent\n- [ ] buy milk'); // reloaded from disk since
+    el.querySelectorAll<HTMLInputElement>('input')[0].click();
+    await vi.waitFor(() => expect(info.showInfo).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning' })));
+    expect(reg.applyToTab).not.toHaveBeenCalled();
+  });
+
+  it('a second click after a written one still matches the note', async () => {
+    reg.state = createEditorState('t1', md);
+    reg.applyToTab.mockClear();
+    reg.applyToTab.mockImplementation(((_id: string, spec: { changes: never }) => {
+      reg.state = (reg.state as EditorState).update(spec).state;
+      return true;
+    }) as never);
+    const el = await render(md, { taskClicks: true });
+    const boxes = el.querySelectorAll<HTMLInputElement>('input');
+    boxes[0].click();
+    await vi.waitFor(() => expect(reg.applyToTab).toHaveBeenCalledTimes(1));
+    boxes[1].click();
+    await vi.waitFor(() => expect(reg.applyToTab).toHaveBeenCalledTimes(2));
+    expect((reg.state as EditorState).doc.toString()).toBe('- [x] a\n- [ ] b');
+    reg.applyToTab.mockImplementation(() => true);
   });
 });

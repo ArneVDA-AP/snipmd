@@ -10,6 +10,9 @@ const m = vi.hoisted(() => {
     handlers: null as null | { select: (id: string) => void; close: (id: string) => void; newTab: () => void },
     activate: fn(),
     cycle: fn(),
+    moveActive: vi.fn(),
+    saveSession: vi.fn(),
+    bars: [] as { key: string; body?: HTMLElement }[],
     newUntitled: fn(),
     openPath: fn(),
     toggleMode: fn(),
@@ -52,6 +55,9 @@ vi.mock('./tabs', () => ({
   getActiveTab: () => m.tabs[0],
   getTabs: () => m.tabs,
   initTabs: () => {},
+  moveActive: m.moveActive,
+  moveTab: () => {},
+  refreshRead: async () => {},
   startSessionWrites: () => {},
   newUntitled: m.newUntitled,
   openPath: m.openPath,
@@ -61,11 +67,11 @@ vi.mock('./tabs', () => ({
   toggleMode: m.toggleMode
 }));
 vi.mock('./saving', () => ({ flushDirty: m.flushDirty, saveAs: m.saveAs, saveTab: m.saveTab, scheduleAutosave: () => {} }));
-vi.mock('./session', () => ({ loadSession: async () => ({ session: null, setAside: null }) }));
+vi.mock('./session', () => ({ loadSession: async () => ({ session: null, setAside: null }), scheduleSessionSave: m.saveSession }));
 vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: m.handleDrop }));
-vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar, showError: vi.fn(), showInfo: vi.fn() }));
+vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar, showError: vi.fn(), showInfo: vi.fn((bar: { key: string; body?: HTMLElement }) => m.bars.push(bar)), clearInfo: vi.fn() }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
     constructor(_root: HTMLElement, h: typeof m.handlers) {
@@ -79,7 +85,8 @@ vi.mock('./titlebar', () => ({
 vi.mock('./platform', () => ({
   get IS_MAC() {
     return m.mac;
-  }
+  },
+  keys: (k: string) => k
 }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: m.closeTabWithRestore, restoreClosedTab: m.restoreClosedTab }));
 
@@ -162,6 +169,20 @@ describe('keyboard table (SPEC §10)', () => {
     const e = press('5', { code: 'Digit5' });
     expect(e.defaultPrevented).toBe(false);
     calledOnly(undefined as never);
+  });
+
+  it('Ctrl+Shift+PageDown and PageUp move the active tab; a held key acts once', () => {
+    expect(press('PageDown', { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(m.moveActive).toHaveBeenLastCalledWith(1);
+    press('PageUp', { shiftKey: true });
+    expect(m.moveActive).toHaveBeenLastCalledWith(-1);
+    press('PageDown', { shiftKey: true, repeat: true });
+    expect(m.moveActive).toHaveBeenCalledTimes(2);
+  });
+
+  it('Ctrl+PageDown without Shift stays an editor key', () => {
+    expect(press('PageDown').defaultPrevented).toBe(false);
+    expect(m.moveActive).not.toHaveBeenCalled();
   });
 
   it('Ctrl+Shift+T restores and opens no new tab', () => {
@@ -324,6 +345,32 @@ describe('lifecycle (SPEC §6.1, §11)', () => {
     const d = { notes: [], images: ['C:/p.png'], x: 1, y: 2 };
     m.dropped!(d);
     expect(m.handleDrop).toHaveBeenCalledWith(d);
+  });
+});
+
+describe('command menu (SPEC §4)', () => {
+  it('Ctrl+Shift+P opens the command-menu bar, and Ctrl+P alone is still blocked', () => {
+    expect(press('P', { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(m.bars.map((b) => b.key)).toEqual(['command-menu']);
+    expect(press('p').defaultPrevented).toBe(true);
+    expect(m.bars).toHaveLength(1);
+  });
+
+  it('a menu command name runs through the registry', () => {
+    m.menu!('tab-right');
+    expect(m.moveActive).toHaveBeenCalledWith(1);
+    m.menu!('toggle:nope');
+    expect(m.moveActive).toHaveBeenCalledTimes(1);
+  });
+
+  it('a toggle row flips its setting and saves the session at once', () => {
+    const body = m.bars[0].body!;
+    const row = [...body.querySelectorAll('.cmdmenu-row')].find((r) => r.textContent?.includes('Line breaks'))!;
+    expect(row.getAttribute('aria-checked')).toBe('false');
+    (row as HTMLElement).click();
+    expect(m.saveSession).toHaveBeenCalledWith({ immediate: true });
+    const after = [...body.querySelectorAll('.cmdmenu-row')].find((r) => r.textContent?.includes('Line breaks'))!;
+    expect(after.getAttribute('aria-checked')).toBe('true');
   });
 });
 

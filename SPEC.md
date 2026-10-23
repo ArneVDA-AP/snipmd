@@ -30,13 +30,18 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ## 4. Window and UI
 
 - Frameless window (`decorations: false`). One 34px top bar containing, left to right:
-  - Tab strip: `filename.md` or `Untitled-N`, where N is the lowest number no open or closed tab uses. A dot marks unsaved changes. Middle-click closes. Tabs shrink and truncate; the strip scrolls horizontally when full.
+  - Tab strip: `filename.md` or `Untitled-N`, where N is the lowest number no open or closed tab uses. A dot marks unsaved changes. Middle-click closes; dragging a tab moves it. Tabs shrink and truncate; the strip scrolls horizontally when full.
   - `+` button (new tab).
   - Drag region (`data-tauri-drag-region`) filling the remaining space.
   - In read mode only: a small "Reading" chip that switches back to writing (`Ctrl+E`).
   - Window controls: minimize, maximize/restore, close.
 - An empty tab shows a short hint for the core loop (§2) until the first character is typed.
-- **Info bar**: a single thin bar directly below the top bar (or at the bottom for undo notices). It is the only way the app shows information or choices. No modals, no toasts, no `alert()`. Used for: first save, closed-tab restore, external-change conflict, errors (e.g. a file could not be written).
+- **Info bar**: a single thin bar directly below the top bar (or at the bottom for undo notices). It is the only way the app shows information or choices. No modals, no toasts, no `alert()`. Used for: first save, closed-tab restore, external-change conflict, errors (e.g. a file could not be written), and the command menu.
+- **Command menu** (`Ctrl+Shift+P`): a top info bar with a filter field and up to six rows of commands and toggles. Typing filters (every word must appear in the name, case-insensitive), the arrows move, `Enter` runs, `Esc` or `Ctrl+Shift+P` closes. A command closes the menu, then runs; a toggle flips, shows its check mark and leaves the menu open. Each row shows its key. The menu is the only place for options: there is no settings screen. Toggles:
+  - **Line breaks in read mode**: off by default. On, a single line break in the note shows as a break; off, read mode follows CommonMark and joins the lines into one paragraph.
+  - **Clickable tasks in read mode**: on by default.
+  - **Copy button on code blocks**: on by default.
+  - **Match count in find**: on by default.
 - Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
 - System fonts (Segoe UI, Cascadia Mono / Consolas on Windows; the system font and its monospace on macOS). No web fonts, no network access at runtime.
 
@@ -50,9 +55,12 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - `Backspace` right after the marker of an empty item clears the line; the next `Backspace` joins the line above.
   - `Tab` nests a list item (and the items selected with it) under the item above, indented to that item's text (3 spaces after `1. `, 4 after `10. `). `Shift+Tab` moves the item back to its parent's level. Outside a list, `Tab` indents.
   - An ordered list stays numbered in sequence (a nested list from 1, an outer list from its first number) after any edit that adds, removes or nests lines; one undo takes back the edit and the renumbering together. A list with the same number on every item keeps it, and a number typed inside a line is left as typed.
-- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). In read mode they switch to writing first. The fields have no autofill, autocorrection or spell check; clicking a panel button keeps the focus in the field, so `Escape` still closes the panel.
+- **Code blocks** with a language name (```` ```python ````) are highlighted, in writing and in reading, with the same colours. A language's parser loads the first time a block names it, never at startup; until it is in, the block shows as plain code. Languages: JavaScript, TypeScript, JSON, CSS, HTML, Python, Rust, SQL, shell, YAML. Other names show as plain code.
+- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). With the toggle on, the panel shows which match is selected and how many there are ("2 of 5"), counted when typing pauses and capped at "1000+". In read mode they switch to writing first. The fields have no autofill, autocorrection or spell check; clicking a panel button keeps the focus in the field, so `Escape` still closes the panel.
 - Undo history survives tab switches and the first save of an untitled tab.
 - **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). Long lines wrap, also in code blocks, as in writing. A task item shows its checkbox in place of the bullet. No split view.
+  - With the toggle on, clicking a task's checkbox writes `[x]` or `[ ]` into the note, as an edit in writing would (undoable, autosaved). When the rendering and the note's text disagree about which task it is, nothing is written and the info bar says so.
+  - With the toggle on, each code block has a Copy button that puts the block's text on the clipboard.
 
 ## 6. Files, images and saving
 
@@ -61,7 +69,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - **Atomic writes**: write to a temp file in the same directory, flush, then rename over the target. Never truncate-then-write.
 - **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM (LF on macOS, §13).
 - **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
-  - Tab clean → reload silently, keep cursor and scroll position.
+  - Tab clean → reload silently, keep cursor and scroll position. A tab in read mode shows the new text.
   - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view is v1.1. Autosave pauses for that tab until the user chooses Reload or Keep mine.
   - File gone (deleted or moved) → info bar: "<name> is no longer on disk." The tab keeps its text and turns dirty; autosave pauses. Action: Save again (writes it back to the same path; a missing folder stays a write failure).
 - **Write failure** (folder deleted, drive removed, read-only): info bar with the error. The tab stays dirty, its content stays in the session, and other tabs and session saving keep working.
@@ -103,7 +111,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ## 7. Session and recovery
 
 - **One store**: `%APPDATA%/com.snipmd.desktop/session.json`. No localStorage.
-- Contents: open tabs (id, file path or null, content for untitled and dirty tabs, cursor, scroll, mode), active tab, last-used folder, closed-tabs list.
+- Contents: open tabs in strip order (id, file path or null, content for untitled and dirty tabs, cursor, scroll, mode), active tab, last-used folder, closed-tabs list, the command menu's toggles. A session without toggles (an older file) gets the defaults.
 - Written atomically, debounced to at most every 500 ms while typing, and immediately after: a paste, opening/closing a tab, a save, window blur, app close.
 - On startup: restore all tabs. For disk-backed tabs that were clean, read the file from disk (never trust the cached copy). For dirty ones, compare with disk and show the conflict bar if the file changed meanwhile.
 - **Closed tabs**: `Ctrl+W` (or middle-click) closes immediately. A bottom info bar shows "<name> closed, with N screenshots. [Restore] Ctrl+Shift+T" for 8 seconds. `Ctrl+Shift+T` restores the most recent closed tab, including after restart. The list keeps the last 20 closed tabs or 14 days, whichever is shorter.
@@ -113,6 +121,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 Opening a Markdown file from someone else must never run code or touch files.
 
 - Read mode HTML is sanitized (DOMPurify or equivalent): no scripts, no event handlers, no iframes, no `javascript:` URLs. Images only from the note's own folders or `http(s)`.
+- Read-mode controls (Copy buttons, live task checkboxes, highlighted code) are the app's, added to the sanitized DOM; a note's own HTML can neither create them nor point one at its text.
 - Strict CSP in `tauri.conf.json` (no `unsafe-inline` scripts, `connect-src` none beyond IPC).
 - Rust commands only read or write paths inside an **allowed set**: files the user opened (dialog, CLI, drag-drop, single-instance forward, session restore), their `<stem>.assets/` folders, and `%APPDATA%/com.snipmd.desktop/`. Relative image paths are resolved and checked to stay inside the note's folder (no `..`, no absolute paths).
 - Asset protocol scope is extended at runtime per image file the app resolved or saved, never a folder or `**/*`.
@@ -146,6 +155,8 @@ WebView2 takes about 0.6 s to start before any page loads, and an app cannot sho
 | `Ctrl+Shift+T` | Restore closed tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+1`…`Ctrl+9` | Go to tab N |
+| `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown` | Move the tab left / right |
+| `Ctrl+Shift+P` | Command menu |
 | `Ctrl+E` | Toggle read mode |
 | `Ctrl+F` / `Ctrl+H` | Find / replace |
 | `Ctrl+V` / `Ctrl+Shift+V` | Paste (rules in §6.3) / paste plain text |
@@ -165,7 +176,9 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
 
-**v1 — deliberately out:** theme gallery, font choice, a settings screen (choices go through a command menu, see ROADMAP); folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
+**Added after 1.0:** the command menu and its toggles (§4), code highlighting (§5), moving tabs (§4, §10).
+
+**v1 — deliberately out:** theme gallery, font choice, a settings screen (choices go through the command menu); folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
 
 **macOS:** in testing as §13 describes; ad-hoc signed builds until there is a Developer ID. Linux stays out.
 
@@ -192,7 +205,7 @@ Labels and tooltips show the macOS keys (⌘ ⌥ ⇧ ⌃).
 - SnipMD: About, Hide, Hide Others, Show All, Quit.
 - File: New Tab, Open…, Save, Save As…, Close Tab, Reopen Closed Tab.
 - Edit: Undo, Redo, Cut, Copy, Paste, Paste as Plain Text, Select All, Find, Replace.
-- View: Read Mode, Enter Full Screen.
+- View: Command Menu…, Read Mode, Enter Full Screen.
 - Window: Minimize, Zoom.
 
 Every item runs the same command as its key. `Cmd+W` closes the tab, never the window. The menu bar is the system's, not window chrome; §3.5 still holds for the window.

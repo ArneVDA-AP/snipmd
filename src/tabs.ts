@@ -27,6 +27,8 @@ import { bindSessionSource, scheduleSessionSave } from './session';
 import { clearTabInfo, showError } from './infobar';
 import { basename, normPath, samePath } from './paths';
 import type { Titlebar } from './titlebar';
+import { settingsSnapshot } from './settings';
+import { idle } from './dom';
 
 interface Panes {
   editor: HTMLElement;
@@ -107,6 +109,8 @@ export function loadText(tab: TabState, text: string): void {
   while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
   if (from === old.length - tail && from === text.length - tail) return;
   applyToTab(tab.id, { changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) } });
+  // Read mode shows the file's new text too, not the one it was rendered from (SPEC §6.1).
+  if (tab.id === activeId) void refreshRead();
 }
 export const getLastFolder = (): string | null => lastFolder;
 
@@ -164,7 +168,7 @@ export function snapshot(): SessionFile {
   const copies = getTabs().map((t) => ({ ...t, content: diskIsSource(t) ? '' : textOf(t) }));
   // Closed tabs keep their text, also when clean: the file may be gone by the time one is restored.
   const closed: ClosedTab[] = closedTabs().map(({ closedAt, ...t }) => ({ tab: { ...t, content: textOf(t) }, closedAt: closedAt! }));
-  return { version: 3, activeTabId: activeId, lastFolder, tabs: copies, closedTabs: closed };
+  return { version: 3, activeTabId: activeId, lastFolder, tabs: copies, closedTabs: closed, settings: settingsSnapshot() };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
@@ -231,7 +235,6 @@ const loadReader = () => import('./preview/render');
 
 /** Loads read mode in the background once the window is idle, so the first Ctrl+E does not wait. */
 export function preloadReader(): void {
-  const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
   idle(() => void loadReader().catch(() => {}));
 }
 
@@ -250,38 +253,44 @@ export async function activate(id: string): Promise<void> {
   panes.editor.hidden = tab.mode !== 'edit';
   panes.read.hidden = tab.mode !== 'read';
   changed();
-  if (tab.mode === 'edit') {
-    mountEditor(tab);
-  } else {
-    let renderRead: Awaited<ReturnType<typeof loadReader>>['renderRead'];
-    try {
-      ({ renderRead } = await loadReader());
-    } catch (err) {
-      showError('open read mode', err);
-      return;
-    }
-    if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
-    let article: HTMLElement;
-    const render = ++renders;
-    try {
-      article = await renderRead(tab.id, textOf(tab));
-    } catch (err) {
-      if (render !== renders) return; // a newer render owns the pane
-      // A note the renderer cannot handle (very deep nesting) goes back to writing: a read tab that
-      // throws on every start would stop the startup.
-      showError(`show ${tab.title} in read mode`, err);
-      tab.mode = 'edit';
-      if (activeId === tab.id) await activate(tab.id);
-      return;
-    }
-    // A slow render must not show in another tab, nor replace a newer render of this one.
-    if (render !== renders || activeId !== tab.id || tab.mode !== 'read') return;
-    panes.read.replaceChildren(article);
-    requestAnimationFrame(() => {
-      panes.read.scrollTop = tab.scrollTop;
-      if (!stripHasFocus()) panes.read.focus({ preventScroll: true });
-    });
+  if (tab.mode === 'edit') mountEditor(tab);
+  else await renderPane(tab, true);
+}
+
+/**
+ * Renders a read tab into the read pane. `focus` is for the user's own switch to the tab; a render
+ * in place (a read-mode toggle, the note reloaded from disk) leaves the focus where it is, such as
+ * in the command menu.
+ */
+async function renderPane(tab: TabState, focus: boolean): Promise<void> {
+  let renderRead: Awaited<ReturnType<typeof loadReader>>['renderRead'];
+  try {
+    ({ renderRead } = await loadReader());
+  } catch (err) {
+    showError('open read mode', err);
+    return;
   }
+  if (activeId !== tab.id || tab.mode !== 'read') return; // another tab or mode was chosen meanwhile
+  let article: HTMLElement;
+  const render = ++renders;
+  try {
+    article = await renderRead(tab.id, textOf(tab), settingsSnapshot());
+  } catch (err) {
+    if (render !== renders) return; // a newer render owns the pane
+    // A note the renderer cannot handle (very deep nesting) goes back to writing: a read tab that
+    // throws on every start would stop the startup.
+    showError(`show ${tab.title} in read mode`, err);
+    tab.mode = 'edit';
+    if (activeId === tab.id) await activate(tab.id);
+    return;
+  }
+  // A slow render must not show in another tab, nor replace a newer render of this one.
+  if (render !== renders || activeId !== tab.id || tab.mode !== 'read') return;
+  panes.read.replaceChildren(article);
+  requestAnimationFrame(() => {
+    panes.read.scrollTop = tab.scrollTop;
+    if (focus && !stripHasFocus()) panes.read.focus({ preventScroll: true });
+  });
 }
 
 async function addTab(
@@ -436,6 +445,35 @@ export async function toggleMode(): Promise<void> {
   captureVisible();
   tab.mode = tab.mode === 'edit' ? 'read' : 'edit';
   await activate(tab.id);
+}
+
+/** Moves an open tab to position `toIndex` among the open tabs (SPEC §4); the session keeps the order. */
+export function moveTab(id: string, toIndex: number): void {
+  const open = getTabs();
+  const from = open.findIndex((t) => t.id === id);
+  const to = Math.max(0, Math.min(toIndex, open.length - 1));
+  if (from === -1 || from === to) return;
+  const tab = open[from];
+  tabs.splice(tabs.indexOf(tab), 1);
+  // Closed tabs stay where they are in the one list; the moved tab goes next to its new neighbour.
+  const neighbour = open[to];
+  tabs.splice(tabs.indexOf(neighbour) + (to > from ? 1 : 0), 0, tab);
+  changed({ immediate: true });
+}
+
+/** Moves the active tab one place left or right; it stops at either end. */
+export function moveActive(delta: 1 | -1): void {
+  const open = getTabs();
+  const at = open.findIndex((t) => t.id === activeId);
+  if (at !== -1) moveTab(activeId, at + delta);
+}
+
+/** Renders the active tab again when it is in read mode, after a read-mode toggle changed. */
+export async function refreshRead(): Promise<void> {
+  const tab = getActiveTab();
+  if (tab?.mode !== 'read') return;
+  captureVisible(); // the render keeps the reader's place
+  await renderPane(tab, false);
 }
 
 export async function cycle(delta: 1 | -1): Promise<void> {

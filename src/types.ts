@@ -38,13 +38,19 @@ export interface ClosedTab {
   closedAt: number;
 }
 
+/** The command menu's toggles (SPEC §4). */
+export type SettingKey = 'lineBreaks' | 'taskClicks' | 'copyCode' | 'findCount';
+export type Settings = Record<SettingKey, boolean>;
+
 /** Shape of %APPDATA%/com.snipmd.desktop/session.json. */
 export interface SessionFile {
   version: 3;
   activeTabId: string;
   lastFolder: string | null;
+  /** Open tabs in strip order. */
   tabs: TabState[];
   closedTabs: ClosedTab[];
+  settings: Settings;
 }
 
 export type InfoKind = 'info' | 'warning' | 'error';

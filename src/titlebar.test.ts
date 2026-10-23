@@ -5,7 +5,7 @@ vi.mock('./ipc', () => ({ appWindow: { minimize: vi.fn(), toggleMaximize: vi.fn(
 
 import { Titlebar } from './titlebar';
 
-const h = { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn() };
+const h = { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn(), move: vi.fn() };
 const tab = (id: string, extra: Partial<TabState> = {}): TabState => ({
   id, title: `${id}.md`, filePath: `C:/n/${id}.md`, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null, ...extra
 });
@@ -125,5 +125,115 @@ describe('tab strip', () => {
 
   it('window buttons are not tab stops', () => {
     expect([...root.querySelectorAll<HTMLElement>('.win-btn')].every((b) => b.tabIndex === -1)).toBe(true);
+  });
+});
+
+describe('tab drag', () => {
+  // Three tabs, 100px wide each: a 0-100, b 100-200, c 200-300.
+  const setup = () => {
+    bar.render([tab('a'), tab('b'), tab('c')], 'a');
+    ['a', 'b', 'c'].forEach((id, i) => {
+      const el = tabEl(id);
+      el.setPointerCapture = vi.fn();
+      el.releasePointerCapture = vi.fn();
+      el.hasPointerCapture = () => true;
+      el.getBoundingClientRect = () => ({ left: i * 100, right: i * 100 + 100, width: 100, top: 0, bottom: 28, height: 28, x: i * 100, y: 0, toJSON() {} });
+    });
+  };
+  const ptr = (el: HTMLElement, type: string, x: number, extra: PointerEventInit = {}) => {
+    const e = new MouseEvent(type, { clientX: x, button: 0, bubbles: true, cancelable: true, ...extra }) as PointerEvent;
+    Object.defineProperties(e, { pointerId: { value: 1 }, isPrimary: { value: extra.isPrimary ?? true } });
+    el.dispatchEvent(e);
+  };
+  const dragTo = (id: string, from: number, to: number) => {
+    ptr(tabEl(id), 'pointerdown', from);
+    ptr(tabEl(id), 'pointermove', to);
+  };
+
+  it('dropping on the left half of the first tab moves to index 0', () => {
+    setup();
+    dragTo('c', 250, 20);
+    expect(tabEl('a').classList.contains('drop-before')).toBe(true);
+    expect(tabEl('c').classList.contains('dragging')).toBe(true);
+    ptr(tabEl('c'), 'pointerup', 20);
+    expect(h.move).toHaveBeenCalledWith('c', 0);
+    expect(root.querySelector('.drop-before, .drop-after, .dragging')).toBeNull();
+  });
+
+  it('moving a tab right counts the slot after removing it', () => {
+    setup();
+    dragTo('a', 50, 280);
+    ptr(tabEl('a'), 'pointerup', 280);
+    expect(h.move).toHaveBeenCalledWith('a', 2);
+  });
+
+  it('dropping back in place asks for the tab own index', () => {
+    setup();
+    dragTo('b', 150, 120);
+    ptr(tabEl('b'), 'pointerup', 120);
+    expect(h.move).toHaveBeenCalledWith('b', 1);
+  });
+
+  it('takes the pointer at the press, and a press released off its tab leaves no drag behind', () => {
+    setup();
+    ptr(tabEl('a'), 'pointerdown', 50);
+    expect(tabEl('a').setPointerCapture).toHaveBeenCalledWith(1);
+    ptr(document.body, 'pointerup', 50); // released elsewhere before any move
+    dragTo('c', 250, 20);
+    ptr(tabEl('c'), 'pointerup', 20);
+    expect(h.move).toHaveBeenCalledWith('c', 0);
+    expect(tabEl('a').classList.contains('dragging')).toBe(false);
+  });
+
+  it('a move under 4px is a click', () => {
+    setup();
+    dragTo('a', 50, 53);
+    ptr(tabEl('a'), 'pointerup', 53);
+    tabEl('a').click();
+    expect(h.select).toHaveBeenCalledWith('a');
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('pointercancel and Escape cancel without moving', () => {
+    setup();
+    dragTo('c', 250, 20);
+    ptr(tabEl('c'), 'pointercancel', 20);
+    expect(h.move).not.toHaveBeenCalled();
+    expect(root.querySelector('.drop-before, .dragging')).toBeNull();
+    dragTo('c', 250, 20);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(root.querySelector('.drop-before, .dragging')).toBeNull();
+    ptr(tabEl('c'), 'pointerup', 20);
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('the click after a drag does not select, the next one does', () => {
+    setup();
+    dragTo('c', 250, 20);
+    ptr(tabEl('c'), 'pointerup', 20);
+    tabEl('c').click();
+    expect(h.select).not.toHaveBeenCalled();
+    tabEl('c').click();
+    expect(h.select).toHaveBeenCalledWith('c');
+  });
+
+  it('a press on the close button or with another button arms nothing', () => {
+    setup();
+    const close = tabEl('c').querySelector<HTMLElement>('.tab-close')!;
+    ptr(close, 'pointerdown', 250);
+    ptr(tabEl('c'), 'pointermove', 20);
+    ptr(tabEl('c'), 'pointerup', 20);
+    ptr(tabEl('b'), 'pointerdown', 150, { button: 1 });
+    ptr(tabEl('b'), 'pointermove', 20);
+    ptr(tabEl('b'), 'pointerup', 20);
+    expect(h.move).not.toHaveBeenCalled();
+    expect(root.querySelector('.dragging')).toBeNull();
+  });
+
+  it('a render during a drag keeps the drag classes', () => {
+    setup();
+    dragTo('c', 250, 20);
+    bar.render([tab('a'), tab('b'), tab('c', { dirty: true })], 'a');
+    expect(tabEl('c').classList.contains('dragging')).toBe(true);
   });
 });

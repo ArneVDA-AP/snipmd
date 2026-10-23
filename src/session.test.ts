@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseSession } from './session';
+import { parseSettings } from './settings';
 
 vi.mock('./ipc', () => ({ saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn() }));
@@ -15,9 +16,15 @@ describe('parseSession', () => {
           disk: { mtimeMs: 1700000000000, size: 3 }, format: { crlf: true, bom: false } },
         { id: 'b', title: 'Untitled-3', filePath: null, content: 'x', dirty: true, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null }
       ],
-      closedTabs: []
+      closedTabs: [],
+      settings: { lineBreaks: true, taskClicks: false, copyCode: true, findCount: false }
     };
     expect(parseSession(JSON.stringify(s))).toEqual(s);
+  });
+
+  it('a session written before the command menu gets the default toggles', () => {
+    const s = parseSession(JSON.stringify({ tabs: [{ id: 'a' }] }))!;
+    expect(s.settings).toEqual(parseSettings(undefined));
   });
 
   it('reads the prototype format', () => {
@@ -100,7 +107,7 @@ describe('session writes', () => {
     vi.mocked(info.clearInfo).mockReset();
     m = await import('./session');
     n = 0;
-    m.bindSessionSource(() => ({ version: 3, activeTabId: `a${++n}`, lastFolder: null, tabs: [], closedTabs: [] }));
+    m.bindSessionSource(() => ({ version: 3, activeTabId: `a${++n}`, lastFolder: null, tabs: [], closedTabs: [], settings: parseSettings(undefined) }));
   });
   afterEach(() => vi.useRealTimers());
 
@@ -153,7 +160,7 @@ describe('session writes', () => {
   });
 
   it('a failed write is retried by the next save of the same snapshot', async () => {
-    m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', lastFolder: null, tabs: [], closedTabs: [] }));
+    m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', lastFolder: null, tabs: [], closedTabs: [], settings: parseSettings(undefined) }));
     vi.mocked(ipc.saveSessionRaw).mockRejectedValueOnce(new Error('locked'));
     await m.flushSession();
     await m.flushSession();
