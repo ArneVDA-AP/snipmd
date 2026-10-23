@@ -1,0 +1,25 @@
+== Runner
+ProductName:		macOS
+ProductVersion:		26.6.2
+BuildVersion:		25G83
+arm64
+Bundle: com.snipmd.desktop, binary x86_64 arm64
+CodeDirectory v=20500 size=7475 flags=0x10002(adhoc,runtime) hashes=227+3 location=embedded
+Signature=adhoc
+== Permissions
+screen-capture: PASS - screencapture wrote a file (whether windows show in it: see the screenshots)
+accessibility: PASS - System Events may send keys
+== Launch
+launch: PASS - running, screenshot /Users/runner/work/snipmd/snipmd/findings/ui/macos-ci/01-launch.png
+quit-event: PASS - quit Apple Event ended the app
+== Open from Finder (LaunchServices Apple Event, as a double-click)
+finder-open: FAIL - the note is not in session.json (RunEvent::Opened not handled, PLAN phase 7 item 2)
+== Typing, then quit at once (the Cmd+Q flush)
+quit-flush: FAIL - text typed just before quit is missing (PLAN phase 7 item 1)
+== Paste a screenshot (Cmd+V with only a PNG on the clipboard)
+paste: PASS - WKWebView handed over the image; saved as snip-20261021-151949-782-a4bb.png
+== Logs
+-- launch.log
+-- open.log
+-- paste.log
+-- type.log

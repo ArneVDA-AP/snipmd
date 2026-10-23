@@ -1,0 +1,11 @@
+shot findings\ui\windows-ci\empty-light.png (1044 x 788)
+shot findings\ui\windows-ci\write-light.png (1044 x 788)
+shot findings\ui\windows-ci\read-light.png (1044 x 788)
+shot findings\ui\windows-ci\find-light.png (1044 x 788)
+shot findings\ui\windows-ci\firstsave-light.png (1044 x 788)
+shot findings\ui\windows-ci\empty-dark.png (1044 x 788)
+shot findings\ui\windows-ci\write-dark.png (1044 x 788)
+shot findings\ui\windows-ci\read-dark.png (1044 x 788)
+shot findings\ui\windows-ci\find-dark.png (1044 x 788)
+shot findings\ui\windows-ci\firstsave-dark.png (1044 x 788)
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-shots-e957a030

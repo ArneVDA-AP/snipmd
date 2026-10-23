@@ -1,0 +1,34 @@
+2026-10-21 15:09:43.763 defaults[7197:27228] 
+The domain/default pair of (src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/Info.plist, CFBundleExecutable) does not exist
+2026-10-21 15:09:43.772 defaults[7198:27231] 
+The domain/default pair of (src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/Info.plist, CFBundleIdentifier) does not exist
+== Runner
+ProductName:		macOS
+ProductVersion:		26.6.2
+BuildVersion:		25G83
+arm64
+Bundle: , binary 
+CodeDirectory v=20500 size=7475 flags=0x10002(adhoc,runtime) hashes=227+3 location=embedded
+Signature=adhoc
+== Permissions
+screen-capture: PASS - screencapture wrote a file (whether windows show in it: see the screenshots)
+accessibility: PASS - System Events may send keys
+== Launch
+launch: FAIL - process ended; log: tools/measure/macos-probe.sh: line 23: src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/MacOS/: is a directory 
+quit-event: PASS - quit Apple Event ended the app
+== Open from Finder (LaunchServices Apple Event, as a double-click)
+Unable to find application named 'src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app'
+finder-open: FAIL - the note is not in session.json (RunEvent::Opened not handled, PLAN phase 7 item 2)
+== Typing, then quit at once (the Cmd+Q flush)
+quit-flush: FAIL - text typed just before quit is missing (PLAN phase 7 item 1)
+== Paste a screenshot (Cmd+V with only a PNG on the clipboard)
+paste: FAIL - no image saved in scratch (clipboardData without image/png, or Cmd+V not reaching the page)
+== Logs
+-- launch.log
+tools/measure/macos-probe.sh: line 23: src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/MacOS/: is a directory
+-- open.log
+tools/measure/macos-probe.sh: line 23: src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/MacOS/: is a directory
+-- paste.log
+tools/measure/macos-probe.sh: line 23: src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/MacOS/: is a directory
+-- type.log
+tools/measure/macos-probe.sh: line 23: src-tauri/target/universal-apple-darwin/release/bundle/macos/SnipMD.app/Contents/MacOS/: is a directory
