@@ -2,6 +2,24 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-1] - 2026-10-23
+
+A pre-release for the Windows and Mac tests; 1.1.0 follows when they pass.
+
+### Added
+- Command menu (`Ctrl+Shift+P`, `⇧⌘P` on macOS): every command and four toggles, kept in the session. Line breaks in read mode (off), clickable tasks in read mode, a Copy button on code blocks and a match count in find (on).
+- Syntax highlighting of fenced code in writing and reading for JavaScript, TypeScript, JSON, CSS, HTML, Python, Rust, SQL, shell and YAML; each language loads the first time a block names it.
+- Moving tabs: drag a tab, or `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown`; the order is kept in the session.
+
+### Changed
+- Lists and quotes follow the Markdown structure: Enter on an empty item or quote line ends the block, Tab nests an item to the width of its marker, ordered lists stay numbered after any edit, and Backspace leaves an empty item in two presses.
+- `Untitled-N` takes the lowest number no open or closed tab uses.
+- A note reloaded from disk shows its new text in read mode too.
+
+### Fixed
+- Read mode showed a bullet as well as the checkbox of a task.
+- On macOS, Escape did not close the find panel after a click on one of its buttons, and the find and file-name fields autocorrected and capitalized.
+
 ## [1.0.0] - 2026-10-22
 
 The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; open tabs and untitled text from the 0.1.0 session are restored, but screenshots of untitled 0.1.0 notes (`scratchpad/.assets/`) are not carried over.

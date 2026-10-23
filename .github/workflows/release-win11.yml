@@ -100,6 +100,8 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           name: SnipMD ${{ github.ref_name }}
+          # A version with a suffix (v1.1.0-1) is a test build: a pre-release, never "Latest".
+          prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             SnipMD for Windows 10 and 11 (x64). See CHANGELOG.md for what changed.
             - `SnipMD_*_x64-setup.exe`: per-user installer; registers .md and .markdown and fetches WebView2 if missing.
