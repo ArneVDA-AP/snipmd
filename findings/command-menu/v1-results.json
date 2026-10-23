@@ -1,0 +1,62 @@
+[
+ {
+  "s": "light step 1",
+  "ok": true,
+  "msg": "{\"inBar\":{\"top\":38.931236267089844,\"parent\":\"infobar info\"},\"rows\":[[\"Line breaks in read mode\",\"false\"]],\"after\":[[\"✓Line breaks in read mode\",\"true\"]],\"menuStayed\":true,\"closed\":true,\"focusInEditor\":true}"
+ },
+ {
+  "s": "light step 2",
+  "ok": true,
+  "msg": "tok-keyword: 3:const,def,return"
+ },
+ {
+  "s": "light step 3",
+  "ok": true,
+  "msg": "{\"pres\":2,\"kw\":[5,6],\"kwSample\":[[\"tok-keyword=const\",\"tok-variableName tok-definition=x\",\"tok-operator==\"],[\"tok-keyword=def\",\"tok-variableName tok-definition=f\",\"tok-punctuation=(\"]],\"copy\":2,\"boxes\":[[false,false],[true,false]]} text starts: \"- [x] a\\n- [x] b\\n\\n\\n```js\\nconst \""
+ },
+ {
+  "s": "light step 4",
+  "ok": true,
+  "msg": "{\"before\":[\"3bdf46\",\"5646cc\",\"a29674*\"],\"afterDrag\":[\"a29674*\",\"3bdf46\",\"5646cc\"],\"afterMove\":[\"3bdf46\",\"a29674*\",\"5646cc\"]}"
+ },
+ {
+  "s": "light step 5",
+  "ok": true,
+  "msg": "count: [\"5 matches\"]"
+ },
+ {
+  "s": "light errors",
+  "errs": [
+   "console: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+ },
+ {
+  "s": "dark step 1",
+  "ok": true,
+  "msg": "{\"inBar\":{\"top\":38,\"parent\":\"infobar info\"},\"rows\":[[\"Line breaks in read mode\",\"false\"]],\"after\":[[\"✓Line breaks in read mode\",\"true\"]],\"menuStayed\":true,\"closed\":true,\"focusInEditor\":true}"
+ },
+ {
+  "s": "dark step 2",
+  "ok": true,
+  "msg": "tok-keyword: 3:const,def,return"
+ },
+ {
+  "s": "dark step 3",
+  "ok": true,
+  "msg": "{\"pres\":2,\"kw\":[5,6],\"kwSample\":[[\"tok-keyword=const\",\"tok-variableName tok-definition=x\",\"tok-operator==\"],[\"tok-keyword=def\",\"tok-variableName tok-definition=f\",\"tok-punctuation=(\"]],\"copy\":2,\"boxes\":[[false,false],[true,false]]} text starts: \"- [x] a\\n- [x] b\\n\\n\\n```js\\nconst \""
+ },
+ {
+  "s": "dark step 4",
+  "ok": true,
+  "msg": "{\"before\":[\"12b924\",\"5b95fb\",\"7dd51f*\"],\"afterDrag\":[\"7dd51f*\",\"12b924\",\"5b95fb\"],\"afterMove\":[\"12b924\",\"7dd51f*\",\"5b95fb\"]}"
+ },
+ {
+  "s": "dark step 5",
+  "ok": true,
+  "msg": "count: [\"5 matches\"]"
+ },
+ {
+  "s": "dark errors",
+  "errs": []
+ }
+]

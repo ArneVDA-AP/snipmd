@@ -1,0 +1,2 @@
+import { defineConfig } from '/home/user/snipmd/node_modules/vitest/dist/config.js';
+export default defineConfig({ root: '/tmp/claude-0/-home-user-snipmd/36e9a9a5-0d74-5063-a0ab-ee24704ae997/scratchpad/run/r1/probe', server: { fs: { allow: ['/home/user/snipmd', '/tmp/claude-0/-home-user-snipmd/36e9a9a5-0d74-5063-a0ab-ee24704ae997/scratchpad/run/r1'] } }, test: { environment: 'jsdom', include: ['*.test.ts'] } });
