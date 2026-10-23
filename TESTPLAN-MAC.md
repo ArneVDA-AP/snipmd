@@ -1,6 +1,6 @@
 # SnipMD – testplan Mac (23 oktober 2026)
 
-Voor de Mac-tester en zijn Claude-sessie met computer use. Het plan test de build van `main` na PR #47 en #48:
+Voor de Mac-tester en zijn Claude-sessie met computer use. Het plan test de pre-release **SnipMD v1.1.0-1**:
 - **Hertest:** de 12 punten uit het testrapport van 23 oktober.
 - **Nieuw:** het commandomenu, syntax highlighting, de extra's in leesmodus, tabs verslepen en de zoekteller.
 - **Checklist:** de handmatige macOS-checklist, die nog nooit gedaan is.
@@ -28,9 +28,9 @@ Noteer bovenaan het rapport:
 | ID | Doe | Verwacht |
 |---|---|---|
 | I1 | Verwijder een eventuele oude SnipMD uit Applications. Laat `~/Library/Application Support/com.snipmd.desktop/` staan, maar kopieer die map eerst naar `~/Desktop/snipmd-backup/`. | Er is een backup. |
-| I2 | Open de `.dmg` die de eigenaar doorgaf: artifact `SnipMD-macos-universal` van de run *Release macOS* op `main` van 23 oktober. Sleep SnipMD naar Applications. | SnipMD staat in Applications. |
+| I2 | Ga naar https://github.com/ArneVDA-AP/snipmd/releases. Neem **SnipMD v1.1.0-1**, gemarkeerd *Pre-release*, bovenaan de lijst. Neem niet *Latest*: dat is nog v1.0.0. Download `SnipMD_1.1.0-1_universal*.dmg`, open de `.dmg` en sleep SnipMD naar Applications. | SnipMD staat in Applications. |
 | I3 | Start SnipMD. Weigert macOS de start, ga dan naar System Settings → Privacy & Security → *Open Anyway*. | SnipMD start. |
-| I4 | Druk ⇧⌘P. | Bovenaan, onder de tabbalk, verschijnt een balk met een tekstveld "Type a command" en een lijst. Dat bewijst dat dit de nieuwe build is. Druk Esc. |
+| I4 | Kies in de menubalk SnipMD → *About SnipMD*: de versie is 1.1.0-1. Sluit dat venster en druk ⇧⌘P. | Bovenaan, onder de tabbalk, verschijnt een balk met een tekstveld "Type a command" en een lijst. Dat bewijst dat dit de nieuwe build is. Druk Esc. |
 
 ## A. Hertest van het rapport
 Werk in een nieuwe tab (⌘T).
