@@ -11,22 +11,22 @@ describe('settings', () => {
     expect(parseSettings({ lineBreaks: true, taskClicks: 'yes', other: true })).toEqual({ lineBreaks: true, taskClicks: true, copyCode: true, findCount: true });
   });
 
-  it('a change is reported once, and setting the same value reports nothing', async () => {
+  it('a toggle flips the value and reports each change', async () => {
     vi.resetModules();
     const m = await import('./settings');
     const onChange = vi.fn();
     m.initSettings(m.parseSettings(undefined), onChange);
-    m.setSetting('lineBreaks', true);
-    m.setSetting('lineBreaks', true);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith('lineBreaks');
+    m.toggleSetting('lineBreaks');
     expect(m.getSetting('lineBreaks')).toBe(true);
     expect(m.settingsSnapshot().lineBreaks).toBe(true);
+    m.toggleSetting('lineBreaks');
+    expect(m.getSetting('lineBreaks')).toBe(false);
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 
-  it('setting a value before the app wired the module throws', async () => {
+  it('a toggle before the app wired the module throws', async () => {
     vi.resetModules();
     const m = await import('./settings');
-    expect(() => m.setSetting('copyCode', false)).toThrow();
+    expect(() => m.toggleSetting('copyCode')).toThrow();
   });
 });

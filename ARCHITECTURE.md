@@ -31,7 +31,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `titlebar.ts` also owns tab dragging with pointer events (not HTML drag and drop, which Tauri's file drop takes); a drop calls `move`, wired to `tabs.moveTab`.
 - `preview/render.ts` (read mode) renders with `marked` and sanitizes with DOMPurify; images the app resolved get their URL after sanitizing, so a note cannot forge one. It is a separate chunk, loaded when the window is idle.
 - `platform.ts` says once, from the engine's user agent, whether the page runs on macOS, and writes key combinations the way the system does (`⇧⌘T`). On macOS the top bar leaves room for the system's window buttons, the app's keys need Cmd alone (Control keeps its text bindings), and Paste as Plain Text arrives as a `paste-text` event with the clipboard's text, because WKWebView pastes only through the Edit menu's own Paste.
-- Each feature has its own stylesheet imported by `main.css`: `menu.css` (command menu), `code.css` (highlighting), `extras.css` (Copy button, task boxes), `find-count.css`, `tabs-drag.css`.
+- Styles live in `main.css`; each feature has its own section at the end.
 - `styles/main.css` holds the visual system: tokens for type, space, radius, motion and colour in both themes. `contrast.test.ts` checks every text pair for WCAG AA.
 
 ## Rust

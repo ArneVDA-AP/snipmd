@@ -23,11 +23,10 @@ export function taskChange(state: EditorState, index: number, rendered: number, 
       return HOLDS_TASKS.has(node.name);
     }
   });
-  if (markers.length !== rendered || index < 0 || index >= markers.length) return null;
+  // `index` is below `rendered`, so equal counts keep it in range.
+  if (markers.length !== rendered) return null;
   const from = markers[index];
-  const mark = state.sliceDoc(from, from + 3);
-  const isDone = /^\[[xX]\]$/.test(mark);
-  if (mark !== '[ ]' && !isDone) return null;
+  const isDone = state.sliceDoc(from, from + 3) !== '[ ]'; // a TaskMarker is `[ ]`, `[x]` or `[X]`
   if (isDone !== !checked) return null;
   return { from: from + 1, to: from + 2, insert: checked ? 'x' : ' ' };
 }

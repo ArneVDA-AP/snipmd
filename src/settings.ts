@@ -11,19 +11,17 @@ export const SETTINGS: Readonly<Record<SettingKey, { title: string; default: boo
 
 const KEYS = Object.keys(SETTINGS) as SettingKey[];
 
-const defaults = (): Settings => Object.fromEntries(KEYS.map((k) => [k, SETTINGS[k].default])) as Settings;
-
 /** Each known key that holds a boolean; the default for anything else (an older session has none). */
 export function parseSettings(raw: unknown): Settings {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   return Object.fromEntries(KEYS.map((k) => [k, typeof r[k] === 'boolean' ? r[k] : SETTINGS[k].default])) as Settings;
 }
 
-let values: Settings = defaults();
-let changed: ((key: SettingKey) => void) | null = null;
+let values: Settings = parseSettings(undefined);
+let changed: (() => void) | null = null;
 
 /** Wired once from app.ts with the session's values; `onChange` runs after every change. */
-export function initSettings(initial: Settings, onChange: (key: SettingKey) => void): void {
+export function initSettings(initial: Settings, onChange: () => void): void {
   values = { ...initial };
   changed = onChange;
 }
@@ -32,9 +30,8 @@ export const getSetting = (key: SettingKey): boolean => values[key];
 
 export const settingsSnapshot = (): Settings => ({ ...values });
 
-export function setSetting(key: SettingKey, value: boolean): void {
+export function toggleSetting(key: SettingKey): void {
   if (!changed) throw new Error('settings: initSettings was not called');
-  if (values[key] === value) return;
-  values[key] = value;
-  changed(key);
+  values[key] = !values[key];
+  changed();
 }

@@ -50,7 +50,7 @@ function countText(state: EditorState): string {
   for (let r = cursor.next(); !r.done; r = cursor.next()) {
     const m = r.value;
     total++;
-    if (!current && m.from === from && m.to === to) current = total;
+    if (m.from === from && m.to === to) current = total;
     if (total > COUNT_CAP) break;
   }
   if (!total) return 'No matches';

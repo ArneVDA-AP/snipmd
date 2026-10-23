@@ -8,6 +8,7 @@ import { showError, showInfo } from '../infobar';
 import { button } from '../dom';
 import { applyToTab, getState } from '../editor/registry';
 import { highlightCode } from '../editor/codeLanguages';
+import { taskChange } from './tasks';
 import type { Settings } from '../types';
 import type { Text } from '@codemirror/state';
 
@@ -61,7 +62,7 @@ function appElements<T extends HTMLElement>(root: HTMLElement, attr: string, tok
     if (Number.isInteger(index)) mine.push({ el, index });
     else el.removeAttribute(attr);
   });
-  return mine.sort((a, b) => a.index - b.index);
+  return mine;
 }
 
 function copyButton(text: string): HTMLButtonElement {
@@ -83,10 +84,9 @@ function copyButton(text: string): HTMLButtonElement {
  * the pane has not shown yet) may have its tasks in another order, so it is never written from
  * these boxes. Every edit makes a new document, so comparing the two is one check.
  */
-async function toggleTask(tabId: string, box: HTMLInputElement, index: number, rendered: number, shown: { doc: Text | undefined }): Promise<void> {
+function toggleTask(tabId: string, box: HTMLInputElement, index: number, rendered: number, shown: { doc: Text | undefined }): void {
   const before = !box.checked; // the click has already flipped it
-  const { taskChange } = await import('./tasks');
-  const state = getState(tabId); // read after the import: the note may have changed meanwhile
+  const state = getState(tabId);
   const changes = state && state.doc === shown.doc ? taskChange(state, index, rendered, !before) : null;
   if (changes && applyToTab(tabId, { changes, userEvent: 'input' })) {
     shown.doc = getState(tabId)?.doc;
@@ -159,7 +159,7 @@ export async function renderRead(tabId: string, content: string, opts: Readonly<
     appTasks.forEach(({ el: box, index }) => {
       box.disabled = false;
       // `tasks` is how many boxes marked rendered; a box the sanitizer dropped makes the count differ, so a click refuses.
-      box.addEventListener('click', () => void toggleTask(tabId, box, index, tasks, shown));
+      box.addEventListener('click', () => toggleTask(tabId, box, index, tasks, shown));
     });
   }
   // One listener per render. The webview never navigates away (Rust guards that); web and mail

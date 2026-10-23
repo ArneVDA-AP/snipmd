@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Command } from './commands';
-import { toggleCommandMenu } from './commandMenu';
+import { toggleCommandMenu, type Command } from './commandMenu';
 import { mountInfobar } from './infobar';
 
 let top: HTMLElement;
@@ -17,7 +16,7 @@ const type = (v: string) => {
   input().value = v;
   input().dispatchEvent(new Event('input', { bubbles: true }));
 };
-const open = () => toggleCommandMenu(() => list, run);
+const open = () => toggleCommandMenu(() => list);
 
 beforeEach(() => {
   top = document.createElement('div');
@@ -28,9 +27,9 @@ beforeEach(() => {
     if (id === 'wrap') on = !on;
   });
   list = [
-    { id: 'save', title: 'Save note', keys: 'Ctrl+S', run: noop },
-    { id: 'save-as', title: 'Save note as', run: noop },
-    { id: 'wrap', title: 'Toggle word wrap', run: noop, checked: () => on },
+    { id: 'save', title: 'Save note', keys: 'Ctrl+S', run: () => run('save') },
+    { id: 'save-as', title: 'Save note as', run: () => run('save-as') },
+    { id: 'wrap', title: 'Toggle word wrap', run: () => run('wrap'), checked: () => on },
   ];
 });
 

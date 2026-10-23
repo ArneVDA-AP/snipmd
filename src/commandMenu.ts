@@ -1,15 +1,25 @@
 // Command menu (SPEC §4): a filter field and a short list, shown as the keyed top info bar.
-import type { Command } from './commands';
 import { plainField } from './dom';
 import { showInfo } from './infobar';
 import { keys } from './platform';
 
 const KEY = 'command-menu';
 
+export interface Command {
+  /** Also the name the macOS menu bar sends (SPEC §13). */
+  id: string;
+  title: string;
+  /** Written the Windows way (`Ctrl+Shift+S`) and shown through `keys()`; app.ts binds the key from it. */
+  keys?: string;
+  run: () => unknown;
+  /** Present on a toggle: the row shows a check mark and the menu stays open. */
+  checked?: () => boolean;
+}
+
 /** Closes the open menu; null while none is open. The info bar owns the bar, this only its close. */
 let close: (() => void) | null = null;
 
-export function toggleCommandMenu(source: () => readonly Command[], run: (id: string) => void): void {
+export function toggleCommandMenu(source: () => readonly Command[]): void {
   if (close) return close();
 
   const body = document.createElement('div');
@@ -28,14 +38,6 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
   let shown: Command[] = [];
   let selected = 0;
 
-  const matches = (all: readonly Command[]): Command[] => {
-    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
-    return all.filter((c) => {
-      const title = c.title.toLowerCase();
-      return words.every((w) => title.includes(w));
-    });
-  };
-
   const paint = (): void => {
     list.querySelectorAll('.cmdmenu-row').forEach((row, i) => {
       const on = i === selected;
@@ -46,7 +48,8 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
   };
 
   const rebuild = (): void => {
-    shown = matches(source());
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    shown = source().filter((c) => words.every((w) => c.title.toLowerCase().includes(w)));
     selected = Math.min(selected, Math.max(0, shown.length - 1));
     list.replaceChildren(...shown.map(rowFor));
     paint();
@@ -85,13 +88,9 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
   const choose = (): void => {
     const c = shown[selected];
     if (!c) return;
-    if (c.checked) {
-      run(c.id);
-      rebuild();
-    } else {
-      close?.();
-      run(c.id);
-    }
+    if (!c.checked) close!();
+    void c.run();
+    if (c.checked) rebuild();
   };
 
   input.addEventListener('input', () => {

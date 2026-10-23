@@ -224,7 +224,6 @@ export class Titlebar {
       document.addEventListener('keydown', this.onDragKey, true);
     }
     const rects = d.rects;
-    if (!rects.length) return;
     // Past either end of the strip the pointer still means the first or last tab.
     let i = rects.findIndex((r) => e.clientX < r.right);
     if (i < 0) i = rects.length - 1;
@@ -248,7 +247,7 @@ export class Titlebar {
     const from = this.order.indexOf(d.id);
     // Taking the tab out shifts every later slot down by one.
     const toIndex = from < d.slot ? d.slot - 1 : d.slot;
-    if (from >= 0) this.h.move(d.id, toIndex);
+    this.h.move(d.id, toIndex);
   }
 
   private onDragKey = (e: KeyboardEvent): void => {

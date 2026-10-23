@@ -53,7 +53,6 @@ vi.mock('./drop', () => ({ handleDrop: async () => {} }));
 vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError, showInfo: m.showInfo }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClosedTab: async () => {} }));
-vi.mock('./commands', () => ({ initCommands: () => {}, runCommand: () => {}, listCommands: () => [] }));
 
 import { startApp } from './app';
 

@@ -1,10 +1,3 @@
-/* Each feature's own rules; the colour tokens stay below, where contrast.test.ts reads them. */
-@import './menu.css';
-@import './code.css';
-@import './tabs-drag.css';
-@import './extras.css';
-@import './find-count.css';
-
 /*
  * SnipMD visual system. One light and one dark palette following Windows (SPEC §4), modelled on
  * Windows 11 Fluent. System fonts only. Every colour pair used for text is checked for WCAG AA in
@@ -298,3 +291,39 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
   .tab.active { outline: 1px solid CanvasText; }
   .infobar { border: 1px solid CanvasText; }
 }
+
+/* Command menu (SPEC §4): a top info bar with a filter field and a list. */
+.infobar:has(.cmdmenu) .infobar-text { display: none; }
+.cmdmenu { flex: 1 1 320px; display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.cmdmenu-input { height: 28px; padding: 0 var(--s2); border: 1px solid var(--line-strong); border-bottom: 2px solid var(--accent); border-radius: var(--r-sm); background: var(--bg); color: var(--text); font: inherit; }
+.cmdmenu-input:focus { outline: none; border-color: var(--accent); }
+.cmdmenu-list { max-height: 168px; overflow-y: auto; }
+.cmdmenu-row { display: flex; align-items: center; gap: var(--s2); height: 28px; padding: 0 var(--s2); border-radius: var(--r-sm); color: var(--text); font-size: var(--fs-ui); cursor: default; }
+.cmdmenu-row:hover, .cmdmenu-row.selected { background: var(--hover); }
+.cmdmenu-check { width: 14px; flex: none; color: var(--accent); }
+.cmdmenu-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdmenu-row kbd { flex: none; color: var(--text-muted); font: inherit; font-size: var(--fs-caption); }
+
+/* Code highlighting (SPEC §5): the same tok-* colours in writing and reading. */
+:is(.editor-pane .md-code-line, .read-view pre code) .tok-keyword { color: var(--tok-keyword); }
+:is(.editor-pane .md-code-line, .read-view pre code) :is(.tok-string, .tok-string2) { color: var(--tok-string); }
+:is(.editor-pane .md-code-line, .read-view pre code) .tok-comment { color: var(--tok-comment); font-style: italic; }
+:is(.editor-pane .md-code-line, .read-view pre code) :is(.tok-number, .tok-bool, .tok-atom) { color: var(--tok-number); }
+:is(.editor-pane .md-code-line, .read-view pre code) :is(.tok-typeName, .tok-className, .tok-namespace) { color: var(--tok-type); }
+
+/* Read-mode extras (SPEC §5): the Copy button shows on hover or keyboard focus; live task boxes. */
+.read-view pre { position: relative; }
+.read-view .code-copy { position: absolute; top: var(--s2); right: var(--s2); padding: 2px var(--s2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--control); color: var(--text); font: inherit; font-size: var(--fs-caption); cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.read-view pre:is(:hover, :focus-within) .code-copy { opacity: 1; }
+.read-view .code-copy:hover { background: var(--hover); }
+.read-view .code-copy:active { background: var(--pressed); }
+.read-view input[type='checkbox']:not(:disabled) { cursor: pointer; }
+
+/* Match count in the find panel (SPEC §5). */
+.editor-pane .cm-search .cm-search-count { display: inline-block; min-width: 4.5em; margin: 0 var(--s2) 0 var(--s1); color: var(--text-muted); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Moving a tab by dragging it (SPEC §4): a 2px marker on the side it lands. */
+.tab.dragging { opacity: 0.6; }
+.tab:is(.drop-before, .drop-after)::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
+.tab.drop-before::after { left: 0; }
+.tab.drop-after::after { right: 0; }

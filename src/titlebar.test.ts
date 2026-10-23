@@ -160,14 +160,6 @@ describe('tab drag', () => {
     expect(root.querySelector('.drop-before, .drop-after, .dragging')).toBeNull();
   });
 
-  it('dropping on the right half of the second tab moves to index 2 (slot minus one when moving later)', () => {
-    setup();
-    dragTo('c', 250, 180);
-    expect(tabEl('b').classList.contains('drop-after')).toBe(true);
-    ptr(tabEl('c'), 'pointerup', 180);
-    expect(h.move).toHaveBeenCalledWith('c', 2);
-  });
-
   it('moving a tab right counts the slot after removing it', () => {
     setup();
     dragTo('a', 50, 280);

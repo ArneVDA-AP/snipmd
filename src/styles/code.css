@@ -1,7 +1,0 @@
-/* Code highlighting in writing and reading (tok-* classes, SPEC §5). */
-
-.editor-pane .md-code-line .tok-keyword, .read-view pre code .tok-keyword { color: var(--tok-keyword); }
-.editor-pane .md-code-line :is(.tok-string, .tok-string2), .read-view pre code :is(.tok-string, .tok-string2) { color: var(--tok-string); }
-.editor-pane .md-code-line .tok-comment, .read-view pre code .tok-comment { color: var(--tok-comment); font-style: italic; }
-.editor-pane .md-code-line :is(.tok-number, .tok-bool, .tok-atom), .read-view pre code :is(.tok-number, .tok-bool, .tok-atom) { color: var(--tok-number); }
-.editor-pane .md-code-line :is(.tok-typeName, .tok-className, .tok-namespace), .read-view pre code :is(.tok-typeName, .tok-className, .tok-namespace) { color: var(--tok-type); }

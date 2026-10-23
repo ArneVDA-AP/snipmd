@@ -28,9 +28,10 @@ export const CODE_LANGUAGES: readonly LanguageDescription[] = [
   lang('YAML', ['yml'], () => import('@codemirror/lang-yaml').then((m) => m.yaml()))
 ];
 
-/** The language a fence names: its first word (`js title=x` is `js`), as lang-markdown reads it. */
+/** The language a fence names by its first word (`js title=x` is `js`): exactly a name or alias above,
+ *  so `scss` or `jsonc` stay plain code (SPEC §5). */
 const describe = (info: string): LanguageDescription | null =>
-  LanguageDescription.matchLanguageName(CODE_LANGUAGES, /\S*/.exec(info.trim())![0], true);
+  LanguageDescription.matchLanguageName(CODE_LANGUAGES, /\S*/.exec(info.trim())![0], false);
 
 /** For `parseCode` in the editor: the parser of a loaded language, a skipping parser that loads it, or null for an unknown name. */
 export function codeParser(info: string): Parser | null {
@@ -41,19 +42,12 @@ export function codeParser(info: string): Parser | null {
 
 /**
  * Read mode: fills `target` with `code` as spans with `tok-*` classes (textContent only) once the
- * language named by `info` has loaded. Resolves false, leaving `target` as it was, for an unknown
- * name or a failed load.
+ * language named by `info` has loaded. An unknown name leaves `target` as it is; a failed load rejects.
  */
-export async function highlightCode(target: HTMLElement, code: string, info: string): Promise<boolean> {
+export async function highlightCode(target: HTMLElement, code: string, info: string): Promise<void> {
   const desc = describe(info);
-  if (!desc) return false;
-  let support: LanguageSupport;
-  try {
-    support = await desc.load();
-  } catch {
-    return false;
-  }
-  const tree = support.language.parser.parse(code);
+  if (!desc) return;
+  const tree = (await desc.load()).language.parser.parse(code);
   const doc = target.ownerDocument;
   const nodes: Node[] = [];
   lezerHighlight(
@@ -70,5 +64,4 @@ export async function highlightCode(target: HTMLElement, code: string, info: str
     () => nodes.push(doc.createTextNode('\n'))
   );
   target.replaceChildren(...nodes);
-  return true;
 }

@@ -2,9 +2,8 @@
 import { Titlebar } from './titlebar';
 import { focusInfobar, mountInfobar, showError, showInfo } from './infobar';
 import { loadSession, scheduleSessionSave } from './session';
-import { getSetting, initSettings, parseSettings, SETTINGS, setSetting } from './settings';
-import { initCommands, listCommands, runCommand, type Command } from './commands';
-import { toggleCommandMenu } from './commandMenu';
+import { getSetting, initSettings, parseSettings, SETTINGS, toggleSetting } from './settings';
+import { toggleCommandMenu, type Command } from './commandMenu';
 import type { SettingKey } from './types';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
@@ -83,32 +82,27 @@ const onActive = (run: (id: string) => unknown) => {
 
 const find = (replace: boolean) => (getActiveTab()?.mode === 'read' ? findInRead(replace) : findInEdit(replace));
 
-/** SPEC §4, §10, §13. The page's commands: the keys, the macOS menu bar and the command menu all run them by id. */
-function commandList(): Command[] {
-  const toggles = (Object.keys(SETTINGS) as SettingKey[]).map(
-    (key): Command => ({
-      id: `toggle:${key}`,
-      title: SETTINGS[key].title,
-      checked: () => getSetting(key),
-      run: () => setSetting(key, !getSetting(key))
-    })
-  );
-  return [
-    { id: 'new-tab', title: 'New Tab', keys: 'Ctrl+T', run: () => newUntitled() },
-    { id: 'open', title: 'Open…', keys: 'Ctrl+O', run: () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined)) },
-    { id: 'save', title: 'Save', keys: 'Ctrl+S', run: () => onActive(saveTab) },
-    { id: 'save-as', title: 'Save As…', keys: 'Ctrl+Shift+S', run: () => onActive(saveAs) },
-    { id: 'close-tab', title: 'Close Tab', keys: 'Ctrl+W', run: () => onActive(closeTabWithRestore) },
-    { id: 'reopen-tab', title: 'Reopen Closed Tab', keys: 'Ctrl+Shift+T', run: () => restoreClosedTab() },
-    { id: 'read-mode', title: 'Toggle Read Mode', keys: 'Ctrl+E', run: () => toggleMode() },
-    { id: 'find', title: 'Find', keys: 'Ctrl+F', run: () => find(false) },
-    { id: 'replace', title: 'Replace', keys: IS_MAC ? 'Ctrl+Alt+F' : 'Ctrl+H', run: () => find(true) },
-    { id: 'tab-left', title: 'Move Tab Left', keys: 'Ctrl+Shift+PageUp', run: () => moveActive(-1) },
-    { id: 'tab-right', title: 'Move Tab Right', keys: 'Ctrl+Shift+PageDown', run: () => moveActive(1) },
-    { id: 'command-menu', title: 'Command Menu', keys: 'Ctrl+Shift+P', run: () => toggleCommandMenu(menuRows, runCommand) },
-    ...toggles
-  ];
-}
+/** SPEC §4, §10, §13. The page's commands: the keys, the macOS menu bar and the command menu all run these. */
+const COMMANDS: readonly Command[] = [
+  { id: 'new-tab', title: 'New Tab', keys: 'Ctrl+T', run: () => newUntitled() },
+  { id: 'open', title: 'Open…', keys: 'Ctrl+O', run: () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined)) },
+  { id: 'save', title: 'Save', keys: 'Ctrl+S', run: () => onActive(saveTab) },
+  { id: 'save-as', title: 'Save As…', keys: 'Ctrl+Shift+S', run: () => onActive(saveAs) },
+  { id: 'close-tab', title: 'Close Tab', keys: 'Ctrl+W', run: () => onActive(closeTabWithRestore) },
+  { id: 'reopen-tab', title: 'Reopen Closed Tab', keys: 'Ctrl+Shift+T', run: () => restoreClosedTab() },
+  { id: 'read-mode', title: 'Toggle Read Mode', keys: 'Ctrl+E', run: () => toggleMode() },
+  { id: 'find', title: 'Find', keys: 'Ctrl+F', run: () => find(false) },
+  { id: 'replace', title: 'Replace', get keys() { return IS_MAC ? 'Ctrl+Alt+F' : 'Ctrl+H'; }, run: () => find(true) },
+  { id: 'tab-left', title: 'Move Tab Left', keys: 'Ctrl+Shift+PageUp', run: () => moveActive(-1) },
+  { id: 'tab-right', title: 'Move Tab Right', keys: 'Ctrl+Shift+PageDown', run: () => moveActive(1) },
+  { id: 'command-menu', title: 'Command Menu', keys: 'Ctrl+Shift+P', run: () => toggleCommandMenu(menuRows) },
+  ...(Object.keys(SETTINGS) as SettingKey[]).map((key): Command => ({
+    id: `toggle:${key}`,
+    title: SETTINGS[key].title,
+    checked: () => getSetting(key),
+    run: () => toggleSetting(key)
+  }))
+];
 
 /**
  * The app's modifier is down. On macOS that is Cmd alone, since Control keeps its text bindings
@@ -130,29 +124,22 @@ function tabKeyFor(e: KeyboardEvent): (() => unknown) | undefined {
   return e.key === 'Tab' ? () => cycle(e.shiftKey ? -1 : 1) : undefined;
 }
 
-/** Ctrl+Shift (Cmd+Shift) keys by `e.key`, lower-cased. */
-const SHIFTED: Record<string, string> = { s: 'save-as', t: 'reopen-tab', p: 'command-menu', pageup: 'tab-left', pagedown: 'tab-right' };
+const runCommand = (id: string): unknown => COMMANDS.find((c) => c.id === id)?.run();
 
-/** SPEC §10. The command id for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
+/** The menu lists every command but itself: picking it would only close and reopen the menu. */
+const menuRows = () => COMMANDS.filter((c) => c.id !== 'command-menu');
+
+/**
+ * SPEC §10. The command for a Ctrl (or Meta) key, read from the labels: `e.key` lower-cased with
+ * `shift+` in front. Ctrl+N is a second key for a new tab. Keys with Alt are CodeMirror's (replace
+ * on macOS, where Cmd+H hides the app). Undefined when the key is not ours (Ctrl+V: paste.ts).
+ */
 function commandFor(e: KeyboardEvent): string | undefined {
-  const key = e.key.toLowerCase();
-  if (e.shiftKey) return SHIFTED[key];
-  switch (key) {
-    case 't': case 'n': return 'new-tab';
-    case 'o': return 'open';
-    case 's': return 'save';
-    case 'w': return 'close-tab';
-    case 'e': return 'read-mode';
-    case 'h':
-      // Cmd+H hides the app on macOS; replace is Cmd+Option+F there (SPEC §13).
-      if (IS_MAC) return undefined;
-    // fall through
-    case 'f':
-      // In the note CodeMirror handles the key itself; outside it (tab strip, a bar) and in read mode, open the panel here.
-      if (getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
-      return key === 'h' ? 'replace' : 'find';
-  }
-  return undefined;
+  const combo = (e.shiftKey ? 'shift+' : '') + e.key.toLowerCase();
+  const id = combo === 'n' ? 'new-tab' : COMMANDS.find((c) => c.keys && !c.keys.includes('Alt+') && c.keys.replace(/^Ctrl\+/, '').toLowerCase() === combo)?.id;
+  // In the note CodeMirror handles find and replace itself; outside it (tab strip, a bar) and in read mode, open the panel here.
+  if ((id === 'find' || id === 'replace') && getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
+  return id;
 }
 
 /** F6 / Shift+F6 move focus between the page, the info bar and the tab strip (Windows convention). */
@@ -207,14 +194,10 @@ function registerKeys(titlebar: Titlebar): void {
   });
 }
 
-/** The menu lists every command but itself: picking it would only close and reopen the menu. */
-const menuRows = () => listCommands().filter((c) => c.id !== 'command-menu');
-
 export async function startApp(root: HTMLElement): Promise<void> {
   root.innerHTML = SKELETON;
   const byId = (id: string) => document.getElementById(id)!;
 
-  initCommands(commandList());
   mountInfobar(byId('infoTop'), byId('infoBottom'), focusActive);
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),

@@ -1,2 +1,0 @@
-/* Match count in the find panel (SPEC §5). */
-.editor-pane .cm-search .cm-search-count { display: inline-block; min-width: 4.5em; margin: 0 var(--s2) 0 var(--s1); color: var(--text-muted); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; white-space: nowrap; }
