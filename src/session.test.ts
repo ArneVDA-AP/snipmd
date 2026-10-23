@@ -9,7 +9,6 @@ describe('parseSession', () => {
     const s = {
       version: 3,
       activeTabId: 'b',
-      untitledCounter: 4,
       lastFolder: 'C:/Users/x/Documents/Notes',
       tabs: [
         { id: 'a', title: 'a.md', filePath: 'C:/n/a.md', content: '# a', dirty: false, mode: 'edit', cursor: 2, scrollTop: 10,
@@ -30,7 +29,6 @@ describe('parseSession', () => {
     const s = parseSession(JSON.stringify(old))!;
     expect(s.activeTabId).toBe('t1');
     expect(s.tabs[0]).toMatchObject({ mode: 'edit', cursor: 5, scrollTop: 0 });
-    expect(s.untitledCounter).toBe(2);
   });
 
   it('drops malformed tabs and rejects a session without usable tabs', () => {
@@ -44,7 +42,7 @@ describe('parseSession', () => {
     const s = parseSession(JSON.stringify({ tabs: [{ id: 'ok' }, { title: 'no id' }] }))!;
     expect(s.tabs.map((t) => t.id)).toEqual(['ok']);
     expect(s.tabs[0]).toEqual({ id: 'ok', title: 'Untitled', filePath: null, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null });
-    expect(s).toMatchObject({ activeTabId: 'ok', untitledCounter: 2, lastFolder: null, closedTabs: [] });
+    expect(s).toMatchObject({ activeTabId: 'ok', lastFolder: null, closedTabs: [] });
   });
 
   it('an empty file path is an untitled tab, so its text is restored instead of read from a file', () => {
@@ -102,7 +100,7 @@ describe('session writes', () => {
     vi.mocked(info.clearInfo).mockReset();
     m = await import('./session');
     n = 0;
-    m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', untitledCounter: ++n, lastFolder: null, tabs: [], closedTabs: [] }));
+    m.bindSessionSource(() => ({ version: 3, activeTabId: `a${++n}`, lastFolder: null, tabs: [], closedTabs: [] }));
   });
   afterEach(() => vi.useRealTimers());
 
@@ -155,7 +153,7 @@ describe('session writes', () => {
   });
 
   it('a failed write is retried by the next save of the same snapshot', async () => {
-    m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] }));
+    m.bindSessionSource(() => ({ version: 3, activeTabId: 'a', lastFolder: null, tabs: [], closedTabs: [] }));
     vi.mocked(ipc.saveSessionRaw).mockRejectedValueOnce(new Error('locked'));
     await m.flushSession();
     await m.flushSession();

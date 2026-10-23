@@ -25,7 +25,7 @@ const tab = (o: Partial<TabState>): TabState => ({
 });
 const note = (text: string) => ({ text, format: { crlf: true, bom: false }, stamp: { mtimeMs: 1, size: text.length } });
 const session = (tabs: TabState[], active = tabs[0]?.id ?? ''): SessionFile => ({
-  version: 3, activeTabId: active, untitledCounter: 2, lastFolder: null, tabs, closedTabs: []
+  version: 3, activeTabId: active, lastFolder: null, tabs, closedTabs: []
 });
 
 const render = vi.fn();
@@ -536,13 +536,22 @@ describe('opening notes', () => {
     expect(getActiveTab()?.title).toBe('2.md');
   });
 
-  it('new untitled tabs count up from the session counter, writing, clean', async () => {
-    await restore(session([tab({ id: 'u-a', content: 'a' })]));
+  it('new untitled tabs take the lowest free number, writing, clean', async () => {
+    await restore(session([tab({ id: 'u-a', title: 'Untitled-2', content: 'a' })]));
     await newUntitled();
     await newUntitled();
-    expect(getTabs().slice(1).map((t) => [t.title, t.mode, t.dirty, t.filePath, textOf(t)])).toEqual([['Untitled-2', 'edit', false, null, ''], ['Untitled-3', 'edit', false, null, '']]);
-    expect(snapshot().untitledCounter).toBe(4);
+    expect(getTabs().slice(1).map((t) => [t.title, t.mode, t.dirty, t.filePath, textOf(t)])).toEqual([['Untitled-1', 'edit', false, null, ''], ['Untitled-3', 'edit', false, null, '']]);
     expect(getActiveTab()?.title).toBe('Untitled-3');
+  });
+
+  it('a closed untitled tab keeps its number; once it is gone the number is free again', async () => {
+    const closed = { tab: tab({ id: 'u-c', title: 'Untitled-1', content: 'kept' }), closedAt: Date.now() };
+    await restore({ ...session([tab({ id: 'u-o', content: 'a' })]), closedTabs: [closed] });
+    await newUntitled();
+    expect(getActiveTab()?.title).toBe('Untitled-2');
+    await restore(session([tab({ id: 'u-o2', title: 'Untitled-54', content: 'a' })]));
+    await newUntitled();
+    expect(getActiveTab()?.title).toBe('Untitled-1');
   });
 
   it('a copy opens next to its tab, in read mode', async () => {

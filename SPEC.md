@@ -30,7 +30,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ## 4. Window and UI
 
 - Frameless window (`decorations: false`). One 34px top bar containing, left to right:
-  - Tab strip: `filename.md` or `Untitled-N`. A dot marks unsaved changes. Middle-click closes. Tabs shrink and truncate; the strip scrolls horizontally when full.
+  - Tab strip: `filename.md` or `Untitled-N`, where N is the lowest number no open or closed tab uses. A dot marks unsaved changes. Middle-click closes. Tabs shrink and truncate; the strip scrolls horizontally when full.
   - `+` button (new tab).
   - Drag region (`data-tauri-drag-region`) filling the remaining space.
   - In read mode only: a small "Reading" chip that switches back to writing (`Ctrl+E`).
@@ -45,9 +45,14 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - CodeMirror 6, raw Markdown with light styling: headings larger, Markdown syntax characters dimmed, bold/italic rendered. No live preview (hiding syntax) in v1.
 - **Inline images:** every image link `![alt](path)` that points to a local image gets a block widget directly below its line. Max height 360px, max width 100%, `border-radius: 6px`. Clicking toggles full height. Missing files show a clear "image not found: <path>" placeholder, never a perpetual "loading".
 - Images inside fenced code blocks are not rendered.
-- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). In read mode they switch to writing first.
+- **Lists and quotes** follow the Markdown structure, so what read mode shows matches what was typed:
+  - `Enter` continues a list or quote. On an empty item or quote line it ends the block: a nested item moves one level up; leaving the outermost level leaves a blank line, so typing starts a new paragraph instead of continuing the item above.
+  - `Backspace` right after the marker of an empty item clears the line; the next `Backspace` joins the line above.
+  - `Tab` nests a list item (and the items selected with it) under the item above, indented to that item's text (3 spaces after `1. `, 4 after `10. `). `Shift+Tab` moves the item back to its parent's level. Outside a list, `Tab` indents.
+  - An ordered list stays numbered in sequence (a nested list from 1, an outer list from its first number) after any edit that adds, removes or nests lines; one undo takes back the edit and the renumbering together. A list with the same number on every item keeps it, and a number typed inside a line is left as typed.
+- Find and replace: `Ctrl+F`, `Ctrl+H` (CodeMirror search panel at the top). In read mode they switch to writing first. The fields have no autofill, autocorrection or spell check; clicking a panel button keeps the focus in the field, so `Escape` still closes the panel.
 - Undo history survives tab switches and the first save of an untitled tab.
-- **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). Long lines wrap, also in code blocks, as in writing. No split view.
+- **Read mode (`Ctrl+E`)**: toggles between writing and reading for the active tab. Reading is rendered Markdown, sanitized (§8). Long lines wrap, also in code blocks, as in writing. A task item shows its checkbox in place of the bullet. No split view.
 
 ## 6. Files, images and saving
 
@@ -160,7 +165,7 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
 
-**v1 — deliberately out:** theme gallery, font choice, settings screen; folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
+**v1 — deliberately out:** theme gallery, font choice, a settings screen (choices go through a command menu, see ROADMAP); folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
 
 **macOS:** in testing as §13 describes; ad-hoc signed builds until there is a Developer ID. Linux stays out.
 

@@ -4,6 +4,7 @@
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { openSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
+import { plainField } from '../dom';
 
 /** Opens the panel on its find field. Ctrl+H goes on to the replace field when the find field
  *  already holds a term (from the selection or an earlier search); with nothing to find, typing
@@ -17,11 +18,20 @@ export function openFind(view: EditorView, replace: boolean): boolean {
   return true;
 }
 
-/** The panel's fields are not a web form: WebView2 would otherwise offer earlier search terms in
- *  a "Saved info" popup over the note, and keep them in its profile. */
-const noAutofill = EditorView.updateListener.of((u) => {
+/** A click on a button or checkbox keeps the focus in the field. WebKit (macOS) gives a clicked
+ *  button no focus, so the focus would fall out of the panel and Escape would no longer close it. */
+function keepFocus(panel: HTMLElement): void {
+  panel.addEventListener('mousedown', (e) => {
+    if ((e.target as Element).closest('button, label, input[type=checkbox]')) e.preventDefault();
+  });
+}
+
+const panelSetup = EditorView.updateListener.of((u) => {
   if (!searchPanelOpen(u.state) || searchPanelOpen(u.startState)) return;
-  for (const input of u.view.dom.querySelectorAll<HTMLInputElement>('.cm-search input')) input.autocomplete = 'off';
+  const panel = u.view.dom.querySelector<HTMLElement>('.cm-search');
+  if (!panel) return;
+  panel.querySelectorAll<HTMLInputElement>('input').forEach(plainField);
+  keepFocus(panel);
 });
 
 const PHRASES = {
@@ -41,7 +51,7 @@ const PHRASES = {
 export function findExtension(): Extension {
   return [
     search({ top: true }),
-    noAutofill,
+    panelSetup,
     EditorState.phrases.of(PHRASES),
     // Replace is Cmd+Option+F on macOS, where Cmd+H hides the app (SPEC §13).
     keymap.of([{ key: 'Mod-h', mac: 'Mod-Alt-f', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])

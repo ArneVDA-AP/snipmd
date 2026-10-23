@@ -36,7 +36,6 @@ interface Panes {
 /** Open tabs in strip order, and closed ones (with closedAt) in any order. */
 let tabs: TabState[] = [];
 let activeId = '';
-let untitledCounter = 1;
 let lastFolder: string | null = null;
 let panes: Panes;
 let titlebar: Titlebar;
@@ -165,7 +164,7 @@ export function snapshot(): SessionFile {
   const copies = getTabs().map((t) => ({ ...t, content: diskIsSource(t) ? '' : textOf(t) }));
   // Closed tabs keep their text, also when clean: the file may be gone by the time one is restored.
   const closed: ClosedTab[] = closedTabs().map(({ closedAt, ...t }) => ({ tab: { ...t, content: textOf(t) }, closedAt: closedAt! }));
-  return { version: 3, activeTabId: activeId, untitledCounter, lastFolder, tabs: copies, closedTabs: closed };
+  return { version: 3, activeTabId: activeId, lastFolder, tabs: copies, closedTabs: closed };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
@@ -191,7 +190,6 @@ export async function restore(s: SessionFile): Promise<void> {
   const ids = new Set(kept.map((t) => t.id));
   const closed = s.closedTabs.map((c) => ({ ...c.tab, id: ids.has(c.tab.id) ? crypto.randomUUID() : c.tab.id, closedAt: c.closedAt }));
   tabs = [...kept, ...closed];
-  untitledCounter = s.untitledCounter;
   lastFolder = s.lastFolder;
   pruneClosed(Date.now());
   if (kept.length === 0) return newUntitled();
@@ -313,8 +311,17 @@ async function addTab(
   changed({ immediate: true });
 }
 
+/** `Untitled-N` with the lowest N no tab uses, open or closed: a restored closed tab never shares
+ *  its title with a new one, and the numbers start over once those tabs are gone. */
+function untitledTitle(): string {
+  const used = new Set(tabs.map((t) => /^Untitled-(\d+)$/.exec(t.title)?.[1]).filter(Boolean).map(Number));
+  let n = 1;
+  while (used.has(n)) n++;
+  return `Untitled-${n}`;
+}
+
 export function newUntitled(): Promise<void> {
-  return addTab(`Untitled-${untitledCounter++}`, null, '');
+  return addTab(untitledTitle(), null, '');
 }
 
 /** A new untitled tab in read mode holding `text` (the disk version of a note in conflict), next to tab `after`. */

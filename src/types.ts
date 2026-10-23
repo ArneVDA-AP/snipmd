@@ -42,7 +42,6 @@ export interface ClosedTab {
 export interface SessionFile {
   version: 3;
   activeTabId: string;
-  untitledCounter: number;
   lastFolder: string | null;
   tabs: TabState[];
   closedTabs: ClosedTab[];

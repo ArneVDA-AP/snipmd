@@ -33,7 +33,7 @@ const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
 });
 const session = (tabs: TabState[]): SessionFile => ({
-  version: 3, activeTabId: tabs[0].id, untitledCounter: 1, lastFolder: null, tabs, closedTabs: []
+  version: 3, activeTabId: tabs[0].id, lastFolder: null, tabs, closedTabs: []
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

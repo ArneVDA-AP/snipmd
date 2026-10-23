@@ -11,7 +11,7 @@ const m = vi.hoisted(() => ({
   onMenuCommand: vi.fn(async () => {}),
   onPasteText: vi.fn(async () => {}),
   loadSession: vi.fn(async (): Promise<{ session: unknown; setAside: string | null }> => ({
-    session: { version: 3, activeTabId: '', untitledCounter: 1, lastFolder: null, tabs: [], closedTabs: [] },
+    session: { version: 3, activeTabId: '', lastFolder: null, tabs: [], closedTabs: [] },
     setAside: null
   })),
   showError: vi.fn(),
