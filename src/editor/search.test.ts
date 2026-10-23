@@ -94,7 +94,7 @@ describe('match count', () => {
     expect(count(v)!.textContent).toBe('');
     expect(count(v)!.previousElementSibling).toBe(field(v, 'search'));
     expect(count(v)!.getAttribute('aria-live')).toBe('polite');
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('2 matches');
   });
 
@@ -102,7 +102,7 @@ describe('match count', () => {
     const v = make('x x x', 2, 3);
     openFind(v, false);
     query(v, 'x');
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('2 of 3');
   });
 
@@ -110,10 +110,10 @@ describe('match count', () => {
     const v = make('abc');
     openFind(v, false);
     query(v, 'zzz');
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('No matches');
     query(v, '(', true);
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('');
   });
 
@@ -121,10 +121,10 @@ describe('match count', () => {
     const v = make('a'.repeat(1500));
     openFind(v, false);
     query(v, 'a');
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('1000+ matches');
     v.dispatch({ selection: { anchor: 0, head: 1 } });
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)!.textContent).toBe('1 of 1000+');
   });
 
@@ -143,7 +143,7 @@ describe('match count', () => {
     const v = make('a');
     openFind(v, false);
     query(v, 'a');
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(200);
     expect(count(v)).toBeNull();
   });
 });

@@ -35,6 +35,8 @@ interface Drag {
   started: boolean;
   /** Position among the rendered tabs the dragged tab would be inserted at, before it is taken out. */
   slot: number | null;
+  /** The tabs' boxes, read once when the drag starts: they do not move while it lasts. */
+  rects: DOMRect[];
 }
 
 function setMaximized(maxBtn: HTMLButtonElement, max: boolean): void {
@@ -206,7 +208,7 @@ export class Titlebar {
     // A press whose release never reached its tab must not leave a drag behind for the next one.
     const stale = this.drag && this.els.get(this.drag.id)?.el;
     if (stale) this.finishDrag(stale);
-    this.drag = { id, pointerId: e.pointerId, startX: e.clientX, started: false, slot: null };
+    this.drag = { id, pointerId: e.pointerId, startX: e.clientX, started: false, slot: null, rects: [] };
     // From the press on, so a release off the tab still ends the drag here.
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
@@ -217,18 +219,21 @@ export class Titlebar {
     if (!d.started) {
       if (Math.abs(e.clientX - d.startX) <= DRAG_START_PX) return;
       d.started = true;
+      d.rects = this.order.map((id) => this.els.get(id)!.el.getBoundingClientRect());
       el.classList.add('dragging');
       document.addEventListener('keydown', this.onDragKey, true);
     }
-    this.clearMarks();
-    const rects = this.order.map((id) => this.els.get(id)!.el.getBoundingClientRect());
+    const rects = d.rects;
     if (!rects.length) return;
     // Past either end of the strip the pointer still means the first or last tab.
     let i = rects.findIndex((r) => e.clientX < r.right);
     if (i < 0) i = rects.length - 1;
     const r = rects[i];
     const before = e.clientX < r.left + r.width / 2;
-    d.slot = before ? i : i + 1;
+    const slot = before ? i : i + 1;
+    if (slot === d.slot) return; // the marker is already there
+    d.slot = slot;
+    this.clearMarks();
     if (this.order[i] !== d.id) this.els.get(this.order[i])!.el.classList.add(before ? 'drop-before' : 'drop-after');
   }
 

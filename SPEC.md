@@ -69,7 +69,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - **Atomic writes**: write to a temp file in the same directory, flush, then rename over the target. Never truncate-then-write.
 - **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM (LF on macOS, §13).
 - **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
-  - Tab clean → reload silently, keep cursor and scroll position.
+  - Tab clean → reload silently, keep cursor and scroll position. A tab in read mode shows the new text.
   - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view is v1.1. Autosave pauses for that tab until the user chooses Reload or Keep mine.
   - File gone (deleted or moved) → info bar: "<name> is no longer on disk." The tab keeps its text and turns dirty; autosave pauses. Action: Save again (writes it back to the same path; a missing folder stays a write failure).
 - **Write failure** (folder deleted, drive removed, read-only): info bar with the error. The tab stays dirty, its content stays in the session, and other tabs and session saving keep working.

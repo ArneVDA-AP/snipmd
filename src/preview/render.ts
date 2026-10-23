@@ -9,6 +9,7 @@ import { button } from '../dom';
 import { applyToTab, getState } from '../editor/registry';
 import { highlightCode } from '../editor/codeLanguages';
 import type { Settings } from '../types';
+import type { Text } from '@codemirror/state';
 
 const escapeAttr = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -52,7 +53,7 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
  * The elements the app rendered itself: their attribute starts with this render's token, which a note
  * cannot know. The attribute is removed from every other element.
  */
-function appElements<T extends HTMLElement>(root: HTMLElement, attr: string, token: string): T[] {
+function appElements<T extends HTMLElement>(root: HTMLElement, attr: string, token: string): { el: T; index: number }[] {
   const mine: { el: T; index: number }[] = [];
   root.querySelectorAll<T>(`[${attr}]`).forEach((el) => {
     const v = el.getAttribute(attr) ?? '';
@@ -60,7 +61,7 @@ function appElements<T extends HTMLElement>(root: HTMLElement, attr: string, tok
     if (Number.isInteger(index)) mine.push({ el, index });
     else el.removeAttribute(attr);
   });
-  return mine.sort((a, b) => a.index - b.index).map((m) => m.el);
+  return mine.sort((a, b) => a.index - b.index);
 }
 
 function copyButton(text: string): HTMLButtonElement {
@@ -78,16 +79,17 @@ function copyButton(text: string): HTMLButtonElement {
 
 /**
  * A click on a task box: write the change into the note of this tab, or put the box back. `shown`
- * holds the text the boxes were rendered from: a note that changed since (a reload from disk) may
- * have its tasks in another order, so it is never written from these boxes.
+ * holds the document the boxes were rendered from: a note that changed since (a reload from disk
+ * the pane has not shown yet) may have its tasks in another order, so it is never written from
+ * these boxes. Every edit makes a new document, so comparing the two is one check.
  */
-async function toggleTask(tabId: string, box: HTMLInputElement, index: number, rendered: number, shown: { text: string }): Promise<void> {
+async function toggleTask(tabId: string, box: HTMLInputElement, index: number, rendered: number, shown: { doc: Text | undefined }): Promise<void> {
   const before = !box.checked; // the click has already flipped it
   const { taskChange } = await import('./tasks');
   const state = getState(tabId); // read after the import: the note may have changed meanwhile
-  const changes = state && state.doc.toString() === shown.text ? taskChange(state, index, rendered, !before) : null;
+  const changes = state && state.doc === shown.doc ? taskChange(state, index, rendered, !before) : null;
   if (changes && applyToTab(tabId, { changes, userEvent: 'input' })) {
-    shown.text = getState(tabId)!.doc.toString();
+    shown.doc = getState(tabId)?.doc;
     return;
   }
   box.checked = before;
@@ -103,6 +105,8 @@ async function toggleTask(tabId: string, box: HTMLInputElement, index: number, r
  * emitted without a src and filled in after sanitizing, so no URL a note wrote itself can pass as one of them.
  */
 export async function renderRead(tabId: string, content: string, opts: Readonly<Settings>): Promise<HTMLElement> {
+  // The document `content` was taken from, read before the first await: task clicks check it.
+  const doc = getState(tabId)?.doc;
   const own: string[] = [];
   const token = crypto.randomUUID();
   const codes: { lang: string; text: string }[] = [];
@@ -144,17 +148,18 @@ export async function renderRead(tabId: string, content: string, opts: Readonly<
   });
   const appCode = appElements<HTMLElement>(article, 'data-code', token);
   const appTasks = appElements<HTMLInputElement>(article, 'data-task', token);
-  appCode.forEach((code, i) => {
-    const { lang, text } = codes[i] ?? { lang: '', text: '' };
+  appCode.forEach(({ el: code, index }) => {
+    const { lang, text } = codes[index];
     // Highlighting is cosmetic: a failure leaves the block plain.
     if (lang) highlightCode(code, text, lang).catch(() => {});
     if (opts.copyCode) code.parentElement?.append(copyButton(text));
   });
   if (opts.taskClicks) {
-    const shown = { text: content };
-    appTasks.forEach((box, i) => {
+    const shown = { doc };
+    appTasks.forEach(({ el: box, index }) => {
       box.disabled = false;
-      box.addEventListener('click', () => void toggleTask(tabId, box, i, appTasks.length, shown));
+      // `tasks` is how many boxes marked rendered; a box the sanitizer dropped makes the count differ, so a click refuses.
+      box.addEventListener('click', () => void toggleTask(tabId, box, index, tasks, shown));
     });
   }
   // One listener per render. The webview never navigates away (Rust guards that); web and mail

@@ -1,18 +1,16 @@
 // Command menu (SPEC §4): a filter field and a short list, shown as the keyed top info bar.
 import type { Command } from './commands';
 import { plainField } from './dom';
-import { clearInfo, showInfo } from './infobar';
+import { showInfo } from './infobar';
 import { keys } from './platform';
 
 const KEY = 'command-menu';
 
-let open = false;
+/** Closes the open menu; null while none is open. The info bar owns the bar, this only its close. */
+let close: (() => void) | null = null;
 
 export function toggleCommandMenu(source: () => readonly Command[], run: (id: string) => void): void {
-  if (open) {
-    clearInfo(KEY);
-    return;
-  }
+  if (close) return close();
 
   const body = document.createElement('div');
   body.className = 'cmdmenu';
@@ -59,10 +57,11 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
     row.className = 'cmdmenu-row';
     row.setAttribute('role', 'option');
     if (c.checked) {
-      row.setAttribute('aria-checked', String(c.checked()));
+      const on = c.checked();
+      row.setAttribute('aria-checked', String(on));
       const mark = document.createElement('span');
       mark.className = 'cmdmenu-check';
-      mark.textContent = c.checked() ? '✓' : '';
+      mark.textContent = on ? '✓' : '';
       row.append(mark);
     }
     const title = document.createElement('span');
@@ -90,7 +89,7 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
       run(c.id);
       rebuild();
     } else {
-      clearInfo(KEY);
+      close?.();
       run(c.id);
     }
   };
@@ -111,7 +110,6 @@ export function toggleCommandMenu(source: () => readonly Command[], run: (id: st
   });
 
   rebuild();
-  open = true;
-  showInfo({ kind: 'info', key: KEY, text: '', body, onClose: () => (open = false) });
+  close = showInfo({ kind: 'info', key: KEY, text: '', body, onClose: () => (close = null) });
   input.focus();
 }

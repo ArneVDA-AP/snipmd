@@ -283,10 +283,11 @@ describe('task boxes', () => {
     expect(reg.applyToTab).not.toHaveBeenCalled();
   });
   it('writes nothing when the note changed since it was rendered, even with the same tasks reordered', async () => {
-    reg.state = createEditorState('t1', '- [ ] pay rent\n- [ ] buy milk'); // reloaded from disk meanwhile
+    reg.state = createEditorState('t1', '- [ ] buy milk\n- [ ] pay rent');
     reg.applyToTab.mockClear();
     info.showInfo.mockClear();
     const el = await render('- [ ] buy milk\n- [ ] pay rent', { taskClicks: true });
+    reg.state = createEditorState('t1', '- [ ] pay rent\n- [ ] buy milk'); // reloaded from disk since
     el.querySelectorAll<HTMLInputElement>('input')[0].click();
     await vi.waitFor(() => expect(info.showInfo).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning' })));
     expect(reg.applyToTab).not.toHaveBeenCalled();

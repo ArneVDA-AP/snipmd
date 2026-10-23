@@ -19,3 +19,13 @@ export function plainField(input: HTMLInputElement): void {
   input.setAttribute('autocapitalize', 'off');
   input.setAttribute('autocorrect', 'off');
 }
+
+/** Runs `fn` when the window is idle (after 200 ms where the engine has no idle callback); returns a cancel. */
+export function idle(fn: () => void): () => void {
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(fn);
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 200);
+  return () => clearTimeout(id);
+}

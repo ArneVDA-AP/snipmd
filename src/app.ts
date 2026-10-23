@@ -130,14 +130,13 @@ function tabKeyFor(e: KeyboardEvent): (() => unknown) | undefined {
   return e.key === 'Tab' ? () => cycle(e.shiftKey ? -1 : 1) : undefined;
 }
 
+/** Ctrl+Shift (Cmd+Shift) keys by `e.key`, lower-cased. */
+const SHIFTED: Record<string, string> = { s: 'save-as', t: 'reopen-tab', p: 'command-menu', pageup: 'tab-left', pagedown: 'tab-right' };
+
 /** SPEC §10. The command id for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
 function commandFor(e: KeyboardEvent): string | undefined {
   const key = e.key.toLowerCase();
-  if (e.shiftKey) {
-    if (key === 'pageup') return 'tab-left';
-    if (key === 'pagedown') return 'tab-right';
-    return { s: 'save-as', t: 'reopen-tab', p: 'command-menu' }[key];
-  }
+  if (e.shiftKey) return SHIFTED[key];
   switch (key) {
     case 't': case 'n': return 'new-tab';
     case 'o': return 'open';
@@ -200,28 +199,22 @@ function registerKeys(titlebar: Titlebar): void {
     if (!commandKey(e) || e.altKey) return;
     // A held key acts once (a held Ctrl+W would empty the window); only moving between tabs repeats.
     if (e.repeat && e.key !== 'Tab' && !DIGIT.test(e.code)) return e.preventDefault();
-    const tabKey = tabKeyFor(e);
-    const id = tabKey ? undefined : commandFor(e);
-    if (!tabKey && !id) return;
+    const id = commandFor(e);
+    const run = tabKeyFor(e) ?? (id && (() => runCommand(id)));
+    if (!run) return;
     e.preventDefault();
-    void (tabKey ? tabKey() : runCommand(id!));
+    void run();
   });
 }
 
 /** The menu lists every command but itself: picking it would only close and reopen the menu. */
 const menuRows = () => listCommands().filter((c) => c.id !== 'command-menu');
 
-let commandsWired = false;
-
 export async function startApp(root: HTMLElement): Promise<void> {
   root.innerHTML = SKELETON;
   const byId = (id: string) => document.getElementById(id)!;
 
-  // The registry is wired once per page; a repeated start (tests) keeps it.
-  if (!commandsWired) {
-    initCommands(commandList());
-    commandsWired = true;
-  }
+  initCommands(commandList());
   mountInfobar(byId('infoTop'), byId('infoBottom'), focusActive);
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),

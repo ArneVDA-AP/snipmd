@@ -453,17 +453,25 @@ describe('settings in the session and read mode', () => {
     expect(renderRead).not.toHaveBeenCalled();
   });
 
-  it('a read-mode render leaves the focus in an info bar, so the command menu stays in use', async () => {
+  it('a render in place leaves the focus where it is, so the command menu stays in use', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
     document.body.insertAdjacentHTML('beforeend', '<div class="infobar-host"><input id="menu-field"></div>');
     const field = document.getElementById('menu-field') as HTMLInputElement;
     pane('r').tabIndex = -1; // as in the app, so the pane can take focus
     await restore(session([tab({ id: 'rf-a', content: 'a', mode: 'read' })]));
+    frames.splice(0).forEach((f) => f(0)); // the switch to the tab focuses the pane, as it should
     field.focus();
     await refreshRead();
     frames.forEach((f) => f(0));
     expect(document.activeElement).toBe(field);
+  });
+
+  it('a note reloaded from disk shows its new text in read mode', async () => {
+    await restore(session([tab({ id: 'lr-a', content: 'old', mode: 'read' })]));
+    vi.mocked(renderRead).mockClear();
+    loadText(getTab('lr-a')!, 'new');
+    await vi.waitFor(() => expect(renderRead).toHaveBeenCalledWith('lr-a', 'new', parseSettings(undefined)));
   });
 });
 

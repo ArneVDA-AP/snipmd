@@ -4,7 +4,7 @@
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, keymap, type ViewUpdate } from '@codemirror/view';
 import { getSearchQuery, openSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
-import { plainField } from '../dom';
+import { idle, plainField } from '../dom';
 import { getSetting } from '../settings';
 
 /** Opens the panel on its find field. Ctrl+H goes on to the replace field when the find field
@@ -40,7 +40,7 @@ const COUNT_CAP = 1000;
 
 /** The text for the count span: 'N of M' when the main selection is a match, 'M matches', 'No matches',
  *  or empty for an empty or invalid query. Stops after COUNT_CAP matches. */
-export function countText(state: EditorState): string {
+function countText(state: EditorState): string {
   const query = getSearchQuery(state);
   if (!query.valid) return '';
   const { from, to } = state.selection.main;
@@ -60,15 +60,6 @@ export function countText(state: EditorState): string {
   return `${m} matches`;
 }
 
-const idle = (fn: () => void): (() => void) => {
-  if (typeof requestIdleCallback === 'function') {
-    const id = requestIdleCallback(fn);
-    return () => cancelIdleCallback(id);
-  }
-  const id = setTimeout(fn, 100);
-  return () => clearTimeout(id);
-};
-
 /** Counts matches while the panel is open, never inside the update itself (SPEC §5). */
 const matchCount = ViewPlugin.fromClass(
   class {
@@ -77,9 +68,7 @@ const matchCount = ViewPlugin.fromClass(
     update(u: ViewUpdate): void {
       if (!searchPanelOpen(u.state)) return;
       const opened = !searchPanelOpen(u.startState);
-      const changed = opened || u.docChanged || u.selectionSet || !getSearchQuery(u.state).eq(getSearchQuery(u.startState));
-      if (!changed) return;
-      this.schedule();
+      if (opened || u.docChanged || u.selectionSet || !getSearchQuery(u.state).eq(getSearchQuery(u.startState))) this.schedule();
     }
     schedule(): void {
       if (this.cancel) return;

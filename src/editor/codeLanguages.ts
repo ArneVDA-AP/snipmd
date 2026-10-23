@@ -28,9 +28,13 @@ export const CODE_LANGUAGES: readonly LanguageDescription[] = [
   lang('YAML', ['yml'], () => import('@codemirror/lang-yaml').then((m) => m.yaml()))
 ];
 
+/** The language a fence names: its first word (`js title=x` is `js`), as lang-markdown reads it. */
+const describe = (info: string): LanguageDescription | null =>
+  LanguageDescription.matchLanguageName(CODE_LANGUAGES, /\S*/.exec(info.trim())![0], true);
+
 /** For `parseCode` in the editor: the parser of a loaded language, a skipping parser that loads it, or null for an unknown name. */
 export function codeParser(info: string): Parser | null {
-  const desc = LanguageDescription.matchLanguageName(CODE_LANGUAGES, info, true);
+  const desc = describe(info);
   if (!desc) return null;
   return desc.support ? desc.support.language.parser : ParseContext.getSkippingParser(desc.load());
 }
@@ -41,7 +45,7 @@ export function codeParser(info: string): Parser | null {
  * name or a failed load.
  */
 export async function highlightCode(target: HTMLElement, code: string, info: string): Promise<boolean> {
-  const desc = LanguageDescription.matchLanguageName(CODE_LANGUAGES, info, true);
+  const desc = describe(info);
   if (!desc) return false;
   let support: LanguageSupport;
   try {
