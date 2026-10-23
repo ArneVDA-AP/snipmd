@@ -27,15 +27,21 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `RELEASE-MACOS.md` covers them.
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `RELEASE-MACOS.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
-## Next: from the Mac test report (2026-10-23)
-Fixed on `cc/quirky-lovelace-ge5udo`: list and quote keys (bugs 1, 2, 7, 8, 9: Enter ends a block, Tab nests to the marker width, ordered lists renumber), the task bullet in read mode (4), find-field autocorrection and Escape after a button click on macOS (5, 6), and `Untitled-N` taking the lowest free number (11). Items 1-5 are built on this branch (SPEC §4, §5, §7, §8, §10, §13), pending the Windows and Mac test:
-1. **Command menu** (one shortcut, `Ctrl+Shift+P` / `Cmd+Shift+P`): a filtered list in the app's own style, no settings screen. It runs commands and holds the toggles below; toggles live in `session.json`.
-2. **Line breaks** (bug 3): a toggle in the command menu to show a single line break as a break in read mode. Off by default, so read mode matches CommonMark and other viewers.
-3. **Syntax highlighting in code blocks**, in writing and reading, with the language parsers loaded lazily the first time a block names a language (the bundle decision below stays).
-4. **Tab order** (12): drag a tab to move it, `Ctrl+Shift+PageUp/PageDown` too; the order is kept in the session.
-5. **Optional extras**, each lazily loaded where it can be and switched in the command menu: checkboxes clickable in read mode (writes `[x]` to the source), a copy button on code blocks, a match counter in the find panel.
+## On `main` since 1.0.0 (not released)
+From the Mac test report of 2026-10-23, merged in #47 and #48:
+- **Lists and quotes** (bugs 1, 2, 7, 8, 9): Enter ends a block, Tab nests to the marker width, ordered lists renumber.
+- **Small fixes**: the task bullet in read mode (4), find-field autocorrection and Escape after a button click on macOS (5, 6), `Untitled-N` taking the lowest free number (11).
+- **Command menu** (`Ctrl+Shift+P` / `⇧⌘P`) with four toggles kept in `session.json`: line breaks in read mode (bug 3, off by default), clickable tasks, a Copy button on code blocks and a match count in find (all on).
+- **Syntax highlighting** for ten languages, in writing and reading, each parser loaded on first use.
+- **Tab order** (12): drag a tab, or `Ctrl+Shift+PageUp/PageDown`; the order is kept in the session.
+- **Read mode follows reloads** from disk.
 
 Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3); a table inserter (outside §12).
+
+Open before a 1.1 release:
+1. **Mac test** of a build of `main`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the RELEASE-MACOS.md checklist). The build is the artifact of *Release macOS* run 4 on 02adcfb.
+2. **Windows test** of the same features on the owner's PC: the Copy button (clipboard in WebView2), the look under the release CSP, dragging a tab with a mouse, `Ctrl+Shift+P`.
+3. **Old branches**: 41 merged or archived branches are left to delete (listed in the session of 2026-10-23); the session's permissions do not allow `git push --delete`.
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
