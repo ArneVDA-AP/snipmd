@@ -9,6 +9,8 @@ SnipMD ships as a per-user NSIS installer (`SnipMD_<version>_x64-setup.exe`), an
 
 A manual run of the same workflow (Actions → Run workflow) runs `build` only: the files are workflow artifacts and nothing is published.
 
+A version with a numeric suffix (`1.1.0-1`, tag `v1.1.0-1`) is a build for testers: it is published as a pre-release, so `Latest` stays the last tested release. The Windows MSI accepts only digits after the dash.
+
 ## Locally
 Requires Node.js 22, Rust stable with the MSVC toolchain, and the Visual Studio C++ build tools.
 
