@@ -4,6 +4,7 @@
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { openSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
+import { plainField } from '../dom';
 
 /** Opens the panel on its find field. Ctrl+H goes on to the replace field when the find field
  *  already holds a term (from the selection or an earlier search); with nothing to find, typing
@@ -15,18 +16,6 @@ export function openFind(view: EditorView, replace: boolean): boolean {
   field?.focus();
   field?.select();
   return true;
-}
-
-/** The panel's fields are not a web form: WebView2 would otherwise offer earlier search terms in
- *  a "Saved info" popup over the note, and keep them in its profile, and macOS would correct or
- *  capitalize a search term as it is typed. */
-function plainFields(panel: HTMLElement): void {
-  for (const input of panel.querySelectorAll<HTMLInputElement>('input')) {
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-    input.setAttribute('autocapitalize', 'off');
-    input.setAttribute('autocorrect', 'off');
-  }
 }
 
 /** A click on a button or checkbox keeps the focus in the field. WebKit (macOS) gives a clicked
@@ -41,7 +30,7 @@ const panelSetup = EditorView.updateListener.of((u) => {
   if (!searchPanelOpen(u.state) || searchPanelOpen(u.startState)) return;
   const panel = u.view.dom.querySelector<HTMLElement>('.cm-search');
   if (!panel) return;
-  plainFields(panel);
+  panel.querySelectorAll<HTMLInputElement>('input').forEach(plainField);
   keepFocus(panel);
 });
 

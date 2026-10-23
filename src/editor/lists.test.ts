@@ -36,6 +36,12 @@ function type(v: EditorView, text: string): void {
   v.dispatch({ changes: { from: at, insert: text }, selection: { anchor: at + text.length }, userEvent: 'input.type' });
 }
 
+function deleteLine(v: EditorView, n: number): string {
+  const line = v.state.doc.line(n);
+  v.dispatch({ changes: { from: line.from, to: line.to + 1 }, userEvent: 'delete.selection' });
+  return v.state.doc.toString();
+}
+
 const shown = (v: EditorView): string => {
   const doc = v.state.doc.toString();
   const at = v.state.selection.main.head;
@@ -60,9 +66,14 @@ describe('Enter in quotes and lists', () => {
     expect(press(v, 'Enter')).toBe('- een\n\n|');
   });
 
-  it('Enter on an empty item with items below leaves the ending to CodeMirror', () => {
+  it('Enter on an empty item in the middle splits the list with a blank line', () => {
     const v = make('- een\n- |\n- drie');
-    expect(press(v, 'Enter')).not.toContain('\n\n|');
+    expect(press(v, 'Enter')).toBe('- een\n\n|\n- drie');
+  });
+
+  it('Enter on an empty item of an indented list ends it with a blank line too', () => {
+    const v = make('  - een\n  - |');
+    expect(press(v, 'Enter')).toBe('  - een\n\n|');
   });
 
   it('Enter on an empty nested item moves it up a level, without a blank line', () => {
@@ -127,6 +138,16 @@ describe('Tab and Shift+Tab on list items', () => {
     expect(press(v, 'Tab')).toBe('- a\n  - |b\n    - c');
   });
 
+  it('keeps a list numbered 1. on every line when an item moves out of a sublist', () => {
+    const v = make('1. a\n1. b\n   1. c|');
+    expect(press(v, 'Tab', true)).toBe('1. a\n1. b\n1. c|');
+  });
+
+  it('a sublist left behind by Shift+Tab starts at 1 again', () => {
+    const v = make('1. a\n2. b\n   1. c|\n   2. d');
+    expect(press(v, 'Tab', true)).toBe('1. a\n2. b\n3. c|\n   1. d');
+  });
+
   it('leaves the first item where it is', () => {
     const v = make('1. |een\n2. twee');
     expect(press(v, 'Tab')).toBe('1. |een\n2. twee');
@@ -141,25 +162,19 @@ describe('Tab and Shift+Tab on list items', () => {
 describe('renumbering after an edit', () => {
   it('renumbers after a whole line is deleted, in one undo step', () => {
     const v = make('1. een\n2. twee\n3. drie\n4. vier\n5. vijf');
-    const line = v.state.doc.line(3);
-    v.dispatch({ changes: { from: line.from, to: line.to + 1 }, userEvent: 'delete.selection' });
-    expect(v.state.doc.toString()).toBe('1. een\n2. twee\n3. vier\n4. vijf');
+    expect(deleteLine(v, 3)).toBe('1. een\n2. twee\n3. vier\n4. vijf');
     undo(v);
     expect(v.state.doc.toString()).toBe('1. een\n2. twee\n3. drie\n4. vier\n5. vijf');
   });
 
   it('keeps the first number of a list that starts elsewhere', () => {
     const v = make('5. vijf\n6. zes\n7. zeven');
-    const line = v.state.doc.line(2);
-    v.dispatch({ changes: { from: line.from, to: line.to + 1 }, userEvent: 'delete.selection' });
-    expect(v.state.doc.toString()).toBe('5. vijf\n6. zeven');
+    expect(deleteLine(v, 2)).toBe('5. vijf\n6. zeven');
   });
 
   it('leaves a list numbered 1. on every line alone', () => {
     const v = make('1. een\n1. twee\n1. drie');
-    const line = v.state.doc.line(2);
-    v.dispatch({ changes: { from: line.from, to: line.to + 1 }, userEvent: 'delete.selection' });
-    expect(v.state.doc.toString()).toBe('1. een\n1. drie');
+    expect(deleteLine(v, 2)).toBe('1. een\n1. drie');
   });
 
   it('leaves a number the user types inside a line', () => {

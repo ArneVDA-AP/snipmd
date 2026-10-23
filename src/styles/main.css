@@ -248,7 +248,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .read-view img { margin: var(--s2) 0; }
 .read-view input[type='checkbox'] { margin: 0 0.4em 0 0; vertical-align: -1px; }
 /* A task item shows its checkbox in the bullet's place, not a bullet and a checkbox. */
-.read-view li:has(> input[type='checkbox']:first-child), .read-view li:has(> p:first-child > input[type='checkbox']:first-child) { list-style: none; }
+.read-view li:has(> input[type='checkbox']:first-child, > p:first-child > input[type='checkbox']:first-child) { list-style: none; }
 .read-view li > input[type='checkbox']:first-child, .read-view li > p:first-child > input[type='checkbox']:first-child { margin-left: -1.3em; }
 @keyframes fade-in { from { opacity: 0; } }
 

@@ -10,3 +10,12 @@ export function button(className: string, text: string, label: string, onClick: 
   b.addEventListener('click', onClick);
   return b;
 }
+
+/** A text field that is not a web form: no WebView2 "Saved info" popup with earlier entries, and no
+ *  macOS autocorrection, capitals or spell check while a name or search term is typed. */
+export function plainField(input: HTMLInputElement): void {
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('autocapitalize', 'off');
+  input.setAttribute('autocorrect', 'off');
+}

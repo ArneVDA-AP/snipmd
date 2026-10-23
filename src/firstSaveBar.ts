@@ -1,6 +1,6 @@
 // First-save bar (SPEC §6.2): folder, name and "Other folder…" for a note that has no file yet.
 import type { TabState } from './types';
-import { button } from './dom';
+import { button, plainField } from './dom';
 import { clearInfo, showError, showInfo } from './infobar';
 import { defaultNoteFolder, noteNameFree, pickFolder } from './ipc';
 import { basename } from './paths';
@@ -77,8 +77,7 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     input.type = 'text';
     input.className = 'firstsave-name';
     input.value = proposeName(text);
-    input.spellcheck = false;
-    input.autocomplete = 'off'; // no WebView2 "Saved info" popup with earlier names
+    plainField(input);
     input.setAttribute('aria-label', 'File name');
     const save = button('primary', 'Save', 'Save', () => submit());
     save.disabled = true;
