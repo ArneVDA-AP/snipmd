@@ -5,13 +5,12 @@ What is open, and the decisions still in force. Replace a section when it change
 ## v1.0.0: released
 Published 2026-10-22 from the tag `v1.0.0` on 1c3a3fe: the Windows installer, MSI and portable exe, and a macOS preview (`SnipMD_1.0.0_universal.preview.dmg`, ad-hoc signed, every runner probe passed). The v0.1.0 release is marked as the prototype.
 
-Before the release: the Windows tests on the owner's PC passed (report on the unmerged `test/w11-20261021` branch; three defects fixed in #20, #36, #37), and the final whole-app review's two blockers and four majors were fixed in #38 (minor findings: #39). A whole-repo hygiene pass followed in #42.
+Before the release: the Windows tests on the owner's PC passed (three defects fixed in #20, #36, #37), and the final whole-app review's two blockers and four majors were fixed in #38 (minor findings: #39). After it: the smoke test of the published Windows installer passed (steps 1-6; uninstall skipped on purpose), and the test-suite audit was merged in #46. Reports and audit are on `test/w11-20261021` and `archive/v1-process`.
 
 Open:
-1. **Smoke test** of the published Windows installer (RELEASE-WIN11.md, steps 1-7, without uninstalling), reported on `test/w11-20261021`.
-2. **Test-suite audit**: a child session runs mutation testing and opens a PR on `claude/test-audit`; the owner decides on the merge.
-3. **macOS on a real Mac**: the checklist in RELEASE-MACOS.md (#30). Until it passes, macOS stays a preview and the repo description names only Windows.
-4. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen).
+1. **macOS on a real Mac**: the checklist in RELEASE-MACOS.md (#30). The first Mac test report (2026-10-23) covered the editor and read mode, not the checklist (iCloud stamps, the privacy prompt, Retina, the feel next to native apps). Until the checklist passes, macOS stays a preview and the repo description names only Windows.
+2. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen).
+3. **Dependabot**: #44 (actions group) and #43 (`rand` 0.8 → 0.10, a major with API changes; needs `cargo test`).
 
 Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on `main` e951acb):
 
@@ -28,6 +27,16 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `RELEASE-MACOS.md` covers them.
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `RELEASE-MACOS.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
+## Next: from the Mac test report (2026-10-23)
+Fixed on `cc/quirky-lovelace-ge5udo`: list and quote keys (bugs 1, 2, 7, 8, 9: Enter ends a block, Tab nests to the marker width, ordered lists renumber), the task bullet in read mode (4), find-field autocorrection and Escape after a button click on macOS (5, 6), and `Untitled-N` taking the lowest free number (11). Built next, SPEC first, in this order:
+1. **Command menu** (one shortcut, `Ctrl+Shift+P` / `Cmd+Shift+P`): a filtered list in the app's own style, no settings screen. It runs commands and holds the toggles below; toggles live in `session.json`.
+2. **Line breaks** (bug 3): a toggle in the command menu to show a single line break as a break in read mode. Off by default, so read mode matches CommonMark and other viewers.
+3. **Syntax highlighting in code blocks**, in writing and reading, with the language parsers loaded lazily the first time a block names a language (the bundle decision below stays).
+4. **Tab order** (12): drag a tab to move it, `Ctrl+Shift+PageUp/PageDown` too; the order is kept in the session.
+5. **Optional extras**, each lazily loaded where it can be and switched in the command menu: checkboxes clickable in read mode (writes `[x]` to the source), a copy button on code blocks, a match counter in the find panel.
+
+Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3); a table inserter (outside §12).
+
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
 - Way of working: [#22](../../issues/22).
@@ -39,7 +48,10 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Look.** Fluent look: neutral greys, the default Fluent accent (not the system accent), Segoe UI Variable for notes and Cascadia Mono for code. Tokens live in `main.css`, and `contrast.test.ts` holds WCAG AA in both themes. Dimmed Markdown marks are held to 3:1, because they repeat what the styling already shows.
 - **Mica** is used only when Rust confirms Windows 11 (build 22000+). Otherwise the page stays opaque, so a wrong guess never shows the desktop.
 - **Keyboard.** F6 and Shift+F6 cycle note, info bar and tabs. The tab strip is one tab stop with arrows, Home, End, Enter and Delete. A held key acts once, except tab switching.
-- **Editor scope.** GFM without embedded HTML, CSS or JS parsers (bundle 658 → 398 KB). Read mode is lazy-loaded.
+- **Editor scope.** GFM without embedded HTML, CSS or JS parsers (bundle 658 → 398 KB). Read mode is lazy-loaded. Code-block languages load lazily when a block names one (owner, 2026-10-23).
+- **Lists.** Enter, Backspace and Tab are SnipMD's own on list and quote lines (`editor/lists.ts`), on top of CodeMirror's continuation: CodeMirror's Tab indented 2 spaces, which Markdown does not read as nesting under `1. `, and it renumbered only on Enter. Renumbering runs only on edits that add, remove or nest lines, so it costs nothing per keystroke inside a line.
+- **Settings** (owner, 2026-10-23). No settings screen: choices are toggles in a command menu opened with one shortcut. Optional features load lazily and are switched there.
+- **Untitled numbers** are the lowest number no open or closed tab uses, not a counter kept in the session; a restored closed tab never shares a title with a new one.
 - **Paste.** A paste in the middle of a note leaves the cursor on an empty line below the image, so typing never joins the next paragraph.
 - **WebView2.** Browser keys (reload, print, history) and the page menu are off. A reload would lose undo history and in-flight screenshots.
 - **Styles under Tauri's CSP.** CodeMirror gets Tauri's style nonce through `EditorView.cspNonce`. Switching the nonces off would also let note CSS apply if the sanitizer ever slipped.

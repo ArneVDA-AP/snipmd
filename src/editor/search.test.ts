@@ -44,4 +44,27 @@ describe('find and replace panel', () => {
     expect(inputs.length).toBeGreaterThan(0);
     for (const input of inputs) expect(input.getAttribute('autocomplete')).toBe('off');
   });
+
+  it('the panel fields turn off macOS autocorrection, capitals and spelling', () => {
+    const v = make('text');
+    openFind(v, false);
+    for (const name of ['search', 'replace']) {
+      expect(field(v, name).getAttribute('autocorrect')).toBe('off');
+      expect(field(v, name).getAttribute('autocapitalize')).toBe('off');
+      expect(field(v, name).spellcheck).toBe(false);
+    }
+  });
+
+  it('a click on a panel button keeps the focus where it is, a click in a field does not', () => {
+    const v = make('text');
+    openFind(v, false);
+    const press = (el: Element) => {
+      const e = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(press(v.dom.querySelector('.cm-search button[name=replaceAll]')!)).toBe(true);
+    expect(press(v.dom.querySelector('.cm-search input[type=checkbox]')!)).toBe(true);
+    expect(press(field(v, 'replace'))).toBe(false);
+  });
 });

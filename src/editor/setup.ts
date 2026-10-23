@@ -1,7 +1,7 @@
 import { EditorState, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { markdownKeymap, markdownLanguage, pasteURLAsLink } from '@codemirror/lang-markdown';
+import { markdownLanguage, pasteURLAsLink } from '@codemirror/lang-markdown';
 import { HighlightStyle, LanguageSupport, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { imageWidgetField } from './imageWidget';
@@ -10,6 +10,7 @@ import { notifyChange, tabIdFacet } from './registry';
 import { findExtension } from './search';
 import { markdownLines } from './mdStyle';
 import { emptyHint } from './emptyHint';
+import { listExtension } from './lists';
 
 /** Light Markdown styling (SPEC §5): larger headings, dimmed syntax, bold and italic shown. */
 const highlight = HighlightStyle.define([
@@ -31,9 +32,9 @@ const highlight = HighlightStyle.define([
 /**
  * GitHub-flavoured Markdown without embedded HTML or code languages: `markdown()` would pull in the
  * HTML, CSS and JavaScript parsers and autocompletion (SPEC §9: startup loads only what it needs).
- * Enter continues lists and quotes; pasting a URL over a selection makes a link.
+ * Enter, Backspace and Tab follow lists and quotes; pasting a URL over a selection makes a link.
  */
-const markdownSupport = new LanguageSupport(markdownLanguage, [Prec.high(keymap.of(markdownKeymap)), pasteURLAsLink]);
+const markdownSupport = new LanguageSupport(markdownLanguage, [Prec.high(listExtension()), pasteURLAsLink]);
 
 /**
  * The style nonce Tauri puts into index.html and the CSP of a release build. CodeMirror injects its

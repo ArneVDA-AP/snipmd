@@ -118,7 +118,6 @@ export function parseSession(raw: string | null): SessionFile | null {
   return {
     version: 3,
     activeTabId: tabs.some((t) => t.id === active) ? active : tabs[0].id,
-    untitledCounter: Math.max(1, num(d.untitledCounter) || tabs.length + 1),
     lastFolder: typeof d.lastFolder === 'string' && d.lastFolder ? d.lastFolder : null,
     tabs,
     closedTabs

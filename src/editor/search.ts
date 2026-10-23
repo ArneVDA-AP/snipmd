@@ -18,10 +18,31 @@ export function openFind(view: EditorView, replace: boolean): boolean {
 }
 
 /** The panel's fields are not a web form: WebView2 would otherwise offer earlier search terms in
- *  a "Saved info" popup over the note, and keep them in its profile. */
-const noAutofill = EditorView.updateListener.of((u) => {
+ *  a "Saved info" popup over the note, and keep them in its profile, and macOS would correct or
+ *  capitalize a search term as it is typed. */
+function plainFields(panel: HTMLElement): void {
+  for (const input of panel.querySelectorAll<HTMLInputElement>('input')) {
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+  }
+}
+
+/** A click on a button or checkbox keeps the focus in the field. WebKit (macOS) gives a clicked
+ *  button no focus, so the focus would fall out of the panel and Escape would no longer close it. */
+function keepFocus(panel: HTMLElement): void {
+  panel.addEventListener('mousedown', (e) => {
+    if ((e.target as Element).closest('button, label, input[type=checkbox]')) e.preventDefault();
+  });
+}
+
+const panelSetup = EditorView.updateListener.of((u) => {
   if (!searchPanelOpen(u.state) || searchPanelOpen(u.startState)) return;
-  for (const input of u.view.dom.querySelectorAll<HTMLInputElement>('.cm-search input')) input.autocomplete = 'off';
+  const panel = u.view.dom.querySelector<HTMLElement>('.cm-search');
+  if (!panel) return;
+  plainFields(panel);
+  keepFocus(panel);
 });
 
 const PHRASES = {
@@ -41,7 +62,7 @@ const PHRASES = {
 export function findExtension(): Extension {
   return [
     search({ top: true }),
-    noAutofill,
+    panelSetup,
     EditorState.phrases.of(PHRASES),
     // Replace is Cmd+Option+F on macOS, where Cmd+H hides the app (SPEC §13).
     keymap.of([{ key: 'Mod-h', mac: 'Mod-Alt-f', run: (v) => openFind(v, true), preventDefault: true, scope: 'editor search-panel' }, ...searchKeymap])
