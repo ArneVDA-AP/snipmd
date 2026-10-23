@@ -1,3 +1,10 @@
+/* Each feature's own rules; the colour tokens stay below, where contrast.test.ts reads them. */
+@import './menu.css';
+@import './code.css';
+@import './tabs-drag.css';
+@import './extras.css';
+@import './find-count.css';
+
 /*
  * SnipMD visual system. One light and one dark palette following Windows (SPEC §4), modelled on
  * Windows 11 Fluent. System fonts only. Every colour pair used for text is checked for WCAG AA in
@@ -58,6 +65,11 @@
   --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --match: #ffe08a;
   --match-current: #ffb547;
+  --tok-keyword: #8f2fa6;
+  --tok-string: #0b6a0b;
+  --tok-comment: #5f5f5f;
+  --tok-number: #9a4f00;
+  --tok-type: #00657f;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -91,6 +103,11 @@
     --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     --match: #5c4a12;
     --match-current: #7a4a00;
+    --tok-keyword: #d7a6ff;
+    --tok-string: #9fd49f;
+    --tok-comment: #a8a8a8;
+    --tok-number: #f0c674;
+    --tok-type: #7fd3e6;
     color-scheme: dark;
   }
 }

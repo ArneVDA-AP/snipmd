@@ -5,6 +5,7 @@ import { cachedUrl, ensureResolved } from '../editor/imageWidget';
 import { isWebUrl } from '../paths';
 import { openLink } from '../ipc';
 import { showError } from '../infobar';
+import type { Settings } from '../types';
 
 const escapeAttr = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -46,10 +47,11 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
  * Renders a note as an `<article>` for the read pane. Images the app resolved through Rust are
  * emitted without a src and filled in after sanitizing, so no URL a note wrote itself can pass as one of them.
  */
-export async function renderRead(tabId: string, content: string): Promise<HTMLElement> {
+export async function renderRead(tabId: string, content: string, opts: Readonly<Settings>): Promise<HTMLElement> {
   const own: string[] = [];
   const marked = new Marked({
     async: true,
+    breaks: opts.lineBreaks, // a single line break as a break (SPEC §4 toggle); off is CommonMark
     // Resolve exactly the images marked will render (not ones inside code blocks).
     walkTokens: async (token) => {
       if (token.type === 'image') await ensureResolved(tabId, token.href.trim());

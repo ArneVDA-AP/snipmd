@@ -14,6 +14,8 @@ export interface TitlebarHandlers {
   close: (id: string) => void;
   newTab: () => void;
   toggleMode: () => void;
+  /** A tab dragged to position `toIndex` among the open tabs. */
+  move: (id: string, toIndex: number) => void;
 }
 
 interface TabEl {

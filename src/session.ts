@@ -3,6 +3,7 @@ import type { ClosedTab, DiskStamp, SessionFile, TabState, TextFormat } from './
 import { loadSessionRaw, saveSessionRaw } from './ipc';
 import { clearInfo, showError } from './infobar';
 import { normPath } from './paths';
+import { parseSettings } from './settings';
 
 const DEBOUNCE_MS = 500;
 const SESSION_ERROR = 'session';
@@ -120,6 +121,7 @@ export function parseSession(raw: string | null): SessionFile | null {
     activeTabId: tabs.some((t) => t.id === active) ? active : tabs[0].id,
     lastFolder: typeof d.lastFolder === 'string' && d.lastFolder ? d.lastFolder : null,
     tabs,
-    closedTabs
+    closedTabs,
+    settings: parseSettings(d.settings)
   };
 }

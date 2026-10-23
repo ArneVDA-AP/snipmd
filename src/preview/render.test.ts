@@ -16,12 +16,25 @@ vi.mock('../ipc', () => ({ openLink }));
 
 import { renderRead } from './render';
 import { ensureResolved } from '../editor/imageWidget';
+import { parseSettings } from '../settings';
 
-async function render(md: string): Promise<HTMLElement> {
+async function render(md: string, settings: Record<string, boolean> = {}): Promise<HTMLElement> {
   const el = document.createElement('div');
-  el.append(await renderRead('t1', md));
+  el.append(await renderRead('t1', md, parseSettings(settings)));
   return el;
 }
+
+describe('line breaks', () => {
+  it('joins the lines of a paragraph by default, as CommonMark does', async () => {
+    const el = await render('een\ntwee');
+    expect(el.querySelector('br')).toBeNull();
+  });
+
+  it('shows a single line break as a break with the toggle on', async () => {
+    const el = await render('een\ntwee', { lineBreaks: true });
+    expect(el.querySelector('p br')).not.toBeNull();
+  });
+});
 
 describe('renderRead sanitizing', () => {
   it('drops data-* attributes a note writes (no drag regions, no borrowed state)', async () => {

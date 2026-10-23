@@ -27,13 +27,14 @@ vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 import { claimNewNote, promoteUntitled, readNote, saveImage, saveSessionRaw, writeNote } from './ipc';
 import { showError } from './infobar';
 import { askFirstSave } from './firstSaveBar';
+import { parseSettings } from './settings';
 
 const note = (text: string) => ({ text, format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: text.length } });
 const tab = (o: Partial<TabState>): TabState => ({
   id: 'x', title: 'x', filePath: null, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null, ...o
 });
 const session = (tabs: TabState[]): SessionFile => ({
-  version: 3, activeTabId: tabs[0].id, lastFolder: null, tabs, closedTabs: []
+  version: 3, activeTabId: tabs[0].id, lastFolder: null, tabs, closedTabs: [], settings: parseSettings(undefined)
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

@@ -1,7 +1,8 @@
 // Wiring: DOM skeleton, keyboard, lifecycle. The only place that connects modules.
 import { Titlebar } from './titlebar';
 import { focusInfobar, mountInfobar, showError, showInfo } from './infobar';
-import { loadSession } from './session';
+import { loadSession, scheduleSessionSave } from './session';
+import { initSettings, parseSettings } from './settings';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
@@ -30,6 +31,8 @@ import {
   focusActive,
   getActiveTab,
   getTabs,
+  moveTab,
+  refreshRead,
   initTabs,
   startSessionWrites,
   newUntitled,
@@ -187,7 +190,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
     open: (id) => void activate(id).then(focusActive),
     close: (id) => void closeTabWithRestore(id),
     newTab: () => void newUntitled(),
-    toggleMode: () => void toggleMode()
+    toggleMode: () => void toggleMode(),
+    move: (id, toIndex) => moveTab(id, toIndex)
   });
   initTabs({ editor: byId('editorPane'), read: byId('readPane') }, titlebar, scheduleAutosave);
   registerKeys(titlebar);
@@ -204,6 +208,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   ]);
   const startFiles = [...cliFiles, ...finderNotes];
   markStep('session');
+  initSettings(session?.settings ?? parseSettings(undefined), () => {
+    scheduleSessionSave({ immediate: true });
+    void refreshRead();
+  });
   document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
   else if (startFiles.length === 0) await newUntitled();

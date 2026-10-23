@@ -5,7 +5,7 @@ vi.mock('./ipc', () => ({ appWindow: { minimize: vi.fn(), toggleMaximize: vi.fn(
 
 import { Titlebar } from './titlebar';
 
-const h = { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn() };
+const h = { select: vi.fn(), open: vi.fn(), close: vi.fn(), newTab: vi.fn(), toggleMode: vi.fn(), move: vi.fn() };
 const tab = (id: string, extra: Partial<TabState> = {}): TabState => ({
   id, title: `${id}.md`, filePath: `C:/n/${id}.md`, content: '', dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: null, format: null, ...extra
 });

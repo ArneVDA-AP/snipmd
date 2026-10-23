@@ -27,6 +27,7 @@ import { bindSessionSource, scheduleSessionSave } from './session';
 import { clearTabInfo, showError } from './infobar';
 import { basename, normPath, samePath } from './paths';
 import type { Titlebar } from './titlebar';
+import { settingsSnapshot } from './settings';
 
 interface Panes {
   editor: HTMLElement;
@@ -164,7 +165,7 @@ export function snapshot(): SessionFile {
   const copies = getTabs().map((t) => ({ ...t, content: diskIsSource(t) ? '' : textOf(t) }));
   // Closed tabs keep their text, also when clean: the file may be gone by the time one is restored.
   const closed: ClosedTab[] = closedTabs().map(({ closedAt, ...t }) => ({ tab: { ...t, content: textOf(t) }, closedAt: closedAt! }));
-  return { version: 3, activeTabId: activeId, lastFolder, tabs: copies, closedTabs: closed };
+  return { version: 3, activeTabId: activeId, lastFolder, tabs: copies, closedTabs: closed, settings: settingsSnapshot() };
 }
 
 export async function restore(s: SessionFile): Promise<void> {
@@ -264,7 +265,7 @@ export async function activate(id: string): Promise<void> {
     let article: HTMLElement;
     const render = ++renders;
     try {
-      article = await renderRead(tab.id, textOf(tab));
+      article = await renderRead(tab.id, textOf(tab), settingsSnapshot());
     } catch (err) {
       if (render !== renders) return; // a newer render owns the pane
       // A note the renderer cannot handle (very deep nesting) goes back to writing: a read tab that
@@ -436,6 +437,33 @@ export async function toggleMode(): Promise<void> {
   captureVisible();
   tab.mode = tab.mode === 'edit' ? 'read' : 'edit';
   await activate(tab.id);
+}
+
+/** Moves an open tab to position `toIndex` among the open tabs (SPEC §4); the session keeps the order. */
+export function moveTab(id: string, toIndex: number): void {
+  const open = getTabs();
+  const from = open.findIndex((t) => t.id === id);
+  const to = Math.max(0, Math.min(toIndex, open.length - 1));
+  if (from === -1 || from === to) return;
+  const tab = open[from];
+  tabs.splice(tabs.indexOf(tab), 1);
+  // Closed tabs stay where they are in the one list; the moved tab goes next to its new neighbour.
+  const neighbour = open[to];
+  tabs.splice(tabs.indexOf(neighbour) + (to > from ? 1 : 0), 0, tab);
+  changed({ immediate: true });
+}
+
+/** Moves the active tab one place left or right; it stops at either end. */
+export function moveActive(delta: 1 | -1): void {
+  const open = getTabs();
+  const at = open.findIndex((t) => t.id === activeId);
+  if (at !== -1) moveTab(activeId, at + delta);
+}
+
+/** Renders the active tab again when it is in read mode, after a read-mode toggle changed. */
+export async function refreshRead(): Promise<void> {
+  const tab = getActiveTab();
+  if (tab?.mode === 'read') await activate(tab.id);
 }
 
 export async function cycle(delta: 1 | -1): Promise<void> {
