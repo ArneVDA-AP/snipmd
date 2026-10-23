@@ -1,6 +1,6 @@
 # SnipMD – testplan Windows 11 (23 oktober 2026)
 
-Voor de testsessie op de pc van de eigenaar: Claude met computer use, met de eigenaar erbij. Het plan test de build van `main` na PR #47, #48 en de Dependabot-updates #43 en #44.
+Voor de testsessie op de pc van de eigenaar: Claude met computer use, met de eigenaar erbij. Het plan test de pre-release **SnipMD v1.1.0-1**.
 - **A:** de punten uit het Mac-rapport, nu op Windows.
 - **B:** de nieuwe functies.
 - **C:** wat alleen in de echte app te zien is.
@@ -30,7 +30,7 @@ Noteer:
 | ID | Doe | Verwacht |
 |---|---|---|
 | I1 | Kopieer `%APPDATA%\com.snipmd.desktop\` naar `Desktop\snipmd-backup-20261023\`. Vergelijk het aantal bestanden en bytes. | Er is een volledige backup. |
-| I2 | Sluit SnipMD. Draai `SnipMD_1.0.0_x64-setup.exe` uit het artifact `SnipMD-windows-x64` van de run *Release Windows* op `main` van 23 oktober (de eigenaar downloadt het). Installeer over de bestaande versie. | Geen UAC-prompt. De installatie lukt. |
+| I2 | Sluit SnipMD. Ga naar https://github.com/ArneVDA-AP/snipmd/releases en neem **SnipMD v1.1.0-1**, gemarkeerd *Pre-release*, bovenaan de lijst. Neem niet *Latest*: dat is nog v1.0.0. Download `SnipMD_1.1.0-1_x64-setup.exe` en installeer over de bestaande versie heen. | Geen UAC-prompt; SmartScreen kan waarschuwen: vraag de eigenaar. De installatie lukt. |
 | I3 | Start SnipMD via de snelkoppeling. | De tabs van de eigenaar komen terug. |
 | I4 | Ctrl+T voor een testtab, dan Ctrl+Shift+P. | Bovenaan, onder de tabbalk, verschijnt een balk met "Type a command" en een lijst. Dat bewijst dat dit de nieuwe build is. Druk Esc. |
 
