@@ -2,8 +2,9 @@ import { EditorState, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdownLanguage, pasteURLAsLink } from '@codemirror/lang-markdown';
-import { HighlightStyle, LanguageSupport, syntaxHighlighting } from '@codemirror/language';
-import { tags } from '@lezer/highlight';
+import { HighlightStyle, Language, LanguageSupport, syntaxHighlighting } from '@codemirror/language';
+import { classHighlighter, tags } from '@lezer/highlight';
+import { parseCode, type MarkdownParser } from '@lezer/markdown';
 import { imageWidgetField } from './imageWidget';
 import { pasteExtension } from './paste';
 import { notifyChange, tabIdFacet } from './registry';
@@ -11,6 +12,7 @@ import { findExtension } from './search';
 import { markdownLines } from './mdStyle';
 import { emptyHint } from './emptyHint';
 import { listExtension } from './lists';
+import { codeParser } from './codeLanguages';
 
 /** Light Markdown styling (SPEC §5): larger headings, dimmed syntax, bold and italic shown. */
 const highlight = HighlightStyle.define([
@@ -30,11 +32,14 @@ const highlight = HighlightStyle.define([
 ]);
 
 /**
- * GitHub-flavoured Markdown without embedded HTML or code languages: `markdown()` would pull in the
- * HTML, CSS and JavaScript parsers and autocompletion (SPEC §9: startup loads only what it needs).
+ * GitHub-flavoured Markdown without embedded HTML: `markdown()` would pull in the HTML parser and
+ * autocompletion (SPEC §9). Fenced code is parsed by languages that load on first use. The language
+ * shares markdownLanguage.data: CodeMirror's list commands ask `markdownLanguage.isActiveAt`, which compares that
+ * facet, and a Language with other data would switch the list keys off.
  * Enter, Backspace and Tab follow lists and quotes; pasting a URL over a selection makes a link.
  */
-const markdownSupport = new LanguageSupport(markdownLanguage, [Prec.high(listExtension()), pasteURLAsLink]);
+const markdownWithCode = new Language(markdownLanguage.data, (markdownLanguage.parser as MarkdownParser).configure(parseCode({ codeParser })), [], 'markdown');
+const markdownSupport = new LanguageSupport(markdownWithCode, [Prec.high(listExtension()), pasteURLAsLink]);
 
 /**
  * The style nonce Tauri puts into index.html and the CSP of a release build. CodeMirror injects its
@@ -56,6 +61,7 @@ export function createEditorState(tabId: string, doc: string): EditorState {
       EditorView.contentAttributes.of({ spellcheck: 'true', 'aria-label': 'Note' }),
       markdownSupport,
       syntaxHighlighting(highlight),
+      syntaxHighlighting(classHighlighter),
       markdownLines,
       emptyHint,
       findExtension(),

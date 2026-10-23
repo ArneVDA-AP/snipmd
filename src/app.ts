@@ -2,7 +2,10 @@
 import { Titlebar } from './titlebar';
 import { focusInfobar, mountInfobar, showError, showInfo } from './infobar';
 import { loadSession, scheduleSessionSave } from './session';
-import { initSettings, parseSettings } from './settings';
+import { getSetting, initSettings, parseSettings, SETTINGS, setSetting } from './settings';
+import { initCommands, listCommands, runCommand, type Command } from './commands';
+import { toggleCommandMenu } from './commandMenu';
+import type { SettingKey } from './types';
 import { flushDirty, saveAs, saveTab, scheduleAutosave } from './saving';
 import { startExternalWatch } from './external';
 import { handleDrop } from './drop';
@@ -31,6 +34,7 @@ import {
   focusActive,
   getActiveTab,
   getTabs,
+  moveActive,
   moveTab,
   refreshRead,
   initTabs,
@@ -79,18 +83,32 @@ const onActive = (run: (id: string) => unknown) => {
 
 const find = (replace: boolean) => (getActiveTab()?.mode === 'read' ? findInRead(replace) : findInEdit(replace));
 
-/** SPEC §10, §13. The page's commands by name: the keys below and the macOS menu bar run them. */
-const COMMANDS: Record<string, () => unknown> = {
-  'new-tab': () => newUntitled(),
-  open: () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined)),
-  save: () => onActive(saveTab),
-  'save-as': () => onActive(saveAs),
-  'close-tab': () => onActive(closeTabWithRestore),
-  'reopen-tab': () => restoreClosedTab(),
-  'read-mode': () => toggleMode(),
-  find: () => find(false),
-  replace: () => find(true)
-};
+/** SPEC §4, §10, §13. The page's commands: the keys, the macOS menu bar and the command menu all run them by id. */
+function commandList(): Command[] {
+  const toggles = (Object.keys(SETTINGS) as SettingKey[]).map(
+    (key): Command => ({
+      id: `toggle:${key}`,
+      title: SETTINGS[key].title,
+      checked: () => getSetting(key),
+      run: () => setSetting(key, !getSetting(key))
+    })
+  );
+  return [
+    { id: 'new-tab', title: 'New Tab', keys: 'Ctrl+T', run: () => newUntitled() },
+    { id: 'open', title: 'Open…', keys: 'Ctrl+O', run: () => pickFileToOpen().then((p) => (p ? openPath(p) : undefined)) },
+    { id: 'save', title: 'Save', keys: 'Ctrl+S', run: () => onActive(saveTab) },
+    { id: 'save-as', title: 'Save As…', keys: 'Ctrl+Shift+S', run: () => onActive(saveAs) },
+    { id: 'close-tab', title: 'Close Tab', keys: 'Ctrl+W', run: () => onActive(closeTabWithRestore) },
+    { id: 'reopen-tab', title: 'Reopen Closed Tab', keys: 'Ctrl+Shift+T', run: () => restoreClosedTab() },
+    { id: 'read-mode', title: 'Toggle Read Mode', keys: 'Ctrl+E', run: () => toggleMode() },
+    { id: 'find', title: 'Find', keys: 'Ctrl+F', run: () => find(false) },
+    { id: 'replace', title: 'Replace', keys: IS_MAC ? 'Ctrl+Alt+F' : 'Ctrl+H', run: () => find(true) },
+    { id: 'tab-left', title: 'Move Tab Left', keys: 'Ctrl+Shift+PageUp', run: () => moveActive(-1) },
+    { id: 'tab-right', title: 'Move Tab Right', keys: 'Ctrl+Shift+PageDown', run: () => moveActive(1) },
+    { id: 'command-menu', title: 'Command Menu', keys: 'Ctrl+Shift+P', run: () => toggleCommandMenu(menuRows, runCommand) },
+    ...toggles
+  ];
+}
 
 /**
  * The app's modifier is down. On macOS that is Cmd alone, since Control keeps its text bindings
@@ -101,23 +119,31 @@ function commandKey(e: KeyboardEvent): boolean {
   return e.key === 'Tab' ? e.ctrlKey && !e.metaKey : e.metaKey && !e.ctrlKey;
 }
 
-/** SPEC §10. The command for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
-function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
+/** SPEC §10. Ctrl+1..9 and Ctrl+Tab move between tabs; they are not menu commands, and a held key repeats. */
+function tabKeyFor(e: KeyboardEvent): (() => unknown) | undefined {
   const digit = DIGIT.exec(e.code);
   // With NumLock off the numpad digits are End, arrows and Page Down: those stay editor keys.
   if (digit && (e.code.startsWith('Digit') || e.key === digit[1])) {
     const tab = getTabs()[Number(digit[1]) - 1];
     return tab && (() => activate(tab.id));
   }
+  return e.key === 'Tab' ? () => cycle(e.shiftKey ? -1 : 1) : undefined;
+}
+
+/** SPEC §10. The command id for a Ctrl (or Meta) key, or undefined when it is not ours (Ctrl+F in the editor, Ctrl+V: CodeMirror, paste.ts). */
+function commandFor(e: KeyboardEvent): string | undefined {
   const key = e.key.toLowerCase();
-  if (key === 'tab') return () => cycle(e.shiftKey ? -1 : 1);
-  if (e.shiftKey) return key === 's' ? COMMANDS['save-as'] : key === 't' ? COMMANDS['reopen-tab'] : undefined;
+  if (e.shiftKey) {
+    if (key === 'pageup') return 'tab-left';
+    if (key === 'pagedown') return 'tab-right';
+    return { s: 'save-as', t: 'reopen-tab', p: 'command-menu' }[key];
+  }
   switch (key) {
-    case 't': case 'n': return COMMANDS['new-tab'];
-    case 'o': return COMMANDS.open;
-    case 's': return COMMANDS.save;
-    case 'w': return COMMANDS['close-tab'];
-    case 'e': return COMMANDS['read-mode'];
+    case 't': case 'n': return 'new-tab';
+    case 'o': return 'open';
+    case 's': return 'save';
+    case 'w': return 'close-tab';
+    case 'e': return 'read-mode';
     case 'h':
       // Cmd+H hides the app on macOS; replace is Cmd+Option+F there (SPEC §13).
       if (IS_MAC) return undefined;
@@ -125,7 +151,7 @@ function commandFor(e: KeyboardEvent): (() => unknown) | undefined {
     case 'f':
       // In the note CodeMirror handles the key itself; outside it (tab strip, a bar) and in read mode, open the panel here.
       if (getActiveTab()?.mode !== 'read' && document.activeElement?.closest('.cm-editor')) return undefined;
-      return COMMANDS[key === 'h' ? 'replace' : 'find'];
+      return key === 'h' ? 'replace' : 'find';
   }
   return undefined;
 }
@@ -149,7 +175,8 @@ function isBrowserKey(e: KeyboardEvent): boolean {
   const k = e.key.toLowerCase();
   if (k === 'f3' || k === 'f5' || k === 'f7' || k === 'browserback' || k === 'browserforward' || k === 'browserrefresh') return true;
   if (e.altKey && (k === 'arrowleft' || k === 'arrowright')) return true;
-  return commandKey(e) && !e.altKey && ['r', 'p', 'j', 'u'].includes(k);
+  // Ctrl+Shift+P is the command menu; Ctrl+P alone stays print.
+  return commandKey(e) && !e.altKey && ['r', 'p', 'j', 'u'].includes(k) && !(k === 'p' && e.shiftKey);
 }
 
 /** The browser menu (Back, Reload, Print) only where text is: the note, inputs and selected read-mode text. */
@@ -173,17 +200,28 @@ function registerKeys(titlebar: Titlebar): void {
     if (!commandKey(e) || e.altKey) return;
     // A held key acts once (a held Ctrl+W would empty the window); only moving between tabs repeats.
     if (e.repeat && e.key !== 'Tab' && !DIGIT.test(e.code)) return e.preventDefault();
-    const run = commandFor(e);
-    if (!run) return;
+    const tabKey = tabKeyFor(e);
+    const id = tabKey ? undefined : commandFor(e);
+    if (!tabKey && !id) return;
     e.preventDefault();
-    void run();
+    void (tabKey ? tabKey() : runCommand(id!));
   });
 }
+
+/** The menu lists every command but itself: picking it would only close and reopen the menu. */
+const menuRows = () => listCommands().filter((c) => c.id !== 'command-menu');
+
+let commandsWired = false;
 
 export async function startApp(root: HTMLElement): Promise<void> {
   root.innerHTML = SKELETON;
   const byId = (id: string) => document.getElementById(id)!;
 
+  // The registry is wired once per page; a repeated start (tests) keeps it.
+  if (!commandsWired) {
+    initCommands(commandList());
+    commandsWired = true;
+  }
   mountInfobar(byId('infoTop'), byId('infoBottom'), focusActive);
   const titlebar = new Titlebar(byId('titlebar'), {
     select: (id) => void activate(id),
@@ -235,7 +273,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     onQuitRequested(flushForClose),
     onForwardedFiles((paths) => void openPaths(paths)),
     onOpenedNotes((paths) => void openPaths(paths)),
-    onMenuCommand((name) => void COMMANDS[name]?.()),
+    onMenuCommand((name) => void runCommand(name)),
     onPasteText((text) => pastePlainText(getView(), text)),
     onFilesDropped((d) => void handleDrop(d))
   ]);

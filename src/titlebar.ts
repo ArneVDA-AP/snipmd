@@ -25,6 +25,17 @@ interface TabEl {
 }
 
 const CLOSE_KEY = keys('Ctrl+W');
+const DRAG_START_PX = 4;
+const DRAG_CLASSES = ['dragging', 'drop-before', 'drop-after'];
+
+interface Drag {
+  id: string;
+  pointerId: number;
+  startX: number;
+  started: boolean;
+  /** Position among the rendered tabs the dragged tab would be inserted at, before it is taken out. */
+  slot: number | null;
+}
 
 function setMaximized(maxBtn: HTMLButtonElement, max: boolean): void {
   const label = max ? 'Restore' : 'Maximize';
@@ -70,6 +81,9 @@ export class Titlebar {
   private els = new Map<string, TabEl>();
   private order: string[] = [];
   private activeId = '';
+  private drag: Drag | null = null;
+  /** The click that ends a drag arrives after pointerup and must do nothing. */
+  private swallowClick = false;
 
   constructor(root: HTMLElement, private h: TitlebarHandlers) {
     this.strip = document.createElement('div');
@@ -123,7 +137,17 @@ export class Titlebar {
     close.append(icon('close'));
     close.addEventListener('click', (e) => e.stopPropagation());
     el.append(mode, title, close);
-    el.addEventListener('click', () => this.h.select(id));
+    el.addEventListener('click', () => {
+      if (this.swallowClick) {
+        this.swallowClick = false;
+        return;
+      }
+      this.h.select(id);
+    });
+    el.addEventListener('pointerdown', (e) => this.onPointerDown(e, id));
+    el.addEventListener('pointermove', (e) => this.onPointerMove(e, el));
+    el.addEventListener('pointerup', (e) => this.endDrag(e, el, true));
+    el.addEventListener('pointercancel', (e) => this.endDrag(e, el, false));
     // A click never puts focus on the tab (the note keeps it); middle-click shows no autoscroll cursor.
     el.addEventListener('mousedown', (e) => e.preventDefault());
     el.addEventListener('auxclick', (e) => {
@@ -147,7 +171,9 @@ export class Titlebar {
       }
       const active = tab.id === activeId;
       const cls = `tab${active ? ' active' : ''}${tab.dirty ? ' dirty' : ''}${tab.mode === 'read' ? ' read' : ''}`;
-      if (t.el.className !== cls) t.el.className = cls;
+      const kept = DRAG_CLASSES.filter((c) => t.el.classList.contains(c)); // a render must not end a drag
+      const full = kept.length ? `${cls} ${kept.join(' ')}` : cls;
+      if (t.el.className !== full) t.el.className = full;
       if (t.title.textContent !== tab.title) t.title.textContent = tab.title;
       const tip = tab.filePath ?? `${tab.title} (not saved yet)`;
       if (t.el.title !== tip) t.el.title = tip;
@@ -173,6 +199,72 @@ export class Titlebar {
     const activeTab = tabs.find((t) => t.id === activeId);
     this.chip.hidden = activeTab?.mode !== 'read';
     if (moved) this.els.get(activeId)?.el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  private onPointerDown(e: PointerEvent, id: string): void {
+    if (e.button !== 0 || !e.isPrimary || (e.target as HTMLElement).closest('.tab-close')) return;
+    // A press whose release never reached its tab must not leave a drag behind for the next one.
+    const stale = this.drag && this.els.get(this.drag.id)?.el;
+    if (stale) this.finishDrag(stale);
+    this.drag = { id, pointerId: e.pointerId, startX: e.clientX, started: false, slot: null };
+    // From the press on, so a release off the tab still ends the drag here.
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  }
+
+  private onPointerMove(e: PointerEvent, el: HTMLElement): void {
+    const d = this.drag;
+    if (!d || d.pointerId !== e.pointerId || d.id !== el.dataset.id) return;
+    if (!d.started) {
+      if (Math.abs(e.clientX - d.startX) <= DRAG_START_PX) return;
+      d.started = true;
+      el.classList.add('dragging');
+      document.addEventListener('keydown', this.onDragKey, true);
+    }
+    this.clearMarks();
+    const rects = this.order.map((id) => this.els.get(id)!.el.getBoundingClientRect());
+    if (!rects.length) return;
+    // Past either end of the strip the pointer still means the first or last tab.
+    let i = rects.findIndex((r) => e.clientX < r.right);
+    if (i < 0) i = rects.length - 1;
+    const r = rects[i];
+    const before = e.clientX < r.left + r.width / 2;
+    d.slot = before ? i : i + 1;
+    if (this.order[i] !== d.id) this.els.get(this.order[i])!.el.classList.add(before ? 'drop-before' : 'drop-after');
+  }
+
+  private endDrag(e: PointerEvent, el: HTMLElement, drop: boolean): void {
+    const d = this.drag;
+    if (!d || d.pointerId !== e.pointerId || d.id !== el.dataset.id) return;
+    this.finishDrag(el);
+    if (!d.started) return;
+    this.swallowClick = true;
+    setTimeout(() => (this.swallowClick = false), 0);
+    if (!drop || d.slot === null) return;
+    const from = this.order.indexOf(d.id);
+    // Taking the tab out shifts every later slot down by one.
+    const toIndex = from < d.slot ? d.slot - 1 : d.slot;
+    if (from >= 0) this.h.move(d.id, toIndex);
+  }
+
+  private onDragKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || !this.drag) return;
+    e.preventDefault();
+    const el = this.els.get(this.drag.id)?.el;
+    if (el) this.finishDrag(el);
+    else this.drag = null;
+  };
+
+  private finishDrag(el: HTMLElement): void {
+    const d = this.drag;
+    this.drag = null;
+    document.removeEventListener('keydown', this.onDragKey, true);
+    this.clearMarks();
+    el.classList.remove('dragging');
+    if (d && el.hasPointerCapture?.(d.pointerId)) el.releasePointerCapture(d.pointerId);
+  }
+
+  private clearMarks(): void {
+    for (const t of this.els.values()) t.el.classList.remove('drop-before', 'drop-after');
   }
 
   /** Arrows, Home and End move focus along the strip; Enter or Space opens; Delete closes. */

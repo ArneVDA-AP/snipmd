@@ -4,7 +4,10 @@ import DOMPurify, { type Config } from 'dompurify';
 import { cachedUrl, ensureResolved } from '../editor/imageWidget';
 import { isWebUrl } from '../paths';
 import { openLink } from '../ipc';
-import { showError } from '../infobar';
+import { showError, showInfo } from '../infobar';
+import { button } from '../dom';
+import { applyToTab, getState } from '../editor/registry';
+import { highlightCode } from '../editor/codeLanguages';
 import type { Settings } from '../types';
 
 const escapeAttr = (s: string): string =>
@@ -39,9 +42,61 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
   ALLOW_DATA_ATTR: false,
   // No role or aria-* from a note: it could make a screen reader announce its text as an app alert.
   ALLOW_ARIA_ATTR: false,
-  ADD_ATTR: ['data-own'], // the app's own mark for images it resolves (filled in after sanitizing)
+  // The app's own marks: images it resolves (filled in after sanitizing), and code blocks and task boxes
+  // it renders, which carry a per-render token (a note's own copy of the attribute is removed afterwards).
+  ADD_ATTR: ['data-own', 'data-code', 'data-task'],
   RETURN_DOM_FRAGMENT: true
 };
+
+/**
+ * The elements the app rendered itself: their attribute starts with this render's token, which a note
+ * cannot know. The attribute is removed from every other element.
+ */
+function appElements<T extends HTMLElement>(root: HTMLElement, attr: string, token: string): T[] {
+  const mine: { el: T; index: number }[] = [];
+  root.querySelectorAll<T>(`[${attr}]`).forEach((el) => {
+    const v = el.getAttribute(attr) ?? '';
+    const index = v.startsWith(`${token}-`) ? Number(v.slice(token.length + 1)) : NaN;
+    if (Number.isInteger(index)) mine.push({ el, index });
+    else el.removeAttribute(attr);
+  });
+  return mine.sort((a, b) => a.index - b.index).map((m) => m.el);
+}
+
+function copyButton(text: string): HTMLButtonElement {
+  const b = button('code-copy', 'Copy', 'Copy code', () => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        b.textContent = 'Copied';
+        setTimeout(() => (b.textContent = 'Copy'), 1500);
+      },
+      (err) => showError('copy the code', err)
+    );
+  });
+  return b;
+}
+
+/**
+ * A click on a task box: write the change into the note of this tab, or put the box back. `shown`
+ * holds the text the boxes were rendered from: a note that changed since (a reload from disk) may
+ * have its tasks in another order, so it is never written from these boxes.
+ */
+async function toggleTask(tabId: string, box: HTMLInputElement, index: number, rendered: number, shown: { text: string }): Promise<void> {
+  const before = !box.checked; // the click has already flipped it
+  const { taskChange } = await import('./tasks');
+  const state = getState(tabId); // read after the import: the note may have changed meanwhile
+  const changes = state && state.doc.toString() === shown.text ? taskChange(state, index, rendered, !before) : null;
+  if (changes && applyToTab(tabId, { changes, userEvent: 'input' })) {
+    shown.text = getState(tabId)!.doc.toString();
+    return;
+  }
+  box.checked = before;
+  showInfo({
+    kind: 'warning',
+    key: `task:${tabId}`,
+    text: 'This checkbox did not match a task in the note, so nothing changed. Edit it in writing (Ctrl+E).'
+  });
+}
 
 /**
  * Renders a note as an `<article>` for the read pane. Images the app resolved through Rust are
@@ -49,6 +104,9 @@ const SANITIZE: Config & { RETURN_DOM_FRAGMENT: true } = {
  */
 export async function renderRead(tabId: string, content: string, opts: Readonly<Settings>): Promise<HTMLElement> {
   const own: string[] = [];
+  const token = crypto.randomUUID();
+  const codes: { lang: string; text: string }[] = [];
+  let tasks = 0;
   const marked = new Marked({
     async: true,
     breaks: opts.lineBreaks, // a single line break as a break (SPEC §4 toggle); off is CommonMark
@@ -57,6 +115,14 @@ export async function renderRead(tabId: string, content: string, opts: Readonly<
       if (token.type === 'image') await ensureResolved(tabId, token.href.trim());
     },
     renderer: {
+      code({ text, lang }) {
+        const info = (lang ?? '').trim().split(/\s+/)[0];
+        codes.push({ lang: info, text });
+        return `<pre><code data-code="${token}-${codes.length - 1}">${escapeAttr(text)}</code></pre>\n`;
+      },
+      checkbox({ checked }) {
+        return `<input type="checkbox" data-task="${token}-${tasks++}" disabled${checked ? ' checked' : ''}> `;
+      },
       // Own renderer: marked's default would encodeURI the asset URL a second time.
       image({ href, text }) {
         const url = cachedUrl(tabId, (href || '').trim());
@@ -76,10 +142,26 @@ export async function renderRead(tabId: string, content: string, opts: Readonly<
     if (url === undefined) img.remove();
     else img.src = url;
   });
+  const appCode = appElements<HTMLElement>(article, 'data-code', token);
+  const appTasks = appElements<HTMLInputElement>(article, 'data-task', token);
+  appCode.forEach((code, i) => {
+    const { lang, text } = codes[i] ?? { lang: '', text: '' };
+    // Highlighting is cosmetic: a failure leaves the block plain.
+    if (lang) highlightCode(code, text, lang).catch(() => {});
+    if (opts.copyCode) code.parentElement?.append(copyButton(text));
+  });
+  if (opts.taskClicks) {
+    const shown = { text: content };
+    appTasks.forEach((box, i) => {
+      box.disabled = false;
+      box.addEventListener('click', () => void toggleTask(tabId, box, i, appTasks.length, shown));
+    });
+  }
   // One listener per render. The webview never navigates away (Rust guards that); web and mail
   // links open outside the app.
   article.addEventListener('click', (e) => {
     const target = e.target as Element;
+    if (target.closest('.code-copy, input')) return; // the app's own controls, also inside a note's link
     const img = target.closest('img.read-img');
     if (img) img.classList.toggle('expanded');
     const href = target.closest('a[href]')?.getAttribute('href');

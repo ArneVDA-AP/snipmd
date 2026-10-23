@@ -89,7 +89,12 @@ mod mac {
                     app,
                     "View",
                     true,
-                    &[&cmd("read-mode", "Read Mode", "CmdOrCtrl+E")?, &sep()?, &PredefinedMenuItem::fullscreen(app, None)?],
+                    &[
+                        &cmd("command-menu", "Command Menu…", "CmdOrCtrl+Shift+P")?,
+                        &cmd("read-mode", "Read Mode", "CmdOrCtrl+E")?,
+                        &sep()?,
+                        &PredefinedMenuItem::fullscreen(app, None)?,
+                    ],
                 )?,
                 &Submenu::with_items(
                     app,

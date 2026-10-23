@@ -1,1 +1,6 @@
 /* Moving a tab by dragging it (SPEC §4). */
+
+.tab.dragging { opacity: 0.6; }
+.tab.drop-before::after, .tab.drop-after::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
+.tab.drop-before::after { left: 0; }
+.tab.drop-after::after { right: 0; }

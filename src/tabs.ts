@@ -236,8 +236,10 @@ export function preloadReader(): void {
   idle(() => void loadReader().catch(() => {}));
 }
 
-/** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. */
-const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs');
+/** Keys in the tab strip (arrows, Delete) keep focus there; a held Delete must not reach a note. An
+ *  info bar keeps it too: a read-mode toggle in the command menu renders the pane again, and the
+ *  menu stays in use. */
+const stripHasFocus = (): boolean => !!document.activeElement?.closest('.tabs, .infobar-host');
 
 /** Counts read renders; only the latest may fill the read pane. */
 let renders = 0;

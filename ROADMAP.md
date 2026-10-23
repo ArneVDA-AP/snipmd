@@ -28,7 +28,7 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `RELEASE-MACOS.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## Next: from the Mac test report (2026-10-23)
-Fixed on `cc/quirky-lovelace-ge5udo`: list and quote keys (bugs 1, 2, 7, 8, 9: Enter ends a block, Tab nests to the marker width, ordered lists renumber), the task bullet in read mode (4), find-field autocorrection and Escape after a button click on macOS (5, 6), and `Untitled-N` taking the lowest free number (11). Built next, SPEC first, in this order:
+Fixed on `cc/quirky-lovelace-ge5udo`: list and quote keys (bugs 1, 2, 7, 8, 9: Enter ends a block, Tab nests to the marker width, ordered lists renumber), the task bullet in read mode (4), find-field autocorrection and Escape after a button click on macOS (5, 6), and `Untitled-N` taking the lowest free number (11). Items 1-5 are built on this branch (SPEC §4, §5, §7, §8, §10, §13), pending the Windows and Mac test:
 1. **Command menu** (one shortcut, `Ctrl+Shift+P` / `Cmd+Shift+P`): a filtered list in the app's own style, no settings screen. It runs commands and holds the toggles below; toggles live in `session.json`.
 2. **Line breaks** (bug 3): a toggle in the command menu to show a single line break as a break in read mode. Off by default, so read mode matches CommonMark and other viewers.
 3. **Syntax highlighting in code blocks**, in writing and reading, with the language parsers loaded lazily the first time a block names a language (the bundle decision below stays).
@@ -45,6 +45,13 @@ Not doing: a warning when quitting (autosave and the session already keep everyt
 ## Decisions in force
 One line each: what, and why. Autonomous runs add theirs here.
 
+- **Command menu** lives in the info bar (key `command-menu`), not a dialog, so it follows the no-modal rule and reuses the bar's focus and Esc handling.
+- **Code languages** are a fixed list, each parser a lazy chunk; an unknown name stays plain. A free-form list would pull every parser into the bundle.
+- **Extras** (clickable tasks, Copy button, find count) are on by default, line breaks off; each is a toggle in the command menu.
+- **Tab drag** uses pointer events, since Tauri's file drop takes over HTML drag and drop in the window.
+- **Startup size** after the command menu: one startup file of 432.6 kB (was 405.5 kB; +8.6 kB gzip). The menu, settings, drag and find count are about 18 kB, and `StreamLanguage` (for shell) about 8 kB: it lives in `@codemirror/language`, which is in the startup file anyway. Every language parser is its own lazy chunk; JS, TS, CSS and HTML load the bare Lezer grammars because lang-markdown imports their `@codemirror/lang-*` packages statically. Measure all JS that `dist/index.html` loads, not only `index-*.js`: a preloaded chunk hid a +200 kB regression once.
+- **Task clicks** write only while the note still has the text read mode was rendered from; after a reload from disk the boxes refuse and the info bar says so, until read mode renders again.
+- **Settings** are stored in `session.json` version 3; an older session reads as the defaults.
 - **Look.** Fluent look: neutral greys, the default Fluent accent (not the system accent), Segoe UI Variable for notes and Cascadia Mono for code. Tokens live in `main.css`, and `contrast.test.ts` holds WCAG AA in both themes. Dimmed Markdown marks are held to 3:1, because they repeat what the styling already shows.
 - **Mica** is used only when Rust confirms Windows 11 (build 22000+). Otherwise the page stays opaque, so a wrong guess never shows the desktop.
 - **Keyboard.** F6 and Shift+F6 cycle note, info bar and tabs. The tab strip is one tab stop with arrows, Home, End, Enter and Delete. A held key acts once, except tab switching.

@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { SearchQuery, setSearchQuery } from '@codemirror/search';
+import { initSettings } from '../settings';
 import { findExtension, openFind } from './search';
 
 let view: EditorView | null = null;
@@ -66,5 +68,82 @@ describe('find and replace panel', () => {
     expect(press(v.dom.querySelector('.cm-search button[name=replaceAll]')!)).toBe(true);
     expect(press(v.dom.querySelector('.cm-search input[type=checkbox]')!)).toBe(true);
     expect(press(field(v, 'replace'))).toBe(false);
+  });
+});
+
+describe('match count', () => {
+  const count = (v: EditorView) => v.dom.querySelector('.cm-search-count');
+  const query = (v: EditorView, search: string, regexp = false) => {
+    v.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search, regexp })) });
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestIdleCallback', undefined);
+    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: true }, () => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('appears after idle, not synchronously, after the find field', () => {
+    const v = make('a b a');
+    openFind(v, false);
+    query(v, 'a');
+    expect(count(v)!.textContent).toBe('');
+    expect(count(v)!.previousElementSibling).toBe(field(v, 'search'));
+    expect(count(v)!.getAttribute('aria-live')).toBe('polite');
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('2 matches');
+  });
+
+  it('says 2 of 3 when the second match is selected', () => {
+    const v = make('x x x', 2, 3);
+    openFind(v, false);
+    query(v, 'x');
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('2 of 3');
+  });
+
+  it('says No matches, and nothing for an empty or invalid query', () => {
+    const v = make('abc');
+    openFind(v, false);
+    query(v, 'zzz');
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('No matches');
+    query(v, '(', true);
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('');
+  });
+
+  it('stops at 1000+', () => {
+    const v = make('a'.repeat(1500));
+    openFind(v, false);
+    query(v, 'a');
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('1000+ matches');
+    v.dispatch({ selection: { anchor: 0, head: 1 } });
+    vi.advanceTimersByTime(100);
+    expect(count(v)!.textContent).toBe('1 of 1000+');
+  });
+
+  it('runs one count for several changes', () => {
+    const v = make('a a');
+    const spy = vi.spyOn(globalThis, 'setTimeout');
+    openFind(v, false);
+    query(v, 'a');
+    v.dispatch({ selection: { anchor: 0, head: 1 } });
+    v.dispatch({ changes: { from: 0, insert: 'a' } });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds no span when the setting is off', () => {
+    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: false }, () => {});
+    const v = make('a');
+    openFind(v, false);
+    query(v, 'a');
+    vi.advanceTimersByTime(100);
+    expect(count(v)).toBeNull();
   });
 });

@@ -452,6 +452,19 @@ describe('settings in the session and read mode', () => {
     await refreshRead();
     expect(renderRead).not.toHaveBeenCalled();
   });
+
+  it('a read-mode render leaves the focus in an info bar, so the command menu stays in use', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
+    document.body.insertAdjacentHTML('beforeend', '<div class="infobar-host"><input id="menu-field"></div>');
+    const field = document.getElementById('menu-field') as HTMLInputElement;
+    pane('r').tabIndex = -1; // as in the app, so the pane can take focus
+    await restore(session([tab({ id: 'rf-a', content: 'a', mode: 'read' })]));
+    field.focus();
+    await refreshRead();
+    frames.forEach((f) => f(0));
+    expect(document.activeElement).toBe(field);
+  });
 });
 
 describe('open, closed and the active tab', () => {
