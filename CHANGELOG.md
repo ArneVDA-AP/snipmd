@@ -56,7 +56,12 @@ The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; open tabs
 - Every opened note is untrusted: strict CSP, sanitized read mode, links never navigate the window, Rust commands only touch files the user opened, their image folders and the app's own folder; the asset protocol is granted per image file.
 
 ### Removed
-- The prototype's split view, theme gallery, side drawer, lightbox, HTML export and `localStorage` persistence (out of scope for v1, see `SPEC.md` §12).
+- The prototype's split view, theme gallery, side drawer, lightbox, HTML export and `localStorage` persistence (out of scope for v1).
 
 ## [0.1.0] - 2026-10-17
 Prototype.
+
+[1.1.0-2]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-1...v1.1.0-2
+[1.1.0-1]: https://github.com/ArneVDA-AP/snipmd/compare/v1.0.0...v1.1.0-1
+[1.0.0]: https://github.com/ArneVDA-AP/snipmd/compare/v0.1.0...v1.0.0
+[0.1.0]: https://github.com/ArneVDA-AP/snipmd/releases/tag/v0.1.0

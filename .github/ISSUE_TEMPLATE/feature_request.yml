@@ -14,6 +14,6 @@ body:
     id: proposal
     attributes:
       label: Proposed solution
-      description: How it should work. SnipMD keeps to the budgets in SPEC.md §9 (its own start under 150 ms, cold start under 1 s, installer under 10 MB); ideas outside the scope in SPEC.md §12 are collected in PROPOSALS.md.
+      description: How it should work. SnipMD keeps to the budgets in docs/SPEC.md §9 (its own start under 150 ms, cold start under 1 s, installer under 10 MB); ideas outside the scope in docs/SPEC.md §12 stay open as proposals until the maintainer agrees.
     validations:
       required: true

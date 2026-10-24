@@ -9,7 +9,7 @@ SnipMD opens Markdown files from anyone. Opening one must never run code or touc
 - The asset protocol is granted per image file at runtime. There is no general file-system plugin.
 
 ## Reporting a vulnerability
-Please do not open a public issue for something that lets a note run code or reach files. Open a private [security advisory](../../security/advisories/new) with the affected files, a reproducing note, and a fix if you have one.
+Please do not open a public issue for something that lets a note run code or reach files. Open a private [security advisory](https://github.com/ArneVDA-AP/snipmd/security/advisories/new) with the affected files, a reproducing note, and a fix if you have one.
 
 | Version | Supported |
 |---|---|

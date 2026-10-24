@@ -96,15 +96,35 @@ jobs:
           name: SnipMD-windows-x64
           path: release
 
+      # Only the changelog is checked out: this job has write access and runs no project code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # The release page shows what is new: this version's CHANGELOG section, then the downloads.
+      - name: Write the release notes
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v h="## [$v]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+          cat >> notes.md <<'TEXT'
+
+          ## Download
+          **Windows 10 and 11** (x64):
+          - `…_x64-setup.exe`: the installer most people want. No admin rights; registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it.
+          - `…_x64_en-US.msi`: for managed installs.
+          - `…_x64_portable.exe`: the app without installing (needs WebView2).
+
+          The files are not code-signed yet, so SmartScreen may warn on the first run: *More info*, then *Run anyway*.
+          TEXT
+
       - name: Publish release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           name: SnipMD ${{ github.ref_name }}
           # A version with a suffix (v1.1.0-1) is a test build: a pre-release, never "Latest".
           prerelease: ${{ contains(github.ref_name, '-') }}
-          body: |
-            SnipMD for Windows 10 and 11 (x64). See CHANGELOG.md for what changed.
-            - `SnipMD_*_x64-setup.exe`: per-user installer; registers .md and .markdown and fetches WebView2 if missing.
-            - `SnipMD_*_x64_en-US.msi`: for managed installs.
-            - `SnipMD_*_x64_portable.exe`: the app without installer (needs WebView2).
+          body_path: notes.md
           files: release/*
