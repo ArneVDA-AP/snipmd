@@ -1,0 +1,62 @@
+name: Release notes
+
+# Writes a release's text: the version's CHANGELOG section, then the downloads it has. Release
+# Windows and Release macOS call it after they publish; run it by hand (Actions → Release notes,
+# or `gh workflow run release-notes.yml -f tag=v1.0.0`) to rewrite an existing release from the
+# CHANGELOG on main. It checks out only CHANGELOG.md and runs no project code.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release to rewrite, e.g. v1.1.0
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Write and set the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]] || { echo "Not a version tag: $TAG"; exit 1; }
+          v="${TAG#v}"
+          awk -v h="## [$v]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+          assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          {
+            echo
+            echo "## Download"
+            if grep -q 'x64-setup\.exe$' <<<"$assets"; then
+              echo '**Windows 10 and 11** (x64):'
+              echo '- `…_x64-setup.exe`: the installer most people want. No admin rights; registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it.'
+              echo '- `…_x64_en-US.msi`: for managed installs.'
+              echo '- `…_x64_portable.exe`: the app without installing (needs WebView2).'
+              echo
+              echo 'The files are not code-signed yet, so SmartScreen may warn on the first run: *More info*, then *Run anyway*.'
+              echo
+            fi
+            if grep -q '\.preview\.dmg$' <<<"$assets"; then
+              echo '**macOS 13 or later** (Apple Silicon and Intel), a preview: open the `.dmg` and drag SnipMD to Applications. It is not signed by Apple yet, so allow its first start once, as [Installing on macOS](https://github.com/ArneVDA-AP/snipmd/blob/main/docs/install-macos.md) shows.'
+            elif grep -q '\.dmg$' <<<"$assets"; then
+              echo '**macOS 13 or later** (Apple Silicon and Intel): open the `.dmg` and drag SnipMD to Applications.'
+            fi
+          } >> notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"

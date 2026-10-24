@@ -4,7 +4,7 @@ For maintainers. Users install from [Releases](https://github.com/ArneVDA-AP/sni
 
 ## Before a tag
 - The version is set in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (and their lockfiles).
-- `CHANGELOG.md` has a `## [<version>] - <date>` section written for users (what they will notice, not how it was built) and a compare link at the bottom. *Release Windows* puts that section on the release page and fails without it.
+- `CHANGELOG.md` has a `## [<version>] - <date>` section written for users (what they will notice, not how it was built) and a compare link at the bottom. *Release Windows* stops before publishing without it; after publishing, *Release notes* (`.github/workflows/release-notes.yml`) writes that section and the downloads the release has as its text. Run *Release notes* by hand with a tag to rewrite an existing release from the CHANGELOG on `main`.
 - A final release after pre-releases (`1.1.0` after `1.1.0-1`, `-2`) gets one section that says everything new since the last final release; the pre-release sections stay below it.
 - The README describes the app as it is: a change a user sees updates it in the same PR.
 

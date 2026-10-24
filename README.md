@@ -54,7 +54,7 @@ On macOS, `Cmd` replaces `Ctrl`.
 | `Ctrl+Shift+V` | Paste as plain text |
 
 ## Install
-Download `SnipMD_<version>_x64-setup.exe` from [Releases](https://github.com/ArneVDA-AP/snipmd/releases/latest). It installs per user, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it; pick SnipMD once under *Open with* to open notes with a double-click. The installer is not code-signed yet, so SmartScreen may warn on the first run: choose *More info*, then *Run anyway*.
+Download `SnipMD_<version>_x64-setup.exe` from [Releases](https://github.com/ArneVDA-AP/snipmd/releases/latest). It installs per user, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it; pick SnipMD once under *Open with* to open notes with a double-click. The installer is not code-signed yet, so SmartScreen may warn on the first run: choose *More info*, then *Run anyway*. Signing is on its way: see the [code signing policy](docs/code-signing.md).
 
 An MSI for managed installs and a portable exe are on the same page.
 

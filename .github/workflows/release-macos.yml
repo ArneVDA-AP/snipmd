@@ -136,8 +136,13 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
-          append_body: true
-          body: |
-
-            **macOS 13 or later** (Apple Silicon and Intel): the `.dmg`. Open it and drag SnipMD to Applications. A `.preview` build is not signed by Apple yet: allow its first start once, as [Installing on macOS](https://github.com/ArneVDA-AP/snipmd/blob/main/docs/install-macos.md) shows.
           files: release/*.dmg
+
+  # Adds the macOS download to the release text, which comes from CHANGELOG.md.
+  notes:
+    needs: publish
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ github.ref_name }}

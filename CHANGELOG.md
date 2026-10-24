@@ -32,7 +32,7 @@ A pre-release for the Windows and Mac tests; 1.1.0 follows when they pass.
 
 ## [1.0.0] - 2026-10-22
 
-The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; open tabs and untitled text from the 0.1.0 session are restored, but screenshots of untitled 0.1.0 notes (`scratchpad/.assets/`) are not carried over.
+The first full release. It replaces the 0.1.0 prototype; open tabs and untitled text from the 0.1.0 session are restored, but screenshots of untitled 0.1.0 notes (`scratchpad/.assets/`) are not carried over.
 
 ### Added
 - Screenshot paste: `Ctrl+V` with only an image on the clipboard saves it next to the note (`<stem>.assets/`) and links it on its own line; text on the clipboard always pastes as text; `Ctrl+Shift+V` is plain text.
@@ -48,7 +48,7 @@ The first release built to `SPEC.md`. It replaces the 0.1.0 prototype; open tabs
 - Find and replace (`Ctrl+F`, `Ctrl+H`).
 - Light Markdown styling: larger headings, dimmed syntax, code blocks and quotes set apart.
 - A visual system modelled on Windows 11: light and dark follow Windows, Mica behind the tab bar on Windows 11, WCAG AA contrast, reduced motion respected.
-- Keyboard: every action has a key (SPEC §10); `F6` moves between note, info bar and tabs; the tab strip works with arrows, Enter and Delete.
+- Keyboard: every action has a key; `F6` moves between note, info bar and tabs; the tab strip works with arrows, Enter and Delete.
 - An empty tab shows the core loop.
 - The first window fits the screen, also on a small laptop at high scaling.
 

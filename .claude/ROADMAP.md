@@ -24,7 +24,7 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 
 ## macOS
 SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` builds a universal `.dmg` and runs the acceptance probes on the installed copy. A tag push does not publish it: a run with *publish* on adds the `.dmg` to a tag's release. Open, tracked in #30:
-- **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `RELEASE-MACOS.md` covers them.
+- **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `docs/releasing.md` covers them.
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `docs/install-macos.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## On `main` since 1.0.0 (not released)
@@ -36,7 +36,7 @@ From the Mac test report of 2026-10-23, merged in #47 and #48:
 - **Tab order** (12): drag a tab, or `Ctrl+Shift+PageUp/PageDown`; the order is kept in the session.
 - **Read mode follows reloads** from disk.
 
-Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3); a table inserter (outside §12).
+Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3). Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59).
 
 Open before a 1.1 release:
 1. **Mac test** of the pre-release `v1.1.0-2`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the `docs/releasing.md` checklist). Take the `.preview.dmg` from the Releases page.
@@ -51,6 +51,8 @@ Open before a 1.1 release:
 ## Decisions in force
 One line each: what, and why. Autonomous runs add theirs here.
 
+- **Code signing** (owner, 2026-10-24). Windows through SignPath Foundation (free for open source; Azure Artifact Signing is closed to individuals outside the US and Canada); the policy is `docs/code-signing.md`, and the owner applies. macOS needs the Apple Developer Program ($99 a year): the owner's call, and until then macOS stays a preview.
+- **Release text** comes from `CHANGELOG.md` through `release-notes.yml`, called by both release workflows and runnable by hand to rewrite an old release.
 - **Repo front** (owner, 2026-10-24). The root holds only what users and the build need; maintainer docs are in `docs/`, community files in `.github/`, session state (`CLAUDE.md`, this file) in `.claude/`. Release pages show the version's CHANGELOG section; proposals are issues.
 - **Command menu** lives in the info bar (key `command-menu`), not a dialog, so it follows the no-modal rule and reuses the bar's focus and Esc handling.
 - **Code languages** are a fixed list, each parser a lazy chunk; an unknown name stays plain. A free-form list would pull every parser into the bundle.
