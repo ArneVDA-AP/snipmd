@@ -3,7 +3,7 @@ name: macOS run
 # Manual: builds the universal app on a macOS runner (ad-hoc signed, SPEC §13), runs
 # tools/measure/macos-probe.sh against it (the acceptance probes of #30), prints the probe lines in
 # the log and uploads them with the screenshots as a workflow artifact (kept 30 days). Nothing is
-# committed or pushed. A runner is not a Mac on a desk: the manual checklist in RELEASE-MACOS.md is the judge.
+# committed or pushed. A runner is not a Mac on a desk: the manual checklist in docs/releasing.md is the judge.
 on:
   workflow_dispatch:
 

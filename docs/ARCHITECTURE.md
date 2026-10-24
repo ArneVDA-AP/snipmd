@@ -1,6 +1,6 @@
 # SnipMD architecture
 
-How the code is laid out and why. Behaviour is defined in `SPEC.md`; the rules for changing code are in `CLAUDE.md` (guardrails and conventions).
+How the code is laid out and why. Behaviour is defined in [`SPEC.md`](SPEC.md); the rules for changing code are in [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) (guardrails and conventions).
 
 ## Shape
 ```

@@ -14,7 +14,7 @@ APP="$1"
 OUT="$2"
 VERSION="$3"
 # Without a Developer ID the name says so: the release text sends a .preview build to the first-start
-# steps in RELEASE-MACOS.md.
+# steps in docs/install-macos.md.
 if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
   DMG="$OUT/SnipMD_${VERSION}_universal.dmg"
 else

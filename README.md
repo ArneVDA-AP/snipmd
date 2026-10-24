@@ -1,73 +1,75 @@
 # SnipMD
 
-**Paste, type, keep going.** A Windows note-taking app where a screenshot is as easy as a sentence.
+[![Latest release](https://img.shields.io/github/v/release/ArneVDA-AP/snipmd)](https://github.com/ArneVDA-AP/snipmd/releases/latest)
+[![CI](https://github.com/ArneVDA-AP/snipmd/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ArneVDA-AP/snipmd/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-1. `Win+Shift+S`: snip part of the screen with the Windows tool.
-2. `Ctrl+V`: the image appears in your note, below the cursor, already saved to disk.
-3. Keep typing. No dialog, no toast.
+**Paste, type, keep going.** A Markdown note app where a screenshot is as easy as a sentence.
+
+1. `Win+Shift+S`: snip part of the screen.
+2. `Ctrl+V`: the image appears in your note, already saved next to it.
+3. Keep typing. No dialog, no "save image as".
 
 | Writing | Reading (`Ctrl+E`) |
 |---|---|
 | ![SnipMD writing a note with a screenshot, light theme](docs/images/write-light.png) | ![The same note in read mode, dark theme](docs/images/read-dark.png) |
 
-## Your notes stay yours
-Notes are plain Markdown files with an image folder next to them (`labo-04.md` + `labo-04.assets/`). They open without loss in VS Code, Obsidian and on GitHub, and they keep working if you stop using SnipMD.
+**[Download for Windows](https://github.com/ArneVDA-AP/snipmd/releases/latest)** · Windows 10 and 11 (x64), a 1.5 MB installer, no admin rights.
+macOS 13+ is in preview: see [Installing on macOS](docs/install-macos.md).
 
-**With Obsidian:** save a note into a folder of your vault and Obsidian shows its screenshots. A note open in both apps stays in step: a change in one shows up in the other.
+## Your notes stay yours
+Notes are plain Markdown files with an image folder next to them (`labo-04.md` + `labo-04.assets/`). They open as they are in VS Code, Obsidian and on GitHub, and keep working if you stop using SnipMD. Save a note into an Obsidian vault and Obsidian shows its screenshots; a note open in both apps stays in step.
 
 ## It never loses anything
-- **Untitled notes survive a crash, Alt+F4 or a restart**, together with their screenshots. A screenshot that is still being saved when you close still lands in the note.
+- **Untitled notes survive a crash, Alt+F4 or a restart**, screenshots included.
+- **Notes save themselves** a second after you stop typing. Every write replaces the file in one step, so a crash never leaves half a note, and the file keeps its line endings and encoding.
 - **Closing a tab asks nothing.** `Ctrl+Shift+T` brings it back, also after a restart.
-- **Notes save themselves** a second after you stop typing, when you switch away and when you close. Every write replaces the file in one step, so a crash never leaves half a note. The file keeps its line endings and encoding.
-- **SnipMD watches for changes made elsewhere.** If another app changes the note, a tab without edits reloads. A tab with edits asks *Open disk version · Reload · Keep mine*; it never overwrites the other change without asking.
+- **Changes made elsewhere are noticed.** An unedited tab reloads; a tab with edits asks before anything is overwritten.
 
 ## What else it does
-- **Tabs** for notes. The first `Ctrl+S` of a new note proposes a name from its first heading.
-- **Screenshots inline.** Every local image link shows below its line; a click shows it at full size. Drop image files on a note to copy them in.
-- **Read mode** (`Ctrl+E`) shows the note rendered.
-- **Find and replace** (`Ctrl+F`, `Ctrl+H`) and light Markdown styling: larger headings, dimmed syntax, code and quotes set apart.
-- **Looks like Windows.** It follows the light or dark setting, with Mica behind the tab bar on Windows 11.
-- **Small and quick.** A 1.4 MB installer; a 4K screenshot shows in under 0.1 s after `Ctrl+V`.
+- **Tabs**, which you can drag into order. The first save proposes a name from the note's first heading.
+- **Inline images.** Every local image link shows below its line; drop image files on a note to copy them in.
+- **Read mode** (`Ctrl+E`) with clickable task boxes and a Copy button on code blocks.
+- **Code highlighting** for JavaScript, TypeScript, JSON, CSS, HTML, Python, Rust, SQL, shell and YAML.
+- **Command menu** (`Ctrl+Shift+P`) for every command and the few options there are.
+- **Find and replace** with a match count, and lists that keep their numbering as you edit.
+- **Looks like your system**: light or dark, with Mica behind the tabs on Windows 11.
 
 ## Safe with notes from others
-A Markdown file someone sends you can't run code or reach your files through SnipMD:
-- Read mode is sanitized.
-- Images load only from the note's own folder.
-- Links open in your browser.
-
-SnipMD makes no network connections and collects nothing. See [`SECURITY.md`](SECURITY.md).
+A Markdown file someone sends you can't run code or reach your files through SnipMD: read mode is sanitized, images load only from the note's own folder, and links open in your browser. SnipMD makes no network connections and collects nothing. See the [security policy](.github/SECURITY.md).
 
 ## Keyboard
+On macOS, `Cmd` replaces `Ctrl`.
+
 | Keys | Action |
 |---|---|
-| `Ctrl+T` / `Ctrl+N` | New tab |
-| `Ctrl+O` | Open a file |
+| `Ctrl+T` / `Ctrl+O` | New tab / open a file |
 | `Ctrl+S` / `Ctrl+Shift+S` | Save / Save As |
-| `Ctrl+W` / `Ctrl+Shift+T` | Close tab / restore it |
+| `Ctrl+W` / `Ctrl+Shift+T` | Close tab / bring it back |
 | `Ctrl+Tab`, `Ctrl+1`…`9` | Next tab, go to tab N |
+| `Ctrl+Shift+PageUp` / `PageDown` | Move the tab left / right |
+| `Ctrl+Shift+P` | Command menu |
 | `Ctrl+E` | Read mode |
 | `Ctrl+F` / `Ctrl+H` | Find / replace |
 | `Ctrl+Shift+V` | Paste as plain text |
-| `F6` | Move focus between note, info bar and tabs |
 
 ## Install
-SnipMD runs on Windows 10 and 11 (x64).
+Download `SnipMD_<version>_x64-setup.exe` from [Releases](https://github.com/ArneVDA-AP/snipmd/releases/latest). It installs per user, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it; pick SnipMD once under *Open with* to open notes with a double-click. The installer is not code-signed yet, so SmartScreen may warn on the first run: choose *More info*, then *Run anyway*.
 
-Download `SnipMD_<version>_x64-setup.exe` from [Releases](../../releases). The installer needs no admin rights, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it. To open `.md` files with a double-click, pick SnipMD once under *Open with*. The installer is not code-signed yet, so Windows SmartScreen may warn on the first run: choose *More info*, then *Run anyway*.
+An MSI for managed installs and a portable exe are on the same page.
 
-To build it yourself, you need Node.js 22, Rust with the MSVC toolchain, and the Visual Studio C++ build tools:
+## What's new
+See the [release notes](https://github.com/ArneVDA-AP/snipmd/releases) or the [changelog](CHANGELOG.md).
 
-```powershell
+## Building and contributing
+Node.js 22 and Rust stable:
+
+```
 npm ci
 npx tauri build
 ```
 
-The installer is then in `src-tauri\target\release\bundle\nsis\`.
-
-**macOS** (13 Ventura or later, Apple Silicon and Intel) is in testing. Builds come as `SnipMD_<version>_universal.dmg`; until SnipMD has an Apple Developer ID they are ad-hoc signed, and the first start needs the steps in [`RELEASE-MACOS.md`](RELEASE-MACOS.md).
-
-## Contributing
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). The behaviour is specified in [`SPEC.md`](SPEC.md), and the code is explained in [`ARCHITECTURE.md`](ARCHITECTURE.md). SnipMD is built with Claude (Anthropic) as the main author.
+See [CONTRIBUTING](.github/CONTRIBUTING.md). SnipMD is written with Claude (Anthropic) as the main author.
 
 ## License
-MIT
+[MIT](LICENSE)

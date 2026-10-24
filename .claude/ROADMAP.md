@@ -8,7 +8,7 @@ Published 2026-10-22 from the tag `v1.0.0` on 1c3a3fe: the Windows installer, MS
 Before the release: the Windows tests on the owner's PC passed (three defects fixed in #20, #36, #37), and the final whole-app review's two blockers and four majors were fixed in #38 (minor findings: #39). After it: the smoke test of the published Windows installer passed (steps 1-6; uninstall skipped on purpose), and the test-suite audit was merged in #46. Reports and audit are on `test/w11-20261021` and `archive/v1-process`.
 
 Open:
-1. **macOS on a real Mac**: the checklist in RELEASE-MACOS.md (#30). The first Mac test report (2026-10-23) covered the editor and read mode, not the checklist (iCloud stamps, the privacy prompt, Retina, the feel next to native apps). Until the checklist passes, macOS stays a preview and the repo description names only Windows.
+1. **macOS on a real Mac**: the checklist in `docs/releasing.md` (#30). The first Mac test report (2026-10-23) covered the editor and read mode, not the checklist (iCloud stamps, the privacy prompt, Retina, the feel next to native apps). Until the checklist passes, macOS stays a preview and the repo description names only Windows.
 2. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen).
 3. **Dependabot**: #44 (actions group) and #43 (`rand` 0.8 → 0.10, a major with API changes; needs `cargo test`).
 
@@ -25,7 +25,7 @@ Measured on the owner's desktop (i7-8700K, Windows 11 23H2, 2026-10-21; start on
 ## macOS
 SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` builds a universal `.dmg` and runs the acceptance probes on the installed copy. A tag push does not publish it: a run with *publish* on adds the `.dmg` to a tag's release. Open, tracked in #30:
 - **A real Mac.** The runner cannot judge how the app feels next to native apps, iCloud-synced `~/Documents` changing file stamps (false conflict bars?), the first-run privacy prompt for `~/Documents`, or Retina rendering by eye. The manual checklist in `RELEASE-MACOS.md` covers them.
-- **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `RELEASE-MACOS.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
+- **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `docs/install-macos.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## On `main` since 1.0.0 (not released)
 From the Mac test report of 2026-10-23, merged in #47 and #48:
@@ -39,18 +39,19 @@ From the Mac test report of 2026-10-23, merged in #47 and #48:
 Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3); a table inserter (outside §12).
 
 Open before a 1.1 release:
-1. **Mac test** of the pre-release `v1.1.0-2`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the RELEASE-MACOS.md checklist). Take the `.preview.dmg` from the Releases page.
+1. **Mac test** of the pre-release `v1.1.0-2`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the `docs/releasing.md` checklist). Take the `.preview.dmg` from the Releases page.
 2. **Windows test** of `v1.1.0-1` (2026-10-24, report on `test/w11-20261023`): no failures. Its four remarks are fixed in `v1.1.0-2` (the reason in the first-save bar, no spellcheck in code, plain text colour in unhighlighted blocks, the `.preview` dmg name). Left for the owner: holding Enter on a toggle (B4, computer use cannot hold a key), light and dark theme (C2), the USB stick (E2), the display scale (E3), and AZERTY `Ctrl+1`/`Ctrl+2` (E1).
 3. **Old branches**: 41 merged or archived branches are left to delete (listed in the session of 2026-10-23); the session's permissions do not allow `git push --delete`.
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
 - Way of working: [#22](../../issues/22).
-- Ideas outside the v1 scope: `PROPOSALS.md`.
+- Ideas outside the v1 scope: GitHub issues labelled `enhancement` (#53–#56 came from the former PROPOSALS.md).
 
 ## Decisions in force
 One line each: what, and why. Autonomous runs add theirs here.
 
+- **Repo front** (owner, 2026-10-24). The root holds only what users and the build need; maintainer docs are in `docs/`, community files in `.github/`, session state (`CLAUDE.md`, this file) in `.claude/`. Release pages show the version's CHANGELOG section; proposals are issues.
 - **Command menu** lives in the info bar (key `command-menu`), not a dialog, so it follows the no-modal rule and reuses the bar's focus and Esc handling.
 - **Code languages** are a fixed list, each parser a lazy chunk; an unknown name stays plain. A free-form list would pull every parser into the bundle.
 - **Extras** (clickable tasks, Copy button, find count) are on by default, line breaks off; each is a toggle in the command menu.
@@ -70,8 +71,8 @@ One line each: what, and why. Autonomous runs add theirs here.
 - **Styles under Tauri's CSP.** CodeMirror gets Tauri's style nonce through `EditorView.cspNonce`. Switching the nonces off would also let note CSS apply if the sanitizer ever slipped.
 - **Find fields.** Ctrl+H focuses Replace only when Find already holds a term. The find and file-name fields set `autocomplete=off`, so WebView2's "Saved info" popup does not appear.
 - **Data folder.** `%APPDATA%\com.snipmd.desktop`, Tauri's folder for the app identifier. The docs follow the code; moving the folder would strand existing sessions.
-- **Window title** does not follow the active tab: it needs a new window permission. Moved to `PROPOSALS.md`.
-- **Developer switches.** Budget marks ship in the build. `SNIPMD_TRACE` and `SNIPMD_DATA_DIR` are documented in ARCHITECTURE.md, not in the SPEC.
+- **Window title** does not follow the active tab: it needs a new window permission. Proposed in #53.
+- **Developer switches.** Budget marks ship in the build. `SNIPMD_TRACE` and `SNIPMD_DATA_DIR` are documented in `docs/ARCHITECTURE.md`, not in the SPEC.
 - **Closed tabs.** Open and closed tabs are one list, and a closed tab has `closedAt`. `getTab` finds any tab, and `openTab` and `getTabs` find open ones. Two lists led to a wrong pick and a data-safety bug.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.

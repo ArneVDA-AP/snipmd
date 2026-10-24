@@ -1,13 +1,14 @@
 # CLAUDE.md — SnipMD
 
 ## Ground truth
-- `SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, raise it and update the spec first.
-- `ROADMAP.md` holds what is open and the decisions in force. Rewrite its sections when they change; don't append history. Deferred findings are GitHub issues.
-- `ARCHITECTURE.md` explains the code layout as it is now; keep it current when the layout changes.
+- `docs/SPEC.md` is the single source of truth for behavior. If code and spec disagree, the spec wins; if the spec is unclear or wrong, raise it and update the spec first.
+- `.claude/ROADMAP.md` holds what is open and the decisions in force. Rewrite its sections when they change; don't append history. Deferred findings are GitHub issues.
+- `docs/ARCHITECTURE.md` explains the code layout as it is now; keep it current when the layout changes.
 
 ## Workflow
 - Work on a branch, never directly on `main`. Commit and open PRs only when asked, or in an autonomous run.
 - **Autonomous runs.** When the owner has handed over authority, the session decides: it commits, opens PRs and merges each once CI is green and its review has no open blocker or major. thin-standard args are written to `.claude/runs/` and used, not held for approval. Every decision gets a line in ROADMAP.md "Decisions in force"; the session ends with ROADMAP.md current, so a cold session can continue. The guardrails, the public-repo commit rules and "never rewrite `main`, never delete user data, never widen permissions" still hold.
+- **The repo front is for users.** The root holds only what a user or the build needs (README, LICENSE, CHANGELOG, build config, source folders). Maintainer docs live in `docs/`, community files in `.github/`, session state and agent files in `.claude/`. The README describes the app as it is on `main`; a PR that changes what a user sees updates it in the same PR. The README and release notes link only to pages a user can act on.
 - **Process records stay off `main` once their work is merged.** Reviews (`review/`), findings (`findings/`) and run args (`.claude/runs/`) live on the working branch; at each milestone they move to an archive branch (`archive/v1-process` holds v1, `archive/1.1-process` what came after). Screenshots for a review are workflow artifacts or files on a `test/` branch, not commits to `main`.
 
 ## Stack
@@ -40,7 +41,7 @@
 14. Nothing outside the v1 scope (SPEC §12) without agreement.
 
 ## Code conventions
-Few rules, each general. A rule that a type, test or lint now enforces is deleted from this list; module details belong in ARCHITECTURE.md.
+Few rules, each general. A rule that a type, test or lint now enforces is deleted from this list; module details belong in `docs/ARCHITECTURE.md`.
 
 1. **One source of truth.** A tab's text lives in its CodeMirror `EditorState`; read it with `textOf`. `TabState.content` only feeds the session and a restore. Never mirror derived state; a cache keeps one tagged entry per key (`ok` / `pending` / `failed`).
 2. **Nothing O(document) per keystroke.** The change listener only marks dirty and schedules; work that needs the text runs at save or session-write time, on debounce or idle.

@@ -104,7 +104,7 @@ jobs:
           if [ "$DEVELOPER_ID" = "true" ]; then
             echo "$verdict" | grep -q accepted || { echo "A Developer ID build must pass Gatekeeper"; exit 1; }
           fi
-          # The first-start step for an ad-hoc build (RELEASE-MACOS.md); harmless on a notarized one.
+          # The first-start step for an ad-hoc build (docs/install-macos.md); harmless on a notarized one.
           xattr -dr com.apple.quarantine "$app"
           tools/measure/macos-probe.sh "$app" "$out" 2>&1 | tee release/probe.txt
           if grep -E ': (FAIL|BLOCKED) - ' release/probe.txt; then
@@ -139,5 +139,5 @@ jobs:
           append_body: true
           body: |
 
-            **macOS 13 or later** (Apple Silicon and Intel): `SnipMD_*_universal*.dmg`. Open it and drag SnipMD to Applications. A `.preview` build is not signed by Apple yet, so its first start needs the steps in RELEASE-MACOS.md.
+            **macOS 13 or later** (Apple Silicon and Intel): the `.dmg`. Open it and drag SnipMD to Applications. A `.preview` build is not signed by Apple yet: allow its first start once, as [Installing on macOS](https://github.com/ArneVDA-AP/snipmd/blob/main/docs/install-macos.md) shows.
           files: release/*.dmg
