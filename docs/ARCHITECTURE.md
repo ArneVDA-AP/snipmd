@@ -1,6 +1,6 @@
 # SnipMD architecture
 
-How the code is laid out and why. Behaviour is defined in [`SPEC.md`](SPEC.md); the rules for changing code are in [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) (guardrails and conventions).
+How the code is laid out and why. Behaviour is defined in [`SPEC.md`](SPEC.md); the rules for changing code are in [`CONVENTIONS.md`](CONVENTIONS.md) (guardrails and conventions).
 
 ## Shape
 ```
@@ -51,3 +51,22 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `.github/workflows/release-macos.yml` (manual): builds the universal app, packs it with `tools/release/macos-package.sh` (Developer ID signing and notarization when the secrets exist, ad-hoc otherwise), installs it from the `.dmg` and runs the same probes on that copy. On a tag with *publish* on, it adds the `.dmg` to the release. See [`releasing.md`](releasing.md).
 - `.github/workflows/release-win11.yml` (on a version tag): builds, tests and publishes the Windows files.
 - `.github/workflows/release-notes.yml` (called by both release workflows, or by hand with a tag): sets a release's text from its CHANGELOG section and the downloads it has.
+
+## Decisions
+Build choices that are not obvious from the code, one line each: what, and why. Behaviour decisions are in SPEC §14.
+
+- **Command menu** is the keyed info bar `command-menu`, not a dialog: it keeps the no-modal rule and reuses the bar's focus and Esc handling.
+- **Editor scope.** GFM without the embedded HTML, CSS and JS parsers (bundle 658 → 398 KB). Read mode is a lazy chunk.
+- **Code languages** are a fixed list, each parser its own lazy chunk; an unknown name stays plain. A free-form list would pull every parser into the bundle.
+- **Startup size.** `npm run build` fails above 440 kB of startup JS: the entry chunk plus every chunk it imports statically (`vite.config.ts`). Measuring only `index-*.js` once missed a +200 kB preload. `StreamLanguage` (for shell) costs about 8 kB because it lives in `@codemirror/language`, which is in the startup file anyway.
+- **Lists.** Enter, Backspace and Tab are SnipMD's own on list and quote lines (`editor/lists.ts`), on top of CodeMirror's continuation: CodeMirror's Tab indented 2 spaces, which Markdown does not read as nesting under `1. `, and it renumbered only on Enter. Renumbering runs only on edits that add, remove or nest lines, so it costs nothing per keystroke inside a line.
+- **Closed tabs.** Open and closed tabs are one list, and a closed tab has `closedAt`. Two lists led to a wrong pick and a data-safety bug.
+- **Untitled numbers** come from the open and closed tabs, not from a counter in the session, so a restored closed tab never shares a title with a new one.
+- **Look.** Fluent: neutral greys, the default Fluent accent (not the system accent), Segoe UI Variable for notes and Cascadia Mono for code. Dimmed Markdown marks are held to 3:1, because they repeat what the styling already shows.
+- **Mica** is used only when Rust confirms Windows 11 (build 22000+). Otherwise the page stays opaque, so a wrong guess never shows the desktop.
+- **Styles under Tauri's CSP.** CodeMirror gets Tauri's style nonce through `EditorView.cspNonce`. Switching the nonces off would also let note CSS apply if the sanitizer ever slipped.
+- **WebView2.** Browser keys (reload, print, history) and the page menu are off. A reload would lose undo history and in-flight screenshots.
+- **Find fields.** Ctrl+H focuses Replace only when Find already holds a term. The find and file-name fields set `autocomplete=off`, so WebView2's "Saved info" popup does not appear.
+- **Data folder.** `%APPDATA%\com.snipmd.desktop` is Tauri's folder for the app identifier. Moving it would strand existing sessions.
+- **Start.** A broker process that keeps WebView2 warm reaches about 320 ms, but crashes SnipMD's start when its options differ, so it is out. SPEC §9 budgets SnipMD's own start and the cold start separately for that reason.
+- **macOS.** macOS 13 Ventura or later, one universal binary: Ventura still runs on 2017 Intel Macs and its WebKit has everything the frontend uses. No vibrancy, since it needs `macOSPrivateApi`.

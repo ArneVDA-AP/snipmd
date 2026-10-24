@@ -2,9 +2,9 @@
 
 ## Before you change anything
 - [`docs/SPEC.md`](../docs/SPEC.md) decides what SnipMD does. If your change alters behaviour, change the spec first and say why.
-- [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) lists the guardrails (data safety, security, editor, UX) and the code conventions. They apply to every change, whoever writes it.
+- [`docs/CONVENTIONS.md`](../docs/CONVENTIONS.md) lists the guardrails (data safety, security, editor, UX) and the code conventions. They apply to every change, whoever writes it.
 - The scope is SPEC §12. Ideas outside it go into a feature request (an issue), not into code.
-- [`.claude/ROADMAP.md`](../.claude/ROADMAP.md) says what is open; known follow-ups are GitHub issues. How the code is laid out: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md); how to release: [`docs/releasing.md`](../docs/releasing.md). The design history of v1 is on the `archive/v1-process` branch.
+- Open work and ideas are GitHub issues. How the code is laid out and why: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md); how to release: [`docs/releasing.md`](../docs/releasing.md).
 
 ## Setup
 Node.js 22 and Rust stable; Windows 10 or 11 to run the app (`npm run tauri dev`).
