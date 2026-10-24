@@ -39,8 +39,8 @@ From the Mac test report of 2026-10-23, merged in #47 and #48:
 Not doing: a warning when quitting (autosave and the session already keep everything, SPEC §3.3); a table inserter (outside §12).
 
 Open before a 1.1 release:
-1. **Mac test** of a build of `main`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the RELEASE-MACOS.md checklist). The build is the artifact of *Release macOS* run 4 on 02adcfb.
-2. **Windows test** of the same features on the owner's PC: the Copy button (clipboard in WebView2), the look under the release CSP, dragging a tab with a mouse, `Ctrl+Shift+P`.
+1. **Mac test** of the pre-release `v1.1.0-2`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the RELEASE-MACOS.md checklist). Take the `.preview.dmg` from the Releases page.
+2. **Windows test** of `v1.1.0-1` (2026-10-24, report on `test/w11-20261023`): no failures. Its four remarks are fixed in `v1.1.0-2` (the reason in the first-save bar, no spellcheck in code, plain text colour in unhighlighted blocks, the `.preview` dmg name). Left for the owner: holding Enter on a toggle (B4, computer use cannot hold a key), light and dark theme (C2), the USB stick (E2), the display scale (E3), and AZERTY `Ctrl+1`/`Ctrl+2` (E1).
 3. **Old branches**: 41 merged or archived branches are left to delete (listed in the session of 2026-10-23); the session's permissions do not allow `git push --delete`.
 
 ## After v1

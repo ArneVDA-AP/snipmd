@@ -1,6 +1,6 @@
 # Releasing SnipMD for macOS
 
-SnipMD for macOS ships as one universal app (Apple Silicon and Intel) in `SnipMD_<version>_universal.dmg`, for macOS 13 Ventura or later (SPEC §13). Target size: under 10 MB (SPEC §9).
+SnipMD for macOS ships as one universal app (Apple Silicon and Intel) in `SnipMD_<version>_universal.dmg` (`SnipMD_<version>_universal.preview.dmg` while it has no Developer ID signature), for macOS 13 Ventura or later (SPEC §13). Target size: under 10 MB (SPEC §9).
 
 ## Building and publishing
 The workflow *Release macOS* (`.github/workflows/release-macos.yml`) runs by hand (Actions → Release macOS → Run workflow):

@@ -2,6 +2,16 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-2] - 2026-10-24
+
+A second pre-release, after the Windows 11 test of 1.1.0-1.
+
+### Changed
+- The first-save bar says why Save is off: the name is taken, holds a folder (use Other folder…), or has a character a file name cannot hold.
+- Fenced code has no spelling squiggles, also under the fence's language name.
+- Code in a block without highlighting has the text colour while writing, as in read mode.
+- The macOS `.dmg` without a Developer ID signature is named `*.preview.dmg`, as the release text says.
+
 ## [1.1.0-1] - 2026-10-23
 
 A pre-release for the Windows and Mac tests; 1.1.0 follows when they pass.

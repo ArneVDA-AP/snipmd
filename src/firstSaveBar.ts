@@ -79,6 +79,10 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     input.value = proposeName(text);
     plainField(input);
     input.setAttribute('aria-label', 'File name');
+    // Why Save is off, next to the field: a refused name must not look like a frozen button.
+    const why = document.createElement('span');
+    why.className = 'firstsave-why';
+    why.setAttribute('role', 'status');
     const save = button('primary', 'Save', 'Save', () => submit());
     save.disabled = true;
     const other = button('', 'Other folder…', 'Other folder', () => finish('other'));
@@ -90,14 +94,18 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
     function check(): void {
       const mine = ++seq;
       const name = noteFileName(input.value);
-      const set = (ok: boolean): void => {
+      const set = (ok: boolean, reason = ''): void => {
         if (mine !== seq || done) return;
-        input.classList.toggle('taken', !ok);
+        input.classList.toggle('taken', !ok && reason !== '');
+        why.textContent = reason;
         save.disabled = !ok;
       };
       set(false); // not allowed until the latest check says so
       if (!name) return;
-      noteNameFree(folder, name).then(set, () => set(false));
+      noteNameFree(folder, name).then(
+        (free) => set(free, free ? '' : 'That name is taken'),
+        (err: unknown) => set(false, String(err))
+      );
     }
 
     input.addEventListener('input', check);
@@ -113,7 +121,7 @@ export async function askFirstSave(tab: TabState, text: string): Promise<FirstSa
 
     const body = document.createElement('span');
     body.className = 'firstsave-body';
-    body.append(folderBtn, input, save, other);
+    body.append(folderBtn, input, why, save, other);
     // However the bar goes (dismissed, cleared, replaced), the save is cancelled unless it already chose.
     showInfo({ kind: 'info', text: 'Save as', key, body, onClose: () => finish(null) });
 
