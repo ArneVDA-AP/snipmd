@@ -26,7 +26,7 @@ Before finishing a change, run `/simplify`. It reviews within the chosen approac
 - Contract first (file-ownership map plus exact interface signatures) before parallel writers; build the shared foundation yourself; one integrator makes it cohere.
 - Standard workflow shape: `thin-standard`. The main session passes contract and briefs in `args`; the script only validates, dispatches thin-* units phase by phase, and stops at the first red gate. Show the `args` for approval before each run (in an autonomous run: record them, see Workflow). A bespoke script only when the standard cannot express the task; show it first.
 - Before a large design (3+ units, or a choice between architectures), run two thin-analyst units in parallel with different lenses (minimal change vs clean structure) and pick one; then write the contract.
-- Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); see `.claude/workflows-tests/thin-standard/CONCLUSION.md`.
+- Propose thin-standard for coding work of 3+ units, disjoint files, runnable checks, solo above ~$1.50. Measured equal quality at -10 to -52% cost vs solo (N=1 per task); the study is on `archive/1.1-process`.
 - Every session or task card you propose states: recommended model, effort, worktree yes/no, local or cloud, with a one-line reason.
 - Sessions are started from the coordinating session (`create_session`), so they show as its children, and are titled `<ddmon>-snipmd-<topic>` (for example `22okt-snipmd-test-audit`).
 - `thin-web` needs the Claude in Chrome extension; it does not work in cloud sessions.

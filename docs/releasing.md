@@ -39,7 +39,8 @@ On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\co
 4. `Ctrl+S`, Enter: `Documents\Notes\<name>.md` and `<name>.assets\` exist side by side.
 5. Double-click a `.md` file in Explorer: it opens as a tab in the running window.
 6. Close and start again: the tabs are back.
-7. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
+7. Open `tools/fixtures/evil.md`: nothing runs, no image from outside the note's folder loads, and clicking a link opens the browser, never the app window. Read mode (`Ctrl+E`) the same.
+8. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
 ### Measuring the budgets
 `tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values here, replacing the last measurement.
