@@ -91,7 +91,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - **Link format**: relative, `![snip](labo-04.assets/snip-20261020-142211-087-3fa9.png)`. Percent-encode spaces and `( ) # % &` in the path so GitHub and Obsidian read it.
 - **Paste rules**:
   - Clipboard has text (any `text/plain`) → paste text. Copying from Excel, Word or a browser pastes text, even though those apps also put an image on the clipboard.
-  - Clipboard has only an image → save it and insert the link on its own line below the cursor; cursor moves to the line after.
+  - Clipboard has only an image → save it and insert the link on its own line below the cursor; cursor moves to the line after. In the middle of a note that is a new empty line, so typing never joins the next paragraph.
   - `Ctrl+Shift+V` → always plain text.
 - **Drag and drop**: an image file dropped on the editor is copied into the note's image folder and inserted at the drop position. A dropped `.md` file opens in a tab.
 - **Transfer**: image bytes go to Rust as a raw binary IPC body, never as a JSON number array.
@@ -239,4 +239,5 @@ Every item runs the same command as its key. `Cmd+W` closes the tab, never the w
 | 5 | Finding notes | `Ctrl+P` recent files in v1.1; no sidebar |
 | 6 | External change with local edits | Open disk version · Reload · Keep mine; a diff view is v1.1 |
 | 7 | Rename | Save As to the same folder; SnipMD never deletes user files |
+| 8 | Warning when quitting | None: autosave and the session already keep everything (§3.3) |
 | — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import in v1.1 |

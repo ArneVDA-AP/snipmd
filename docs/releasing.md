@@ -3,6 +3,7 @@
 For maintainers. Users install from [Releases](https://github.com/ArneVDA-AP/snipmd/releases); macOS users also read [install-macos.md](install-macos.md).
 
 ## Before a tag
+- A release is tagged on the owner's go, after the Windows tests and a final review.
 - The version is set in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (and their lockfiles).
 - `CHANGELOG.md` has a `## [<version>] - <date>` section written for users (what they will notice, not how it was built) and a compare link at the bottom. *Release Windows* stops before publishing without it; after publishing, *Release notes* (`.github/workflows/release-notes.yml`) writes that section and the downloads the release has as its text. Run *Release notes* by hand with a tag to rewrite an existing release from the CHANGELOG on `main`.
 - A final release after pre-releases (`1.1.0` after `1.1.0-1`, `-2`) gets one section that says everything new since the last final release; the pre-release sections stay below it.
@@ -28,7 +29,7 @@ Requires Node.js 22, Rust stable with the MSVC toolchain, and the Visual Studio 
 ```
 It runs `npm ci`, the typecheck, the tests and the release build, and copies the files to `release-win11\`. It stops at the first command that fails.
 
-The files are not code-signed: SmartScreen warns on the first run of the setup until a signing certificate is added to the build job (the README says how to get past it).
+The files are not code-signed: SmartScreen warns on the first run of the setup until a signing certificate is added to the build job (the README says how to get past it). Signing will go through SignPath Foundation, which is free for open source; Azure Artifact Signing is closed to individuals outside the US and Canada. The policy is [code-signing.md](code-signing.md).
 
 ### Smoke test of an installer
 On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\com.snipmd.desktop`):
@@ -38,10 +39,21 @@ On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\co
 4. `Ctrl+S`, Enter: `Documents\Notes\<name>.md` and `<name>.assets\` exist side by side.
 5. Double-click a `.md` file in Explorer: it opens as a tab in the running window.
 6. Close and start again: the tabs are back.
-7. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
+7. Open `tools/fixtures/evil.md`: nothing runs, no image from outside the note's folder loads, and clicking a link opens the browser, never the app window. Read mode (`Ctrl+E`) the same.
+8. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
 ### Measuring the budgets
-`tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values in `.claude/ROADMAP.md`.
+`tools\measure\measure.ps1 -Exe <path to snip-md.exe>` measures start to typing, paste of a 4K screenshot, memory with 5 tabs and 20 images, and the installer size, in its own data folder. Record the values here, replacing the last measurement.
+
+Last measured on an i7-8700K desktop, Windows 11 23H2, 2026-10-21 (`main` at e951acb):
+
+| Budget | Target | Measured |
+|---|---|---|
+| Ctrl+V of a 4K screenshot visible | < 150 ms | 62–70 ms |
+| Memory (5 tabs, 20 images, private working set) | < 120 MB | 98–104 MB |
+| Installer | < 10 MB | 1.37 MB |
+| SnipMD's own start (page load to typing) | < 150 ms | 131–139 ms |
+| Double-click to typing, cold start | < 1 s | 722–784 ms |
 
 ## macOS
 SnipMD for macOS ships as one universal app (Apple Silicon and Intel) in `SnipMD_<version>_universal.dmg` (`SnipMD_<version>_universal.preview.dmg` while it has no Developer ID signature), for macOS 13 Ventura or later (SPEC §13). Target size: under 10 MB (SPEC §9).

@@ -112,7 +112,7 @@ describe('Tab and Shift+Tab on list items', () => {
     expect(press(v, 'Tab')).toBe('10. tien\n    1. elf|');
   });
 
-  it('builds the sublist from the tester report and continues the outer list after Shift+Tab', () => {
+  it('builds a sublist under an ordered item and continues the outer list after Shift+Tab', () => {
     const v = make('5. vier\n6. vijf|');
     press(v, 'Enter');
     press(v, 'Tab');
