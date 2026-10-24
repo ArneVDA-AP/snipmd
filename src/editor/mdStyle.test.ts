@@ -28,6 +28,15 @@ describe('markdown line styling', () => {
     ]);
   });
 
+  it('turns spellcheck off on code lines only, the fence and its language name included', () => {
+    const state = EditorState.create({ doc: 'prose\n```js\nconst x = 1;\n```', extensions: [markdown(), markdownLines] });
+    ensureSyntaxTree(state, state.doc.length, 1000);
+    const view = new EditorView({ state, parent: document.body });
+    const checks = [...view.contentDOM.querySelectorAll('.cm-line')].map((l) => l.getAttribute('spellcheck'));
+    view.destroy();
+    expect(checks).toEqual([null, 'false', 'false', 'false']);
+  });
+
   it('marks quote lines', () => {
     expect(classesOf('> one\n> two\n\nplain')).toEqual(['md-quote-line', 'md-quote-line', '', '']);
   });

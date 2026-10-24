@@ -13,7 +13,13 @@ set -euo pipefail
 APP="$1"
 OUT="$2"
 VERSION="$3"
-DMG="$OUT/SnipMD_${VERSION}_universal.dmg"
+# Without a Developer ID the name says so: the release text sends a .preview build to the first-start
+# steps in RELEASE-MACOS.md.
+if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+  DMG="$OUT/SnipMD_${VERSION}_universal.dmg"
+else
+  DMG="$OUT/SnipMD_${VERSION}_universal.preview.dmg"
+fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$OUT"

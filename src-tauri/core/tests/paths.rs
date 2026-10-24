@@ -150,7 +150,7 @@ fn allow_file_allows_only_that_file() {
 
 #[test]
 fn note_names() {
-    use snipmd_core::paths::valid_note_name;
+    let valid_note_name = |n: &str| snipmd_core::paths::note_name_problem(n).is_none();
     for ok in ["a.md", "Labo 04.MD", "é.md"] {
         assert!(valid_note_name(ok), "{ok}");
     }
@@ -164,6 +164,17 @@ fn note_names() {
         "con.txt.md", "NUL.tar.md", "COM¹.md", "lpt3.md", "CONIN$.md", "conout$.md", "aux .md"] {
         assert!(!valid_note_name(bad), "{bad}");
     }
+}
+
+#[test]
+fn a_refused_name_says_why() {
+    use snipmd_core::paths::note_name_problem;
+    // The first-save bar shows this text, so a subfolder typed into the name points at Other folder.
+    for sub in ["sub\\a.md", "sub/a.md"] {
+        assert!(note_name_problem(sub).unwrap().contains("Other folder"), "{sub}");
+    }
+    assert!(note_name_problem("a?.md").unwrap().contains('?'));
+    assert_eq!(note_name_problem("con.md"), Some("Windows reserves that name"));
 }
 
 #[test]
@@ -181,7 +192,7 @@ fn may_create_in_folders() {
 
 #[test]
 fn a_name_whose_last_bytes_split_a_character_is_refused_without_a_panic() {
-    use snipmd_core::paths::valid_note_name;
+    let valid_note_name = |n: &str| snipmd_core::paths::note_name_problem(n).is_none();
     // "€" is three bytes: the ".md" check must not slice into it (the app aborts on a panic).
     for bad in ["a€", "ab€€", "€", "a€d", "x.m€"] {
         assert!(!valid_note_name(bad), "{bad}");

@@ -96,6 +96,19 @@ describe('first-save bar', () => {
     await open('# A');
     expect(input().classList.contains('taken')).toBe(true);
     expect(btn('Save').disabled).toBe(true);
+    expect(top.querySelector('.firstsave-why')?.textContent).toBe('That name is taken');
+  });
+
+  it('says why a refused name cannot be saved', async () => {
+    vi.mocked(noteNameFree).mockRejectedValue('A name cannot hold a folder; use Other folder…');
+    await open('# A');
+    expect(input().classList.contains('taken')).toBe(true);
+    expect(btn('Save').disabled).toBe(true);
+    expect(top.querySelector('.firstsave-why')?.textContent).toContain('Other folder');
+    vi.mocked(noteNameFree).mockResolvedValue(true);
+    await type('ok.md');
+    expect(top.querySelector('.firstsave-why')?.textContent).toBe('');
+    expect(btn('Save').disabled).toBe(false);
   });
 
   it('ignores an older answer that arrives late', async () => {

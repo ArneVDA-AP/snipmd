@@ -120,20 +120,30 @@ pub fn valid_tab_id(id: &str) -> bool {
         && !windows_device(id)
 }
 
-/// A plain `.md` file name for a new note.
-pub fn valid_note_name(name: &str) -> bool {
-    if name.chars().count() > 255 || name.ends_with('.') || name.ends_with(' ') {
-        return false;
+/// Why `name` cannot be a new note's file name (a plain `.md` name), in words the first-save bar
+/// shows; `None` when it can.
+pub fn note_name_problem(name: &str) -> Option<&'static str> {
+    if name.chars().any(|c| "/\\".contains(c)) {
+        return Some("A name cannot hold a folder; use Other folder…");
     }
-    if name.chars().any(|c| c.is_control() || "/\\:*?\"<>|".contains(c)) {
-        return false;
+    if name.chars().any(|c| c.is_control() || ":*?\"<>|".contains(c)) {
+        return Some("A name cannot contain : * ? \" < > |");
+    }
+    if name.chars().count() > 255 {
+        return Some("That name is too long");
     }
     let n = name.len();
     if n < 4 || !name.is_char_boundary(n - 3) || !name[n - 3..].eq_ignore_ascii_case(".md") {
-        return false;
+        return Some("A name ends in .md");
     }
     let stem = &name[..n - 3];
-    !stem.ends_with(['.', ' ']) && !windows_device(stem)
+    if stem.ends_with(['.', ' ']) {
+        return Some("A name cannot end with a dot or a space");
+    }
+    if windows_device(stem) {
+        return Some("Windows reserves that name");
+    }
+    None
 }
 
 /// CON, NUL, COM1 and the like name a device on Windows, also with an extension (`con.txt`) and

@@ -80,6 +80,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - Name is prefilled from the first heading, slugified (`# DHCP-probleem lokaal B` → `dhcp-probleem-lokaal-b.md`); fallback `note-YYYYMMDD.md`.
   - Folder is the last folder used; the first time `Documents\Notes` (created if missing).
   - `Enter` saves, `Esc` cancels, "Other folder…" opens the native save dialog.
+  - A name that is taken or cannot be a file name turns red, turns Save off and says why next to the field (a `\` or `/` points to "Other folder…").
   - If the name exists, the field turns red and Save is disabled; no overwrite prompt.
 
 ### 6.3 Images

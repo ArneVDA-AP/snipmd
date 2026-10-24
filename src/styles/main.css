@@ -199,6 +199,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .firstsave-name { width: 240px; height: 28px; padding: 0 var(--s2); border: 1px solid var(--line-strong); border-bottom: 2px solid var(--accent); border-radius: var(--r-sm); background: var(--bg); color: var(--text); font: inherit; }
 .firstsave-name:focus { outline: none; border-color: var(--accent); }
 .firstsave-name.taken { border-color: var(--error-fg); color: var(--error-fg); }
+.firstsave-why { color: var(--error-fg); }
+.firstsave-why:empty { display: none; }
 .firstsave-name::selection { background: var(--selection); color: var(--text-strong); }
 
 /* Workspace */
@@ -215,7 +217,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .editor-pane .cm-cursor { border-left: 2px solid var(--accent); }
 .editor-pane .cm-content ::selection { background: transparent; }
 /* Light Markdown styling (SPEC §5); token colours come from the highlight style in editor/setup.ts. */
-.editor-pane .md-code-line { background: var(--code-bg); font-family: var(--font-mono); font-size: var(--fs-code); padding: 0 var(--s3); }
+/* Code without a parser is monospace text in var(--code); in a block it reads as plain text, as in read mode. */
+.editor-pane .md-code-line { --code: var(--text); background: var(--code-bg); font-family: var(--font-mono); font-size: var(--fs-code); padding: 0 var(--s3); }
 .editor-pane .md-code-first { border-radius: var(--r-md) var(--r-md) 0 0; padding-top: var(--s1); }
 .editor-pane .md-code-last { border-radius: 0 0 var(--r-md) var(--r-md); padding-bottom: var(--s1); }
 .editor-pane .md-code-first.md-code-last { border-radius: var(--r-md); }

@@ -345,8 +345,8 @@ fn default_note_folder(app: AppHandle) -> Result<String, String> {
 
 /// The new note's path, after the name and the folder passed their checks.
 fn new_note_path(app: &AppHandle, folder: &str, name: &str) -> Result<PathBuf, String> {
-    if !paths::valid_note_name(name) {
-        return Err(format!("{name} is not a valid note name"));
+    if let Some(why) = paths::note_name_problem(name) {
+        return Err(why.to_string());
     }
     if !allowed(app).may_create_in(Path::new(folder)) {
         return Err("Notes cannot be created in that folder".to_string());

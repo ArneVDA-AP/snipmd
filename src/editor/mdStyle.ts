@@ -5,10 +5,12 @@ import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate
 import { syntaxTree } from '@codemirror/language';
 
 const line = (cls: string) => Decoration.line({ class: cls });
-const CODE = line('md-code-line');
-const CODE_FIRST = line('md-code-line md-code-first');
-const CODE_LAST = line('md-code-line md-code-last');
-const CODE_ONLY = line('md-code-line md-code-first md-code-last');
+// Code, its fence and its language name are not prose: no spelling squiggles under `js` or `const`.
+const codeLine = (cls: string) => Decoration.line({ class: cls, attributes: { spellcheck: 'false' } });
+const CODE = codeLine('md-code-line');
+const CODE_FIRST = codeLine('md-code-line md-code-first');
+const CODE_LAST = codeLine('md-code-line md-code-last');
+const CODE_ONLY = codeLine('md-code-line md-code-first md-code-last');
 const QUOTE = line('md-quote-line');
 
 function build(view: EditorView): DecorationSet {
