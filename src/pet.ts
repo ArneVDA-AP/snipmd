@@ -1,6 +1,6 @@
 // Snip, the crab right of the + button (SPEC §4). It reacts to the app's own moments, never to typing,
 // and never asks for anything. A moment before Snip is mounted, or while it is switched off, is no error:
-// Snip is optional, so the moments are fire-and-forget.
+// Snip is optional, so `petMoment` is fire-and-forget.
 import { idle } from './dom';
 import { NS } from './icons';
 
@@ -8,16 +8,14 @@ type Moment = 'clap' | 'relief' | 'worried' | 'saved';
 export type State = 'idle' | 'clap' | 'relief' | 'worried' | 'sleep';
 
 const CELLS = 11;
-/**
- * Each state's timing: `ms` per run, `runs` (Infinity loops), and when each frame starts, as
- * [offset 0–1, frame number from 1]. A moment shows for `ms × runs`, then Snip goes back to idle.
- */
-export const TIMING: Record<State, { ms: number; runs: number; at: [number, number][] }> = {
-  idle: { ms: 6000, runs: Infinity, at: [[0, 1], [0.3, 2], [0.55, 1], [0.88, 3], [0.91, 1]] }, // a breath, then a blink
-  clap: { ms: 1200, runs: 1, at: [[0, 2], [0.08, 1], [0.17, 2], [0.25, 1], [0.42, 2]] },
-  relief: { ms: 2400, runs: 1, at: [[0, 1], [0.35, 2], [0.75, 1]] },
-  worried: { ms: 2000, runs: 2, at: [[0, 1], [0.6, 2], [0.65, 1], [0.7, 2], [0.75, 1]] },
-  sleep: { ms: 4000, runs: Infinity, at: [[0, 1], [0.5, 2]] }
+/** How long one run of each state lasts, and how often it runs (Infinity loops). A moment shows for `ms × runs`. */
+export type Timing = Record<State, { ms: number; runs: number }>;
+const TIMING: Timing = {
+  idle: { ms: 6000, runs: Infinity },
+  clap: { ms: 1200, runs: 1 },
+  relief: { ms: 2400, runs: 1 },
+  worried: { ms: 2000, runs: 2 },
+  sleep: { ms: 4000, runs: Infinity }
 };
 const SLEEP_MS = 10 * 60_000;
 
@@ -30,6 +28,7 @@ let backTimer: ReturnType<typeof setTimeout> | undefined;
 let lastSave = 0;
 
 function show(next: State): void {
+  if (next === state && TIMING[next].runs === Infinity) return; // a loop already playing goes on
   state = next;
   play?.(next);
 }
@@ -46,7 +45,7 @@ function fit(): void {
 /** One timer for the nap; a save only notes the time, so a save every second costs no timer. */
 function napCheck(): void {
   const left = lastSave + SLEEP_MS - Date.now();
-  if (left <= 0 && state !== 'sleep') {
+  if (left <= 0) {
     clearTimeout(backTimer);
     show('sleep');
   }
@@ -67,10 +66,6 @@ export function mountPet(into: HTMLElement, on: boolean): void {
   fit();
   lastSave = Date.now();
   napCheck();
-  // An unfocused window plays nothing: the idle breath and the nap need no frames nobody sees.
-  // An animation that starts while unfocused starts paused (petSprite.ts).
-  window.addEventListener('blur', () => svg.getAnimations({ subtree: true }).forEach((a) => a.pause()));
-  window.addEventListener('focus', () => svg.getAnimations({ subtree: true }).forEach((a) => a.play()));
   idle(() =>
     void import('./petSprite')
       .then(({ drawPet }) => {
@@ -94,5 +89,6 @@ export function petMoment(moment: Moment): void {
   }
   show(moment);
   clearTimeout(backTimer);
-  backTimer = setTimeout(() => show('idle'), TIMING[moment].ms * TIMING[moment].runs);
+  const { ms, runs } = TIMING[moment];
+  backTimer = setTimeout(() => show('idle'), ms * runs);
 }
