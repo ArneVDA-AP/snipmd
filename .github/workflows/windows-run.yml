@@ -2,10 +2,17 @@ name: Windows run
 
 # Manual: builds the release app on a Windows runner, measures the SPEC §9 budgets with
 # tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and uploads
-# the results as a workflow artifact (kept 30 days). Nothing is committed or pushed. A runner is not
-# an ordinary laptop: the numbers are a reference; release budgets are measured on real hardware.
+# the results as a workflow artifact (kept 30 days). A second job, which runs no repository code,
+# pushes the same files to the branch test/windows-run-<run number>, so they can be read with git.
+# A runner is not an ordinary laptop: the numbers are a reference; release budgets are measured on
+# real hardware.
 on:
   workflow_dispatch:
+    inputs:
+      snip_sleep:
+        description: 'Also screenshot Snip asleep (adds about 10 minutes)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,7 +60,8 @@ jobs:
         continue-on-error: true
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/ui 2>&1 | Tee-Object results/windows-ci/shots.txt
+          $sleep = @(); if ('${{ inputs.snip_sleep }}' -eq 'true') { $sleep = @('-SnipSleep') }
+          powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/ui @sleep 2>&1 | Tee-Object results/windows-ci/shots.txt
 
       - name: Clean-install smoke test
         continue-on-error: true
@@ -78,3 +86,30 @@ jobs:
             results/ui
           if-no-files-found: warn
           retention-days: 30
+
+  # The build job above never holds a write token; this one only gets the files and pushes them.
+  branch:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-run-${{ github.run_number }}
+          path: results
+
+      - name: Push to test/windows-run-${{ github.run_number }}
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.run_number }}
+          SHA: ${{ github.sha }}
+        run: |
+          cd results
+          git init -q
+          git add -A
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -qm "Windows run $RUN on $SHA: budgets and screenshots"
+          git push -q "https://x-access-token:$TOKEN@github.com/$REPO" "HEAD:refs/heads/test/windows-run-$RUN"

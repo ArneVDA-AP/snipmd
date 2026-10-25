@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   Screenshots of the real SnipMD window on Windows, in light and dark: the empty start, a note with
-  a screenshot, read mode, find and replace, and the first-save bar. Each run uses its own data folder (SNIPMD_DATA_DIR),
+  a screenshot, read mode, find and replace, and the first-save bar. With -SnipSleep it also waits
+  until Snip falls asleep (10 minutes without a save) and shoots that in both themes. Each run uses its own data folder (SNIPMD_DATA_DIR),
   so the user's session is never touched. SnipMD must not be running.
 
 .EXAMPLE
@@ -9,7 +10,8 @@
 #>
 param(
   [string]$Exe = "$env:LOCALAPPDATA\SnipMD\snip-md.exe",
-  [string]$Out = 'shots\windows'
+  [string]$Out = 'shots\windows',
+  [switch]$SnipSleep
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -142,6 +144,19 @@ try {
     if (Keys $p '^e') { Shot $p "read-$theme"; [void](Keys $p '^e') }
     if (Keys $p '^h') { $shell.SendKeys('scope'); Start-Sleep -Milliseconds 400; Shot $p "find-$theme"; $shell.SendKeys('{ESC}') }
     if (Keys $p '^n') { if (Keys $p '^s') { Shot $p "firstsave-$theme"; $shell.SendKeys('{ESC}') } }
+    Stop-Snip $p
+  }
+  if ($SnipSleep) {
+    # One wait gives both themes: the open window follows the system theme.
+    Set-ItemProperty -Path $themeKey -Name AppsUseLightTheme -Value 1 -Type DWord
+    $p = Start-Snip (Join-Path $root 'sleep') @($note)
+    Start-Sleep -Seconds 615
+    [void](Focus-Snip $p)
+    Start-Sleep -Milliseconds 500
+    Shot $p 'snip-sleep-light'
+    Set-ItemProperty -Path $themeKey -Name AppsUseLightTheme -Value 0 -Type DWord
+    Start-Sleep -Seconds 2
+    Shot $p 'snip-sleep-dark'
     Stop-Snip $p
   }
 } finally {
