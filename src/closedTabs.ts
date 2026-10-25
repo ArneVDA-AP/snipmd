@@ -3,6 +3,7 @@ import { clearInfo, clearTabInfo, showInfo } from './infobar';
 import { saveTab } from './saving';
 import { closeTab, openTab, reopenClosed, textOf } from './tabs';
 import { keys } from './platform';
+import { petMoment } from './pet';
 
 const BAR_KEY = 'closed';
 const BAR_MS = 8000;
@@ -67,6 +68,6 @@ export async function closeTabWithRestore(id: string): Promise<void> {
 
 /** Reopens a closed tab (the most recent without `id`) and ends the restore bar. */
 export async function restoreClosedTab(id?: string): Promise<void> {
-  await reopenClosed(id);
+  if (await reopenClosed(id)) petMoment('relief');
   clearInfo(BAR_KEY);
 }

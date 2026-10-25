@@ -82,6 +82,8 @@ export class Titlebar {
   private chip: HTMLButtonElement;
   private els = new Map<string, TabEl>();
   private order: string[] = [];
+  /** Where Snip lives (pet.ts), right of the + button. */
+  readonly petSlot: HTMLElement;
   private activeId = '';
   private drag: Drag | null = null;
   /** The click that ends a drag arrives after pointerup and must do nothing. */
@@ -106,6 +108,7 @@ export class Titlebar {
 
     const newTab = button('new-tab', '', `New tab (${keys('Ctrl+T')})`, () => this.h.newTab());
     newTab.append(icon('plus'));
+    this.petSlot = document.createElement('span');
 
     const drag = document.createElement('div');
     drag.className = 'drag-region';
@@ -120,9 +123,9 @@ export class Titlebar {
       const lights = document.createElement('div');
       lights.className = 'traffic-lights';
       lights.setAttribute('data-tauri-drag-region', '');
-      root.replaceChildren(lights, this.strip, newTab, drag, this.chip);
+      root.replaceChildren(lights, this.strip, newTab, this.petSlot, drag, this.chip);
     } else {
-      root.replaceChildren(this.strip, newTab, drag, this.chip, windowControls());
+      root.replaceChildren(this.strip, newTab, this.petSlot, drag, this.chip, windowControls());
     }
   }
 

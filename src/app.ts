@@ -14,6 +14,7 @@ import { getView } from './editor/registry';
 import { pastePlainText } from './editor/paste';
 import { closeTabWithRestore, restoreClosedTab } from './closedTabs';
 import { IS_MAC } from './platform';
+import { mountPet, showPet } from './pet';
 import {
   getCliStartupFiles,
   onCloseRequested,
@@ -225,7 +226,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   initSettings(session?.settings ?? parseSettings(undefined), () => {
     scheduleSessionSave({ immediate: true });
     void refreshRead();
+    showPet(getSetting('pet'));
   });
+  mountPet(titlebar.petSlot);
+  showPet(getSetting('pet'));
   document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
   else if (startFiles.length === 0) await newUntitled();

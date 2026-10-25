@@ -17,7 +17,7 @@ describe('parseSession', () => {
         { id: 'b', title: 'Untitled-3', filePath: null, content: 'x', dirty: true, mode: 'read', cursor: 0, scrollTop: 0, disk: null, format: null }
       ],
       closedTabs: [],
-      settings: { lineBreaks: true, taskClicks: false, copyCode: true, findCount: false }
+      settings: { lineBreaks: true, taskClicks: false, copyCode: true, findCount: false, pet: false }
     };
     expect(parseSession(JSON.stringify(s))).toEqual(s);
   });

@@ -6,7 +6,8 @@ export const SETTINGS: Readonly<Record<SettingKey, { title: string; default: boo
   lineBreaks: { title: 'Line breaks in read mode', default: false },
   taskClicks: { title: 'Clickable tasks in read mode', default: true },
   copyCode: { title: 'Copy button on code blocks', default: true },
-  findCount: { title: 'Match count in find', default: true }
+  findCount: { title: 'Match count in find', default: true },
+  pet: { title: 'Show Snip', default: true }
 };
 
 const KEYS = Object.keys(SETTINGS) as SettingKey[];

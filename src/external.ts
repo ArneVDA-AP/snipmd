@@ -6,6 +6,7 @@ import { readNote, statNote } from './ipc';
 import { getTabs, loadText, markDirty, markSaved, openCopy, openTab } from './tabs';
 import { inConflict, isWriting, setConflict, writeGeneration } from './diskState';
 import { clearInfo, showError, showInfo } from './infobar';
+import { petMoment } from './pet';
 
 const WATCH_MS = 2000;
 const barKey = (id: string): string => `external:${id}`;
@@ -56,6 +57,7 @@ function act(id: string, label: string, what: string, run: (tab: TabState) => Pr
 
 function raiseChanged(tab: TabState, stamp: DiskStamp): void {
   setConflict(tab.id, true);
+  petMoment('worried');
   const id = tab.id;
   showInfo({
     kind: 'warning',
@@ -82,6 +84,7 @@ function raiseChanged(tab: TabState, stamp: DiskStamp): void {
 
 function raiseGone(tab: TabState): void {
   setConflict(tab.id, true);
+  petMoment('worried');
   markDirty(tab.id); // the session keeps the text now that the file is gone
   const id = tab.id;
   showInfo({
