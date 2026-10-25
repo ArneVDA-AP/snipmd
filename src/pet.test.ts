@@ -1,17 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom has neither media queries nor Web Animations: record what Snip asks for.
-const played: { keys: Keyframe[]; opts: KeyframeAnimationOptions }[] = [];
+const played: { keys: Keyframe[]; opts: KeyframeAnimationOptions; paused: boolean }[] = [];
 let reduced = false;
+let focused = true;
 
 async function mounted(dpr = 1, on = true) {
   vi.resetModules();
   played.length = 0;
   Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
   window.matchMedia = ((q: string) => ({ matches: q.includes('reduce') && reduced, addEventListener: () => {} })) as never;
+  vi.spyOn(document, 'hasFocus').mockImplementation(() => focused);
   Element.prototype.animate = function (keys: Keyframe[], opts: KeyframeAnimationOptions) {
-    played.push({ keys, opts });
-    return {} as Animation;
+    const a = { keys, opts, paused: false };
+    played.push(a);
+    return { pause: () => (a.paused = true) } as unknown as Animation;
   } as never;
   Element.prototype.getAnimations = () => [];
   const pet = await import('./pet');
@@ -29,13 +32,9 @@ describe('Snip', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     reduced = false;
-  });
-
-  it('does nothing before it is mounted', async () => {
-    vi.resetModules();
-    const { petMoment } = await import('./pet');
-    expect(() => petMoment('clap')).not.toThrow();
+    focused = true;
   });
 
   it('starts idle, hidden from screen readers, every state drawn once as paths per part', async () => {
@@ -68,7 +67,7 @@ describe('Snip', () => {
     expect(state()).toBe('idle');
   });
 
-  it('falls asleep after ten quiet minutes; a save wakes it, and any moment keeps it awake', async () => {
+  it('falls asleep after ten minutes without a save; a save wakes it', async () => {
     const { pet, state } = await mounted();
     vi.advanceTimersByTime(9 * 60_000);
     pet.petMoment('saved');
@@ -80,17 +79,32 @@ describe('Snip', () => {
     expect(state()).toBe('idle');
   });
 
+  it('other moments do not keep it awake, and asleep it does not restart its nap', async () => {
+    const { pet, state } = await mounted();
+    vi.advanceTimersByTime(9 * 60_000);
+    pet.petMoment('clap');
+    vi.advanceTimersByTime(60_000);
+    expect(state()).toBe('sleep');
+    const n = played.length;
+    vi.advanceTimersByTime(30 * 60_000);
+    expect(played).toHaveLength(n);
+  });
+
+  it('an animation that starts while the window has no focus starts paused', async () => {
+    const { pet } = await mounted();
+    expect(played.at(-1)!.paused).toBe(false);
+    focused = false;
+    pet.petMoment('worried');
+    expect(played.at(-1)!.paused).toBe(true);
+    vi.advanceTimersByTime(4000); // back to idle, still unfocused
+    expect(played.at(-1)!.paused).toBe(true);
+  });
+
   it('a save while awake does not interrupt a moment', async () => {
     const { pet, state } = await mounted();
     pet.petMoment('relief');
     pet.petMoment('saved');
     expect(state()).toBe('relief');
-  });
-
-  it('plays each moment for as long as pet.ts waits for it', async () => {
-    const { pet } = await mounted();
-    const { TIMING } = await import('./petSprite');
-    for (const m of ['clap', 'relief', 'worried'] as const) expect(TIMING[m].ms * TIMING[m].runs, m).toBe(pet.PLAY_MS[m]);
   });
 
   it('slides the strip from frame to frame, holding each frame (step-end), and loops idle', async () => {

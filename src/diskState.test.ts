@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('./pet', () => ({ petMoment: vi.fn() }));
+
+import { petMoment } from './pet';
 import { beginWrite, endWrite, inConflict, isWriting, setConflict, writeGeneration } from './diskState';
 
 describe('writes in progress', () => {
@@ -39,6 +43,9 @@ describe('writes in progress', () => {
 describe('conflicts', () => {
   it('are per tab and can be cleared', () => {
     setConflict('c', true);
+    setConflict('c', true);
+    expect(petMoment).toHaveBeenCalledTimes(1); // Snip is worried once, when the conflict starts
+    expect(petMoment).toHaveBeenCalledWith('worried');
     expect(inConflict('c')).toBe(true);
     expect(inConflict('d')).toBe(false);
     setConflict('c', false);

@@ -6,6 +6,7 @@ vi.mock('../ipc', () => ({ saveImage: vi.fn() }));
 vi.mock('../perf', () => ({ markPasteVisible: vi.fn() }));
 vi.mock('../session', () => ({ scheduleSessionSave: vi.fn() }));
 vi.mock('../infobar', () => ({ showError: vi.fn() }));
+vi.mock('../pet', () => ({ petMoment: vi.fn() }));
 vi.mock('./imageWidget', () => ({ primeAssetCache: vi.fn(), imageWidgetField: [] }));
 
 import { saveImage } from '../ipc';
@@ -16,6 +17,7 @@ import { pastePlainText, placeImages } from './paste';
 import { applyToTab, getState, initRegistry, setState, setView } from './registry';
 import { primeAssetCache } from './imageWidget';
 import { markPasteVisible } from '../perf';
+import { petMoment } from '../pet';
 
 initRegistry({ filePathOf: () => null, onChange: () => {} });
 
@@ -161,6 +163,7 @@ describe('placeImages', () => {
     expect(view.state.selection.main.head).toBe('hello\n![snip](l.png)\n'.length);
     expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true }); // SPEC §7: right after a paste
     expect(primeAssetCache).toHaveBeenCalledWith('a', 'l.png', '/abs/l.png');
+    expect(petMoment).toHaveBeenCalledWith('clap'); // Snip claps for a paste and a drop alike
   });
 
   it('a tab that is gone takes nothing and throws nothing', () => {
@@ -213,9 +216,11 @@ describe('placeImages', () => {
 
   it('nothing to place changes nothing and saves nothing', () => {
     mount('A');
+    vi.mocked(petMoment).mockClear();
     placeImages('a', []);
     expect(view.state.doc.toString()).toBe('A');
     expect(scheduleSessionSave).not.toHaveBeenCalled();
+    expect(petMoment).not.toHaveBeenCalled();
   });
 });
 

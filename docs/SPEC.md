@@ -44,7 +44,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - **Copy button on code blocks**: on by default.
   - **Match count in find**: on by default.
   - **Show Snip**: on by default.
-- **Snip** is an 11×11 pixel crab right of the `+` button, 22 px tall, sized to a whole number of screen pixels per cell so it stays sharp at every display scale. It reacts only to the app's own moments, never to typing: it claps when an image lands in a note (paste or drop), sighs with relief when a closed tab comes back, looks worried when a note changed outside SnipMD and a choice waits, and falls asleep after 10 minutes without a save; the next save wakes it. It has no sound, no text, no click action, and screen readers skip it. With reduced motion it shows still frames.
+- **Snip** is an 11×11 pixel crab right of the `+` button, about 22 px tall (22 px at 100%, 150% and 200%), sized to a whole number of screen pixels per cell so it stays sharp at every display scale. It reacts only to the app's own moments, never to typing: it claps when an image lands in a note (paste or drop), sighs with relief when a closed tab comes back, looks worried for 4 seconds when a note changed outside SnipMD and a choice waits (the info bar keeps the choice; Snip does not repeat it), and falls asleep after 10 minutes without a save; the next save wakes it. It has no sound, no text, no click action, and screen readers skip it. With reduced motion it shows still frames.
 - Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
 - System fonts (Segoe UI, Cascadia Mono / Consolas on Windows; the system font and its monospace on macOS). No web fonts, no network access at runtime.
 

@@ -8,11 +8,13 @@ vi.mock('./preview/render', () => ({
 }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./session', () => ({ bindSessionSource: vi.fn(), scheduleSessionSave: vi.fn() }));
+vi.mock('./pet', () => ({ petMoment: vi.fn() }));
 
 import { readNote } from './ipc';
 import { renderRead } from './preview/render';
 import { clearTabInfo, showError } from './infobar';
 import { scheduleSessionSave } from './session';
+import { petMoment } from './pet';
 import {
   activate, closeTab, cycle, getActiveTab, getLastFolder, getTab, initTabs, loadText, markDirty, markSaved, newUntitled, openCopy, openPath,
   openPaths, openTab, reopenClosed, restore, setLastFolder, snapshot, getTabs, textOf, toggleMode, moveTab, moveActive, refreshRead
@@ -37,6 +39,7 @@ beforeEach(() => {
   vi.mocked(readNote).mockReset();
   vi.mocked(showError).mockReset();
   vi.mocked(scheduleSessionSave).mockReset();
+  vi.mocked(petMoment).mockReset();
   render.mockReset();
   onEdit.mockReset();
   document.body.innerHTML = '<div id="e"></div><div id="r"></div>';
@@ -154,6 +157,7 @@ describe('closed-tabs list', () => {
     await closeTab('cb');
     expect(snapshot().closedTabs.map((c) => [c.tab.id, c.tab.content])).toEqual([['cb', 'two'], ['ca', 'one']]);
     const back = await reopenClosed();
+    expect(petMoment).toHaveBeenCalledWith('relief');
     expect(back?.id).toBe('cb');
     expect(textOf(back!)).toBe('two');
     expect(getTabs().map((t) => t.id)).toEqual(['cc', 'cb']);
@@ -193,7 +197,9 @@ describe('closed-tabs list', () => {
     expect(textOf((await reopenClosed())!)).toBe('v2');
     await closeTab('c');
     vi.mocked(readNote).mockRejectedValueOnce(new Error('gone'));
+    vi.mocked(petMoment).mockClear();
     expect(await reopenClosed()).toBeUndefined();
+    expect(petMoment).not.toHaveBeenCalled(); // nothing came back
     expect(snapshot().closedTabs.map((c) => c.tab.id)).toContain('c');
     const copy = getTabs().find((t) => t.title === 'c.md (closed)');
     expect(copy && textOf(copy)).toBe('v2');
@@ -205,6 +211,7 @@ describe('closed-tabs list', () => {
     await restore(session([tab({ id: 'd', title: 'd.md', filePath: 'C:/n/d.md', dirty: true, content: 'mine' }), tab({ id: 'x2', title: 'd.md', filePath: 'C:/n/D.md' })]));
     await closeTab('d');
     expect(await reopenClosed()).toBeUndefined();
+    expect(petMoment).toHaveBeenCalledWith('relief');
     expect(getTabs().filter((t) => t.filePath).map((t) => t.id)).toEqual(['x2']);
     const copy = getTabs().find((t) => t.title === 'd.md (closed)');
     expect(copy?.mode).toBe('read');
@@ -712,6 +719,7 @@ describe('markSaved and markDirty', () => {
     applyToTab('ms', { changes: { from: 2, insert: '!' } });
     markSaved('ms', { text: 'v1', stamp });
     expect(getTab('ms')).toMatchObject({ dirty: true, disk: stamp });
+    expect(petMoment).toHaveBeenCalledWith('saved');
     markSaved('ms', { text: 'v1!', stamp: { mtimeMs: 4, size: 3 } });
     expect(getTab('ms')).toMatchObject({ dirty: false, disk: { mtimeMs: 4, size: 3 } });
     markSaved('nope', { text: '', stamp });
