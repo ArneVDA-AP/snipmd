@@ -10,7 +10,6 @@ import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { dirname, normPath, samePath } from './paths';
 import { imageSavesSettled } from './editor/registry';
-import { petMoment } from './pet';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
 const running = new Map<string, Promise<boolean>>();
@@ -56,7 +55,6 @@ function writeTab(tab: TabState): Promise<boolean> {
       // A Save As that switched the tab meanwhile owns its stamp now; this write was to the old file.
       if (tab.filePath === path) markSaved(tab.id, { text, stamp });
       clearInfo(errorKey(tab.id));
-      petMoment('saved');
       return true;
     } catch (err) {
       showError(`save ${tab.title}`, err, errorKey(tab.id));

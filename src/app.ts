@@ -228,8 +228,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     void refreshRead();
     showPet(getSetting('pet'));
   });
-  mountPet(titlebar.petSlot);
-  showPet(getSetting('pet'));
+  mountPet(titlebar.petSlot, getSetting('pet'));
   document.documentElement.classList.toggle('mica', mica);
   if (session) await restore(session);
   else if (startFiles.length === 0) await newUntitled();

@@ -28,6 +28,7 @@ import { clearTabInfo, showError } from './infobar';
 import { basename, normPath, samePath } from './paths';
 import type { Titlebar } from './titlebar';
 import { settingsSnapshot } from './settings';
+import { petMoment } from './pet';
 import { idle } from './dom';
 
 interface Panes {
@@ -404,6 +405,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     await activate(open.id);
     if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text, open.id);
     changed({ immediate: true });
+    petMoment('relief');
     return undefined;
   }
   // Open again at once, at the end of the strip, so a second Ctrl+Shift+T during the read below takes the next one.
@@ -428,6 +430,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   // A tab the user went to during the read keeps the focus; a close of the shown tab does not count.
   if (activeId === shown || !openTab(shown)) await activate(tab.id);
   changed({ immediate: true });
+  petMoment('relief');
   return tab;
 }
 
@@ -505,5 +508,6 @@ export function markSaved(id: string, written: { text: string; stamp: DiskStamp;
   }
   tab.disk = written.stamp;
   if (textOf(tab) === written.text) tab.dirty = false;
+  petMoment('saved');
   changed({ immediate: true }); // SPEC §7: the session is written right after a save
 }

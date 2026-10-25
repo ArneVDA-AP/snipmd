@@ -162,42 +162,13 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .new-tab:hover { background: var(--hover); color: var(--text); }
 .new-tab:active { background: var(--pressed); }
 .drag-region { flex: 1; min-width: 32px; align-self: stretch; }
-/* Snip (pet.ts): frame-by-frame states; every frame but the first is hidden until its state's animation shows it. */
+/* Snip (pet.ts): its frames and their timing are drawn and played by petSprite.ts. */
 .pet { display: grid; place-items: center; flex: none; align-self: center; margin-left: var(--s1); }
-.pet svg { display: block; overflow: visible; pointer-events: none; }
+.pet svg { display: block; pointer-events: none; }
 .pet .body, .pet .zzz { fill: var(--pet-body); }
 .pet .claw { fill: var(--pet-claw); }
 .pet .eye { fill: var(--pet-eye); }
 .pet .brow { fill: var(--pet-brow); }
-.pet .frame:not(.frame-1) { visibility: hidden; }
-@media (prefers-reduced-motion: no-preference) {
-  .pet .state-idle .frame-1 { animation: pet-idle-1 6s step-end infinite; }
-  .pet .state-idle .frame-2 { animation: pet-idle-2 6s step-end infinite; }
-  .pet .state-idle .frame-3 { animation: pet-idle-3 6s step-end infinite; }
-  .pet .state-clap { animation: pet-hop 1.2s step-end; }
-  .pet .state-clap .frame-1 { animation: pet-clap-1 1.2s step-end; }
-  .pet .state-clap .frame-2 { animation: pet-clap-2 1.2s step-end; }
-  .pet .state-relief .frame-1 { animation: pet-relief-1 2.4s step-end; }
-  .pet .state-relief .frame-2 { animation: pet-relief-2 2.4s step-end; }
-  .pet .state-worried .frame-1 { animation: pet-worried-1 2s step-end 2; }
-  .pet .state-worried .frame-2 { animation: pet-worried-2 2s step-end 2; }
-  .pet .state-sleep .frame-1 { animation: pet-sleep-1 4s step-end infinite; }
-  .pet .state-sleep .frame-2 { animation: pet-sleep-2 4s step-end infinite; }
-  .pet .state-sleep .zzz { animation: pet-zzz 4s step-end infinite; }
-}
-@keyframes pet-idle-1 { 0% { visibility: visible } 30% { visibility: hidden } 55% { visibility: visible } 88% { visibility: hidden } 91% { visibility: visible } }
-@keyframes pet-idle-2 { 0% { visibility: hidden } 30% { visibility: visible } 55% { visibility: hidden } }
-@keyframes pet-idle-3 { 0% { visibility: hidden } 88% { visibility: visible } 91% { visibility: hidden } }
-@keyframes pet-clap-1 { 0% { visibility: hidden } 8% { visibility: visible } 17% { visibility: hidden } 25% { visibility: visible } 42% { visibility: hidden } }
-@keyframes pet-clap-2 { 0% { visibility: visible } 8% { visibility: hidden } 17% { visibility: visible } 25% { visibility: hidden } 42% { visibility: visible } }
-@keyframes pet-relief-1 { 0% { visibility: visible } 35% { visibility: hidden } 75% { visibility: visible } }
-@keyframes pet-relief-2 { 0% { visibility: hidden } 35% { visibility: visible } 75% { visibility: hidden } }
-@keyframes pet-worried-1 { 0% { visibility: visible } 60% { visibility: hidden } 65% { visibility: visible } 70% { visibility: hidden } 75% { visibility: visible } }
-@keyframes pet-worried-2 { 0% { visibility: hidden } 60% { visibility: visible } 65% { visibility: hidden } 70% { visibility: visible } 75% { visibility: hidden } }
-@keyframes pet-sleep-1 { 0% { visibility: visible } 50% { visibility: hidden } }
-@keyframes pet-sleep-2 { 0% { visibility: hidden } 50% { visibility: visible } }
-@keyframes pet-hop { 0% { transform: none } 17% { transform: translateY(-2px) } 33% { transform: none } }
-@keyframes pet-zzz { 0% { transform: none; opacity: 1 } 50% { transform: translateY(-1px); opacity: .55 } }
 .mode-chip { display: flex; align-items: center; gap: 6px; align-self: center; height: 24px; margin-right: var(--s2); padding: 0 var(--s2); border-radius: var(--r-sm); color: var(--text-muted); font-size: var(--fs-caption); }
 .mode-chip:hover { background: var(--hover); color: var(--text); }
 .win-controls { display: flex; align-self: stretch; }
