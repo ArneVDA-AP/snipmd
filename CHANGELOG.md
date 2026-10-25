@@ -2,6 +2,11 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Snip, a small pixel crab right of the `+` button. It claps when a screenshot lands in a note, is relieved when a closed tab comes back, looks worried when a note changed outside SnipMD, and falls asleep when nothing is saved for a while. Switch it off with Show Snip in the command menu.
+
 ## [1.1.0-2] - 2026-10-24
 
 A second pre-release, after the Windows 11 test of 1.1.0-1.

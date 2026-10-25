@@ -80,7 +80,7 @@ describe('match count', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('requestIdleCallback', undefined);
-    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: true }, () => {});
+    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: true, pet: true }, () => {});
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -139,7 +139,7 @@ describe('match count', () => {
   });
 
   it('adds no span when the setting is off', () => {
-    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: false }, () => {});
+    initSettings({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: false, pet: true }, () => {});
     const v = make('a');
     openFind(v, false);
     query(v, 'a');

@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 describe('settings', () => {
   it('an older session without toggles gets the defaults', async () => {
     const { parseSettings } = await import('./settings');
-    expect(parseSettings(undefined)).toEqual({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: true });
+    expect(parseSettings(undefined)).toEqual({ lineBreaks: false, taskClicks: true, copyCode: true, findCount: true, pet: true });
   });
 
   it('keeps known booleans and drops anything else', async () => {
     const { parseSettings } = await import('./settings');
-    expect(parseSettings({ lineBreaks: true, taskClicks: 'yes', other: true })).toEqual({ lineBreaks: true, taskClicks: true, copyCode: true, findCount: true });
+    expect(parseSettings({ lineBreaks: true, taskClicks: 'yes', other: true })).toEqual({ lineBreaks: true, taskClicks: true, copyCode: true, findCount: true, pet: true });
   });
 
   it('a toggle flips the value and reports each change', async () => {

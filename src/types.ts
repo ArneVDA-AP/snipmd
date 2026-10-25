@@ -39,7 +39,7 @@ export interface ClosedTab {
 }
 
 /** The command menu's toggles (SPEC §4). */
-export type SettingKey = 'lineBreaks' | 'taskClicks' | 'copyCode' | 'findCount';
+export type SettingKey = 'lineBreaks' | 'taskClicks' | 'copyCode' | 'findCount' | 'pet';
 export type Settings = Record<SettingKey, boolean>;
 
 /** Shape of %APPDATA%/com.snipmd.desktop/session.json. */

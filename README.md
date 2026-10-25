@@ -34,6 +34,7 @@ Notes are plain Markdown files with an image folder next to them (`labo-04.md` +
 - **Command menu** (`Ctrl+Shift+P`) for every command and the few options there are.
 - **Find and replace** with a match count, and lists that keep their numbering as you edit.
 - **Looks like your system**: light or dark, with Mica behind the tabs on Windows 11.
+- **Snip**, a small crab next to your tabs that claps when a screenshot lands and naps when you do. It never asks for anything; switch it off in the command menu.
 
 ## Safe with notes from others
 A Markdown file someone sends you can't run code or reach your files through SnipMD: read mode is sanitized, images load only from the note's own folder, and links open in your browser. SnipMD makes no network connections and collects nothing. See the [security policy](.github/SECURITY.md).

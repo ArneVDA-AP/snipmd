@@ -7,6 +7,7 @@ import { showError } from '../infobar';
 import { applyToTab, filePathFor, getState, tabIdFacet, trackImageSave } from './registry';
 import { primeAssetCache } from './imageWidget';
 import { markPasteVisible } from '../perf';
+import { petMoment } from '../pet';
 import { IS_MAC } from '../platform';
 
 /** One `![snip](link)` line per link, as one block below the line holding `at` (default: the cursor), in one transaction. */
@@ -34,6 +35,7 @@ export function placeImages(tabId: string, images: SavedImage[], at?: number): v
   for (const i of images) primeAssetCache(tabId, i.link, i.absPath);
   insertLinks(tabId, images.map((i) => i.link), at);
   scheduleSessionSave({ immediate: true });
+  petMoment('clap');
 }
 
 async function pasteImage(tabId: string, file: File, start: number): Promise<void> {

@@ -1,6 +1,6 @@
 // Inline SVG icons drawn on a 16-unit grid (Fluent-like strokes). Built with DOM APIs, so they
 // scale crisply at any display scaling and need no icon font.
-const NS = 'http://www.w3.org/2000/svg';
+export const NS = 'http://www.w3.org/2000/svg';
 
 const PATHS = {
   close: 'M3 3l10 10M13 3L3 13',

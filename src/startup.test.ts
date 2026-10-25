@@ -52,6 +52,7 @@ vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: async () => {} }));
 vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: () => false, showError: m.showError, showInfo: m.showInfo }));
 vi.mock('./titlebar', () => ({ Titlebar: class {} }));
+vi.mock('./pet', () => ({ mountPet: () => {}, showPet: () => {}, petMoment: () => {} }));
 vi.mock('./closedTabs', () => ({ closeTabWithRestore: async () => {}, restoreClosedTab: async () => {} }));
 
 import { startApp } from './app';

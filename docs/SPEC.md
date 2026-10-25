@@ -32,6 +32,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - Frameless window (`decorations: false`). One 34px top bar containing, left to right:
   - Tab strip: `filename.md` or `Untitled-N`, where N is the lowest number no open or closed tab uses. A dot marks unsaved changes. Middle-click closes; dragging a tab moves it. Tabs shrink and truncate; the strip scrolls horizontally when full.
   - `+` button (new tab).
+  - Snip, a small pixel crab (below).
   - Drag region (`data-tauri-drag-region`) filling the remaining space.
   - In read mode only: a small "Reading" chip that switches back to writing (`Ctrl+E`).
   - Window controls: minimize, maximize/restore, close.
@@ -42,6 +43,8 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - **Clickable tasks in read mode**: on by default.
   - **Copy button on code blocks**: on by default.
   - **Match count in find**: on by default.
+  - **Show Snip**: on by default.
+- **Snip** is an 11×11 pixel crab right of the `+` button, about 22 px tall (22 px at 100%, 150% and 200%), sized to a whole number of screen pixels per cell so it stays sharp at every display scale. It reacts only to the app's own moments, never to typing: it claps when an image lands in a note (paste or drop), sighs with relief when a closed tab comes back, looks worried for 4 seconds when a note changed outside SnipMD and a choice waits (the info bar keeps the choice; Snip does not repeat it), and falls asleep after 10 minutes without a save; the next save wakes it. It has no sound, no text, no click action, and screen readers skip it. With reduced motion it shows still frames.
 - Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
 - System fonts (Segoe UI, Cascadia Mono / Consolas on Windows; the system font and its monospace on macOS). No web fonts, no network access at runtime.
 
@@ -177,7 +180,7 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
 
-**Added after 1.0:** the command menu and its toggles (§4), code highlighting (§5), moving tabs (§4, §10).
+**Added after 1.0:** the command menu and its toggles (§4), code highlighting (§5), moving tabs (§4, §10), Snip (§4).
 
 **v1 — deliberately out:** theme gallery, font choice, a settings screen (choices go through the command menu); folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
 
@@ -240,4 +243,5 @@ Every item runs the same command as its key. `Cmd+W` closes the tab, never the w
 | 6 | External change with local edits | Open disk version · Reload · Keep mine; a diff view is v1.1 |
 | 7 | Rename | Save As to the same folder; SnipMD never deletes user files |
 | 8 | Warning when quitting | None: autosave and the session already keep everything (§3.3) |
+| 9 | A companion in the app | Snip, a pixel crab in the tab bar: purple body, lime claws (no orange or red, which read as Claude's colour or as an error; no yellow, the warning colour). One fixed look, switched off in the command menu, no colour choice |
 | — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import in v1.1 |

@@ -72,6 +72,7 @@ vi.mock('./external', () => ({ startExternalWatch: () => {} }));
 vi.mock('./perf', () => ({ markReady: () => {}, markStep: () => {} }));
 vi.mock('./drop', () => ({ handleDrop: m.handleDrop }));
 vi.mock('./infobar', () => ({ mountInfobar: () => {}, focusInfobar: m.focusInfobar, showError: vi.fn(), showInfo: vi.fn((bar: { key: string; body?: HTMLElement }) => m.bars.push(bar)), clearInfo: vi.fn() }));
+vi.mock('./pet', () => ({ mountPet: () => {}, showPet: () => {}, petMoment: () => {} }));
 vi.mock('./titlebar', () => ({
   Titlebar: class {
     constructor(_root: HTMLElement, h: typeof m.handlers) {
