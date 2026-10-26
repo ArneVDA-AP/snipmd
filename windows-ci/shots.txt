@@ -1,0 +1,13 @@
+shot results\ui\empty-light.png (1024 x 720)
+shot results\ui\write-light.png (1024 x 720)
+shot results\ui\read-light.png (1024 x 720)
+shot results\ui\find-light.png (1024 x 720)
+shot results\ui\firstsave-light.png (1024 x 720)
+shot results\ui\empty-dark.png (1024 x 720)
+shot results\ui\write-dark.png (1024 x 720)
+shot results\ui\read-dark.png (1024 x 720)
+shot results\ui\find-dark.png (1024 x 720)
+shot results\ui\firstsave-dark.png (1024 x 720)
+shot results\ui\snip-sleep-light.png (1024 x 720)
+shot results\ui\snip-sleep-dark.png (1024 x 720)
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-shots-b0924ffe
