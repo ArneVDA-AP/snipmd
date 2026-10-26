@@ -47,7 +47,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `npm test`: Vitest with jsdom: a test file per feature module, and `src/integration.test.ts`, which runs tabs, the editor registry, paste and saving together with only the Rust side stubbed.
 - `cargo test -p snipmd-core`: the Rust logic, on any OS.
 - CI on `windows-latest` runs both, builds the frontend and checks the Tauri crate on every push; a `macos-latest` job checks the crate for Apple Silicon and Intel.
-- `.github/workflows/windows-run.yml` (manual): builds the release app on a Windows runner, measures the SPEC §9 budgets and screenshots the real window; the results are a workflow artifact.
+- `.github/workflows/windows-run.yml` (manual): builds the release app on a Windows runner, measures the SPEC §9 budgets and screenshots the real window; the results are a workflow artifact and the branch `test/windows-run-<run number>`.
 - `.github/workflows/macos-run.yml` (manual): builds the macOS app and runs `tools/measure/macos-probe.sh`: launch, Finder open, the flush on Cmd+Q and on a Dock quit, Cmd+W closing one tab, paste and plain paste, replace and Cmd+H, and the top bar read through Accessibility; the results are in the log and a workflow artifact.
 - `.github/workflows/release-macos.yml` (manual): builds the universal app, packs it with `tools/release/macos-package.sh` (Developer ID signing and notarization when the secrets exist, ad-hoc otherwise), installs it from the `.dmg` and runs the same probes on that copy. On a tag with *publish* on, it adds the `.dmg` to the release. See [`releasing.md`](releasing.md).
 - `.github/workflows/release-win11.yml` (on a version tag): builds, tests and publishes the Windows files.
