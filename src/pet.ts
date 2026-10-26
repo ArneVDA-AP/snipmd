@@ -40,8 +40,8 @@ interface Crab {
   face: 1 | -1;
   /** The walk, or the still placement, that holds the crab where it stands. */
   walker?: Animation;
-  /** Where the current walk started, and whether it is still under way. */
-  start: number;
+  /** The cells of the current walk, as when it reaches each and where; and whether it is still under way. */
+  path: { offset: number; x: number }[];
   walking: boolean;
 }
 
@@ -52,7 +52,8 @@ let play: ((state: State) => void) | null = null;
 let draw: typeof import('./petSprite').drawPet | undefined;
 let backTimer: ReturnType<typeof setTimeout> | undefined;
 let lastSave = 0;
-let tabEl: (id: string) => HTMLElement | undefined = () => undefined;
+let tabEl: (id: string) => HTMLElement | undefined;
+let glanceTimer: ReturnType<typeof setTimeout> | undefined;
 let snip: Crab;
 /** The friend who wakes Snip from a nap; drawn on its first visit, then kept hidden between visits. */
 let friend: Crab | undefined;
@@ -84,7 +85,8 @@ function fit(): void {
 }
 
 const cellPx = () => Number(snip.svg.getAttribute('width')) / CELLS;
-const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+let reducedMotion: MediaQueryList | undefined; // made on first use: one live query
+const still = () => (reducedMotion ??= matchMedia('(prefers-reduced-motion: reduce)')).matches;
 const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 /** One timer for the nap; a save only notes the time, so a save every second costs no timer. */
@@ -105,8 +107,9 @@ export function mountPet(into: HTMLElement, on: boolean, tab: (id: string) => HT
   slot.setAttribute('aria-hidden', 'true');
   slot.setAttribute('data-tauri-drag-region', ''); // the bar still drags the window from here
   slot.hidden = !on;
-  snip = { svg: sprite(), set: show, x: 0, face: 1, start: 0, walking: false };
-  setTimeout(glance, GLANCE_MS());
+  snip = { svg: sprite(), set: show, x: 0, face: 1, path: [], walking: false };
+  armGlance();
+  window.addEventListener('focus', armGlance); // glances only while the window has focus
   slot.append(snip.svg);
   fit();
   lastSave = Date.now();
@@ -157,11 +160,7 @@ function turn(crab: Crab, face: 1 | -1): void {
   if (!crab.walking && crab.face !== face) place(crab, crab.x, face);
 }
 
-/**
- * Sine in-out: how far a walk is, `0`–`1`, at time `t`, and when it gets to `p`. A cut walk starts the
- * next one from standing too: a short stop, as if Snip changes its mind, instead of a jolt to full speed.
- */
-const ease = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
+/** Sine in-out, inverted: when a walk from standing gets to `p` of the way: slow to start, slow to stop. */
 const easeAt = (p: number) => Math.acos(1 - 2 * p) / Math.PI;
 
 /**
@@ -172,26 +171,21 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
   const cell = cellPx();
   let at = crab.x;
   if (crab.walker && crab.walking) {
-    // A cut walk: start from the last cell it reached, then stop it (its promise then resolves false).
-    // The timing is linear and the keyframes carry the easing, so the cell comes from the eased curve.
-    const t = crab.walker.effect?.getComputedTiming().progress;
-    const cells = Math.round(Math.abs(crab.x - crab.start) / cell);
-    if (t != null) at = crab.start + Math.sign(crab.x - crab.start) * Math.floor(cells * ease(t) + 1e-9) * cell;
+    // A cut walk: start from the last cell its keyframes reached; cancelling it resolves its walk false.
+    const t = crab.walker.effect?.getComputedTiming().progress ?? 1;
+    at = crab.path.filter((k) => k.offset <= t).at(-1)!.x;
   }
   crab.walker?.cancel();
   const steps = Math.max(1, Math.round(Math.abs(to - at) / cell));
   const face = to > at ? -1 : to < at ? 1 : crab.face;
   const step = (to - at) / steps;
   // One keyframe per cell, held until the eased curve reaches the next cell.
-  const keys: Keyframe[] = Array.from({ length: steps + 1 }, (_, k) => ({
-    offset: easeAt(k / steps),
-    easing: 'step-end',
-    transform: pose(at + k * step, face)
-  }));
+  const path = Array.from({ length: steps + 1 }, (_, k) => ({ offset: easeAt(k / steps), x: at + k * step }));
+  const keys = path.map(({ offset, x }) => ({ offset, easing: 'step-end', transform: pose(x, face) }));
   crab.set('walk');
   const a = crab.svg.animate(keys, { duration: Math.min(WALK_MAX_MS, (steps / CELLS_PER_S) * 1000), fill: 'forwards' });
   if (!document.hasFocus()) a.pause(); // like the frames: an unfocused window plays nothing
-  Object.assign(crab, { walker: a, start: at, x: to, face, walking: true });
+  Object.assign(crab, { walker: a, path, x: to, face, walking: true });
   try {
     await a.finished;
     crab.walking = false;
@@ -201,10 +195,16 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
   }
 }
 
-/** Now and then, idle at home, Snip looks right for a moment. Only while the window has focus. */
+function armGlance(): void {
+  clearTimeout(glanceTimer);
+  glanceTimer = setTimeout(glance, GLANCE_MS());
+}
+
+/** Now and then, idle at home, Snip looks right for a moment. An unfocused window stops it until focus returns. */
 function glance(): void {
-  setTimeout(glance, GLANCE_MS());
-  if (state !== 'idle' || snip.x !== 0 || snip.walking || slot.hidden || still() || !document.hasFocus()) return;
+  if (!document.hasFocus()) return;
+  armGlance();
+  if (state !== 'idle' || slot.hidden || still()) return; // idle is only shown at home, standing
   const me = visit;
   turn(snip, -1);
   setTimeout(() => me === visit && turn(snip, 1), 900);
@@ -214,28 +214,33 @@ function glance(): void {
 export function petMoment(moment: Moment, tab?: string): void {
   if (moment === 'saved') {
     lastSave = Date.now();
-    if (state === 'sleep') void wakeUp();
+    if (state === 'sleep' && snip) void wakeUp();
     return;
   }
-  void visitTab(moment, tab);
+  if (snip) void visitTab(moment, tab); // a moment before Snip is mounted is let go
 }
 
 async function visitTab(moment: Exclude<Moment, 'saved'>, tab: string | undefined): Promise<void> {
   const me = ++visit;
   clearTimeout(backTimer);
-  const to = tab === undefined || !snip ? undefined : spot(tab);
-  if (to !== undefined && (to !== snip.x || snip.walking) && !(await walk(snip, to))) return;
+  const to = tab === undefined ? undefined : spot(tab);
+  // Only a newer moment cuts Snip's walk, and that one bumped `visit`.
+  if (to !== undefined && (to !== snip.x || snip.walking)) await walk(snip, to);
   if (me !== visit) return;
   turn(snip, 1);
   show(moment);
   const { ms, runs } = TIMING[moment];
   backTimer = setTimeout(async () => {
-    if (snip.x !== 0 && !(await walk(snip, 0))) return;
-    if (me !== visit) return;
-    show('idle');
-    await wait(LOOK_MS); // home, it looks back over the bar before it turns round
-    if (me === visit) turn(snip, 1);
+    if (snip.x !== 0) await walk(snip, 0);
+    if (me === visit) await settle(me);
   }, ms * runs);
+}
+
+/** Home, idle, Snip looks over the bar a moment before it turns round. */
+async function settle(me: number): Promise<void> {
+  show('idle');
+  await wait(LOOK_MS);
+  if (me === visit) turn(snip, 1);
 }
 
 /** The friend, drawn on first use in the claw and body colours swapped. None before the sprites load. */
@@ -245,8 +250,8 @@ function theFriend(): Crab | undefined {
   svg.classList.add('friend');
   slot.append(svg);
   const play = draw(svg, TIMING);
-  friend = { svg, set: play, x: 0, face: 1, start: 0, walking: false };
-  fit();
+  friend = { svg, set: play, x: 0, face: 1, path: [], walking: false };
+  for (const a of ['width', 'height']) svg.setAttribute(a, snip.svg.getAttribute(a)!); // fit() keeps both in step
   return friend;
 }
 
@@ -266,7 +271,9 @@ async function wakeUp(): Promise<void> {
   place(f, away, 1); // a friend still leaving from the last nap turns round off-screen
   f.svg.classList.remove('gone');
   const leave = async () => {
-    if (await walk(f, away)) f.svg.classList.add('gone');
+    if (!(await walk(f, away))) return; // a newer visit turned it round
+    f.svg.classList.add('gone');
+    f.svg.getAnimations({ subtree: true }).forEach((a) => a.cancel()); // nothing plays out of sight
   };
   if (!(await walk(f, snip.x + cell * (CELLS + 1))) || me !== visit) return leave();
   f.set('clap'); // the tap
@@ -283,9 +290,5 @@ async function wakeUp(): Promise<void> {
   await wait(700);
   if (me === visit) show('wave'); // and Snip waves back
   await gone;
-  await wait(LOOK_MS);
-  if (me === visit) {
-    show('idle');
-    turn(snip, 1);
-  }
+  if (me === visit) await settle(me);
 }

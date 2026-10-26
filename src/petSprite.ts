@@ -84,8 +84,9 @@ export function drawPet(svg: SVGSVGElement, timing: Timing): (state: State) => v
   });
   svg.replaceChildren(...strips);
   const still = matchMedia('(prefers-reduced-motion: reduce)');
-  window.addEventListener('blur', () => svg.getAnimations({ subtree: true }).forEach((a) => a.pause()));
-  window.addEventListener('focus', () => svg.getAnimations({ subtree: true }).forEach((a) => a.play()));
+  // Only what runs is paused, and only what is paused plays on: play() on a finished walk would run it again.
+  window.addEventListener('blur', () => svg.getAnimations({ subtree: true }).forEach((a) => a.playState === 'running' && a.pause()));
+  window.addEventListener('focus', () => svg.getAnimations({ subtree: true }).forEach((a) => a.playState === 'paused' && a.play()));
   return (state) => {
     strips.forEach((g, i) => {
       g.getAnimations().forEach((a) => a.cancel());

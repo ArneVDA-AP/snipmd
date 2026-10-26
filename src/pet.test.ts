@@ -24,7 +24,7 @@ async function mounted(dpr = 1, on = true) {
   vi.resetModules();
   played.length = 0;
   Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
-  window.matchMedia = ((q: string) => ({ matches: q.includes('reduce') && reduced, addEventListener: () => {} })) as never;
+  window.matchMedia = ((q: string) => ({ get matches() { return q.includes('reduce') && reduced; }, addEventListener: () => {} })) as never; // live, like a real query
   vi.spyOn(document, 'hasFocus').mockImplementation(() => focused);
   Element.prototype.animate = function (this: Element, keys: Keyframe[], opts: KeyframeAnimationOptions) {
     let done = () => {};
@@ -222,6 +222,23 @@ describe('Snip', () => {
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(state()).toBe('idle');
+  });
+
+  it('blur pauses only what runs and focus plays only what it paused, so a finished walk stays put', async () => {
+    const { svg } = await mounted();
+    const anim = (playState: string) => {
+      const a = { playState, pause: vi.fn(() => (a.playState = 'paused')), play: vi.fn() };
+      return a;
+    };
+    const running = anim('running');
+    const done = anim('finished');
+    svg.getAnimations = () => [running, done] as never;
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('focus'));
+    expect(running.pause).toHaveBeenCalled();
+    expect(running.play).toHaveBeenCalled();
+    expect(done.pause).not.toHaveBeenCalled();
+    expect(done.play).not.toHaveBeenCalled(); // play() on a finished walk would walk it again
   });
 
   it('a newer moment cuts the walk and starts from where Snip got to', async () => {

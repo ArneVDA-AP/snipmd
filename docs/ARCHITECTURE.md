@@ -57,7 +57,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 ## Decisions
 Build choices that are not obvious from the code, one line each: what, and why. Behaviour decisions are in SPEC §14.
 
-- **Snip's frames** play as one Web Animation per state that slides the strip with `step-end` keyframes: each state's length and runs live in `pet.ts` (which times the return to idle), the frame offsets in `petSprite.ts`, no timer runs per frame, the animations pause while the window has no focus, and the CSP is untouched (no style attributes). Its sprites load when the window is idle, so it costs the startup files about 1.5 kB.
+- **Snip's frames** play as one Web Animation per state that slides the strip with `step-end` keyframes: each state's length and runs live in `pet.ts` (which times the return to idle), the frame offsets in `petSprite.ts`, no timer runs per frame, the animations pause while the window has no focus, and the CSP is untouched (no style attributes). Its sprites load when the window is idle; its walking, turning and the nap visit stay in `pet.ts`, so it costs the startup files about 4.5 kB.
 - **Command menu** is the keyed info bar `command-menu`, not a dialog: it keeps the no-modal rule and reuses the bar's focus and Esc handling.
 - **Editor scope.** GFM without the embedded HTML, CSS and JS parsers (bundle 658 → 398 KB). Read mode is a lazy chunk.
 - **Code languages** are a fixed list, each parser its own lazy chunk; an unknown name stays plain. A free-form list would pull every parser into the bundle.

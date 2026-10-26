@@ -1,6 +1,7 @@
 // The demo's panel: pick a tab, play one of Snip's moments there. The moments are the ones the app
 // raises itself (a pasted image, a change outside SnipMD, a tab back); here a button raises them.
 import '../../../src/main';
+import { button } from '../../../src/dom';
 import { petMoment } from '../../../src/pet';
 
 declare global {
@@ -34,62 +35,45 @@ panel.setAttribute('aria-label', 'Snip demo');
 const intro = document.createElement('p');
 intro.textContent = 'Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan. Na 10 minuten zonder opslaan slaapt hij; de volgende save brengt een vriendje dat hem wekt.';
 
-const tabRow = document.createElement('div');
-tabRow.className = 'row';
+const btn = (text: string, run: () => void) => button('', text, text, run);
+const tabs = () => [...document.querySelectorAll<HTMLElement>('.tabs [role="tab"]')];
 
-function button(text: string, run: () => void): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.textContent = text;
-  b.addEventListener('click', run);
-  return b;
+/** A labelled row of buttons; `fill` redraws it. */
+function row(label: string, kids: () => HTMLElement[]): HTMLElement & { fill: () => void } {
+  const r = Object.assign(document.createElement('div'), { className: 'row' });
+  const name = Object.assign(document.createElement('span'), { className: 'label', textContent: label });
+  return Object.assign(r, { fill: () => r.replaceChildren(name, ...kids()) });
 }
 
 /** One chip per open tab, plus "no tab"; redrawn when the strip changes. */
-function drawTabs(): void {
-  const tabs = [...document.querySelectorAll<HTMLElement>('.tabs [role="tab"]')];
-  if (target !== undefined && !tabs.some((t) => t.dataset.id === target)) target = tabs[0]?.dataset.id;
-  const chips = tabs.map((t) => [t.dataset.id, t.querySelector('.tab-title')?.textContent ?? '?'] as const);
-  const label = document.createElement('span');
-  label.className = 'label';
-  label.textContent = 'Tab';
-  tabRow.replaceChildren(
-    label,
-    ...[...chips, [undefined, 'Geen tab'] as const].map(([id, name]) => {
-      const b = button(name, () => {
-        target = id;
-        drawTabs();
-      });
-      b.setAttribute('aria-pressed', String(target === id));
-      return b;
-    })
-  );
-}
+const tabRow = row('Tab', () => {
+  const open = tabs();
+  if (target !== undefined && !open.some((t) => t.dataset.id === target)) target = open[0]?.dataset.id;
+  const chips = open.map((t) => [t.dataset.id, t.querySelector('.tab-title')?.textContent ?? '?'] as const);
+  return [...chips, [undefined, 'Geen tab'] as const].map(([id, name]) => {
+    const b = btn(name, () => {
+      target = id;
+      tabRow.fill();
+    });
+    b.setAttribute('aria-pressed', String(target === id));
+    return b;
+  });
+});
 
 const play = (m: Play) => () => petMoment(m, target);
-const moments = document.createElement('div');
-moments.className = 'row';
-const label = document.createElement('span');
-label.className = 'label';
-label.textContent = 'Moment';
-moments.append(
-  label,
-  button('Afbeelding geplakt', play('clap')),
-  button('Gewijzigd buiten SnipMD', play('worried')),
-  button('Tab teruggehaald', play('relief')),
-  button('Twee kort na elkaar', () => {
-    const ids = [...document.querySelectorAll<HTMLElement>('.tabs [role="tab"]')].map((t) => t.dataset.id!);
+const moments = row('Moment', () => [
+  btn('Afbeelding geplakt', play('clap')),
+  btn('Gewijzigd buiten SnipMD', play('worried')),
+  btn('Tab teruggehaald', play('relief')),
+  btn('Twee kort na elkaar', () => {
+    const ids = tabs().map((t) => t.dataset.id!);
     petMoment('clap', ids[ids.length - 1]);
     setTimeout(() => petMoment('worried', ids[0]), 400);
   })
-);
-
-const nap = document.createElement('div');
-nap.className = 'row';
-const napLabel = document.createElement('span');
-napLabel.className = 'label';
-napLabel.textContent = 'Dutje';
-nap.append(napLabel, button('10 minuten later', () => __demoSkip(10 * 60_000)), button('Opslaan', () => petMoment('saved')));
+]);
+const nap = row('Dutje', () => [btn('10 minuten later', () => __demoSkip(10 * 60_000)), btn('Opslaan', () => petMoment('saved'))]);
+moments.fill();
+nap.fill();
 
 panel.append(intro, tabRow, moments, nap);
 document.body.append(panel);
@@ -98,8 +82,8 @@ document.body.append(panel);
 const watch = () => {
   const strip = document.querySelector('.tabs');
   if (!strip?.querySelector('[role="tab"]')) return void requestAnimationFrame(watch);
-  target = strip.querySelector<HTMLElement>('[role="tab"]:last-child')?.dataset.id;
-  new MutationObserver(drawTabs).observe(strip, { childList: true, subtree: true, characterData: true });
-  drawTabs();
+  target = tabs().at(-1)?.dataset.id;
+  new MutationObserver(tabRow.fill).observe(strip, { childList: true, subtree: true, characterData: true });
+  tabRow.fill();
 };
 watch();
