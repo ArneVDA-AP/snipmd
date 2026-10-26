@@ -58,7 +58,7 @@
   --pet-body: #7b4fd6;
   --pet-claw: #5f8f0a;
   --pet-eye: #ffffff;
-  --pet-brow: #242424;
+  --pet-pupil: #242424;
   --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --match: #ffe08a;
   --match-current: #ffb547;
@@ -100,7 +100,7 @@
     --pet-body: #b292ff;
     --pet-claw: #b4e04a;
     --pet-eye: #242424;
-    --pet-brow: #b292ff;
+    --pet-pupil: #ffffff;
     --img-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     --match: #5c4a12;
     --match-current: #7a4a00;
@@ -168,7 +168,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .pet .body, .pet .zzz { fill: var(--pet-body); }
 .pet .claw { fill: var(--pet-claw); }
 .pet .eye { fill: var(--pet-eye); }
-.pet .brow { fill: var(--pet-brow); }
+.pet .pupil { fill: var(--pet-pupil); }
 .mode-chip { display: flex; align-items: center; gap: 6px; align-self: center; height: 24px; margin-right: var(--s2); padding: 0 var(--s2); border-radius: var(--r-sm); color: var(--text-muted); font-size: var(--fs-caption); }
 .mode-chip:hover { background: var(--hover); color: var(--text); }
 .win-controls { display: flex; align-self: stretch; }
