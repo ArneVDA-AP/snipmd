@@ -52,6 +52,7 @@ WebView2 (TypeScript, CodeMirror 6)          Rust (Tauri v2)                    
 - `.github/workflows/release-macos.yml` (manual): builds the universal app, packs it with `tools/release/macos-package.sh` (Developer ID signing and notarization when the secrets exist, ad-hoc otherwise), installs it from the `.dmg` and runs the same probes on that copy. On a tag with *publish* on, it adds the `.dmg` to the release. See [`releasing.md`](releasing.md).
 - `.github/workflows/release-win11.yml` (on a version tag): builds, tests and publishes the Windows files.
 - `.github/workflows/release-notes.yml` (called by both release workflows, or by hand with a tag): sets a release's text from its CHANGELOG section and the downloads it has.
+- `tools/demo/snip-walk` is the app on a mocked Tauri with buttons that play Snip's moments and move the clock ten minutes on (`npx vite --config tools/demo/snip-walk/vite.config.ts`), to see the walk and the nap visit without the desktop app.
 
 ## Decisions
 Build choices that are not obvious from the code, one line each: what, and why. Behaviour decisions are in SPEC §14.

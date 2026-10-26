@@ -18,6 +18,21 @@
       tab('t4', 'todo.md', 'todo.md', notes['todo.md'])
     ]
   };
+  // The demo's clock can jump ahead: timers of five minutes or more (the nap) are kept, so a jump runs
+  // the ones it passes at once.
+  var offset = 0, realNow = Date.now.bind(Date), realSet = window.setTimeout.bind(window), longOnes = [];
+  Date.now = function () { return realNow() + offset; };
+  window.setTimeout = function (f, ms) {
+    var id = realSet.apply(window, arguments);
+    if (ms >= 300000) longOnes.push({ id: id, f: f, at: Date.now() + ms, args: [].slice.call(arguments, 2) });
+    return id;
+  };
+  window.__demoSkip = function (ms) {
+    offset += ms;
+    var due = longOnes.filter(function (t) { return t.at <= Date.now(); });
+    longOnes = longOnes.filter(function (t) { return t.at > Date.now(); });
+    due.forEach(function (t) { clearTimeout(t.id); t.f.apply(window, t.args); });
+  };
   var cb = 0;
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label: 'main' }, currentWebview: { windowLabel: 'main', label: 'main' } },

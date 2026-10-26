@@ -1,7 +1,12 @@
 // The demo's panel: pick a tab, play one of Snip's moments there. The moments are the ones the app
 // raises itself (a pasted image, a change outside SnipMD, a tab back); here a button raises them.
 import '../../../src/main';
-import { petMoment, petNap } from '../../../src/pet';
+import { petMoment } from '../../../src/pet';
+
+declare global {
+  /** Set by mock.js: moves the demo's clock ahead and runs the long timers it passes. */
+  function __demoSkip(ms: number): void;
+}
 
 type Play = 'clap' | 'worried' | 'relief';
 
@@ -27,7 +32,7 @@ panel.className = 'demo';
 panel.setAttribute('aria-label', 'Snip demo');
 
 const intro = document.createElement('p');
-intro.textContent = 'Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan. Na een dutje (in de app: 10 minuten zonder opslaan) maakt een vriendje hem wakker bij de volgende save.';
+intro.textContent = 'Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan. Na 10 minuten zonder opslaan slaapt hij; de volgende save brengt een vriendje dat hem wekt.';
 
 const tabRow = document.createElement('div');
 tabRow.className = 'row';
@@ -84,7 +89,7 @@ nap.className = 'row';
 const napLabel = document.createElement('span');
 napLabel.className = 'label';
 napLabel.textContent = 'Dutje';
-nap.append(napLabel, button('Laat inslapen', petNap), button('Opslaan', () => petMoment('saved')));
+nap.append(napLabel, button('10 minuten later', () => __demoSkip(10 * 60_000)), button('Opslaan', () => petMoment('saved')));
 
 panel.append(intro, tabRow, moments, nap);
 document.body.append(panel);

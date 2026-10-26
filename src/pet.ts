@@ -126,13 +126,6 @@ export function showPet(on: boolean): void {
   slot.hidden = !on;
 }
 
-/** For the demo: Snip falls asleep now, as after ten minutes without a save. */
-export function petNap(): void {
-  lastSave = Date.now() - SLEEP_MS;
-  clearTimeout(backTimer);
-  show('sleep');
-}
-
 /**
  * Where Snip stands to play a moment on tab `id`, in px right of its slot, snapped to whole cells.
  * None when it should stay put: switched off, reduced motion, or that spot scrolled out of the strip.
@@ -164,7 +157,11 @@ function turn(crab: Crab, face: 1 | -1): void {
   if (!crab.walking && crab.face !== face) place(crab, crab.x, face);
 }
 
-/** Sine in-out: where a walk is, `0`–`1`, at time `t`; `easeAt` is its inverse. */
+/**
+ * Sine in-out: how far a walk is, `0`–`1`, at time `t`, and when it gets to `p`. A cut walk starts the
+ * next one from standing too: a short stop, as if Snip changes its mind, instead of a jolt to full speed.
+ */
+const ease = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
 const easeAt = (p: number) => Math.acos(1 - 2 * p) / Math.PI;
 
 /**
@@ -175,9 +172,11 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
   const cell = cellPx();
   let at = crab.x;
   if (crab.walker && crab.walking) {
-    // A cut walk: start from where it got to, then stop it (its promise then resolves false).
-    const p = crab.walker.effect?.getComputedTiming().progress;
-    if (p != null) at = Math.round((crab.start + (crab.x - crab.start) * p) / cell) * cell;
+    // A cut walk: start from the last cell it reached, then stop it (its promise then resolves false).
+    // The timing is linear and the keyframes carry the easing, so the cell comes from the eased curve.
+    const t = crab.walker.effect?.getComputedTiming().progress;
+    const cells = Math.round(Math.abs(crab.x - crab.start) / cell);
+    if (t != null) at = crab.start + Math.sign(crab.x - crab.start) * Math.floor(cells * ease(t) + 1e-9) * cell;
   }
   crab.walker?.cancel();
   const steps = Math.max(1, Math.round(Math.abs(to - at) / cell));

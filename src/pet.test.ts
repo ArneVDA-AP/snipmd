@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const played: { el: Element; keys: Keyframe[]; opts: KeyframeAnimationOptions; paused: boolean; done: () => void; cut: () => void }[] = [];
 let reduced = false;
 let focused = true;
+/** How far, in time, a cut animation got. */
+let progress = 0.5;
 
 const box = (left: number, width: number) => ({ left, right: left + width, width }) as DOMRect;
 /** Two tabs in a strip from 0 to 80 px: `a` in view, `b` scrolled half out. */
@@ -35,7 +37,7 @@ async function mounted(dpr = 1, on = true) {
       finished,
       pause: () => (a.paused = true),
       cancel: () => cut(),
-      effect: { getComputedTiming: () => ({ progress: 0.5 }) }
+      effect: { getComputedTiming: () => ({ progress }) }
     } as unknown as Animation;
   } as never;
   Element.prototype.getAnimations = () => [];
@@ -58,6 +60,7 @@ describe('Snip', () => {
     vi.restoreAllMocks();
     reduced = false;
     focused = true;
+    progress = 0.5;
   });
 
   it('starts idle, hidden from screen readers, every state drawn once as paths per part', async () => {
@@ -105,7 +108,7 @@ describe('Snip', () => {
 
   it('after a nap a friend walks in from the window edge, taps Snip awake, they clap, wave, and it walks off', async () => {
     const { pet, slot, svg, state } = await mounted();
-    pet.petNap();
+    vi.advanceTimersByTime(10 * 60_000);
     pet.petMoment('saved');
     const friend = slot.querySelector('svg.friend') as SVGSVGElement;
     const lastOf = (el: Element) => played.filter((p) => p.el === el).at(-1)!;
@@ -131,7 +134,7 @@ describe('Snip', () => {
 
   it('a moment during the visit takes Snip away, and the friend leaves', async () => {
     const { pet, state } = await mounted();
-    pet.petNap();
+    vi.advanceTimersByTime(10 * 60_000);
     pet.petMoment('saved');
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(100);
@@ -226,10 +229,19 @@ describe('Snip', () => {
     pet.petMoment('clap', 'a');
     pet.petMoment('worried', 'a');
     await vi.advanceTimersByTimeAsync(0);
-    expect(walks()[1]).toEqual(['translateX(-44px) scaleX(1)', 'translateX(-88px) scaleX(1)']); // halfway, per the mocked progress
+    expect(walks()[1]).toEqual(['translateX(-44px) scaleX(1)', 'translateX(-88px) scaleX(1)']); // halfway in time is halfway on the curve
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(state()).toBe('worried');
+  });
+
+  it('a walk cut early starts from the cell the eased walk reached, not from a straight line', async () => {
+    const { pet } = await mounted();
+    progress = 0.25; // a quarter of the time: slow to start, so 6 of the 44 cells, where a straight line has 11
+    pet.petMoment('clap', 'a');
+    pet.petMoment('worried', 'a');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(walks()[1][0]).toBe('translateX(-12px) scaleX(1)');
   });
 
   it('plays in place for a tab out of view, without a tab, or with reduced motion', async () => {
