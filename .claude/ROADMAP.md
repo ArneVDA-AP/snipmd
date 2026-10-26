@@ -20,11 +20,12 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `docs/install-macos.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## 1.1
-`v1.1.0-1` and `v1.1.0-2` are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59).
+`v1.1.0-1`, `v1.1.0-2` and `v1.1.0-3` (Snip) are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59).
 
 Open before a 1.1 release:
 1. **Mac test** of the pre-release `v1.1.0-2`: the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the `docs/releasing.md` checklist). Take the `.preview.dmg` from the Releases page.
 2. **Windows test** of `v1.1.0-1` (2026-10-24, report on `test/w11-20261023`): no failures. Its four remarks are fixed in `v1.1.0-2` (the reason in the first-save bar, no spellcheck in code, plain text colour in unhighlighted blocks, the `.preview` dmg name). Left for the owner: holding Enter on a toggle (B4, computer use cannot hold a key), light and dark theme (C2), the USB stick (E2), the display scale (E3), and AZERTY `Ctrl+1`/`Ctrl+2` (E1).
+3. **Snip on Windows** in `v1.1.0-3`, by the owner: it reads as a crab in both themes and stays sharp at 100%, 125%, 150% and 200%; clap on a paste, relief on reopening a closed tab, worried on an outside change, asleep after 10 minutes without a save.
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
