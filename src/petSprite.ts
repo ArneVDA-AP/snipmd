@@ -3,8 +3,8 @@
 import { NS } from './icons';
 import type { State, Timing } from './pet';
 
-// 11×11 frames. c claw, # body, k eye, w its pupil (dark eyes get a light glint, light eyes a dark pupil), z the
-// sleeping z. Eyes and mouth sit on the body, so they read against it in both themes.
+// 11×11 frames. c claw, # body, k eye and mouth, w pupil, z the sleeping z. Eyes and mouth sit on the body,
+// so they read against it in both themes.
 const FRAMES: Record<State, string[][]> = {
   idle: [
     ['...........', 'c.c.....c.c', 'ccc.....ccc', 'ccc.....ccc', '.cc#####cc.', '.##wk#wk##.', '###kk#kk###', '###########', '.#########.', '#.#.....#.#', '#..#...#..#'],
