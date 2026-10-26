@@ -157,7 +157,7 @@ describe('closed-tabs list', () => {
     await closeTab('cb');
     expect(snapshot().closedTabs.map((c) => [c.tab.id, c.tab.content])).toEqual([['cb', 'two'], ['ca', 'one']]);
     const back = await reopenClosed();
-    expect(petMoment).toHaveBeenCalledWith('relief');
+    expect(petMoment).toHaveBeenCalledWith('relief', 'cb');
     expect(back?.id).toBe('cb');
     expect(textOf(back!)).toBe('two');
     expect(getTabs().map((t) => t.id)).toEqual(['cc', 'cb']);
@@ -211,7 +211,7 @@ describe('closed-tabs list', () => {
     await restore(session([tab({ id: 'd', title: 'd.md', filePath: 'C:/n/d.md', dirty: true, content: 'mine' }), tab({ id: 'x2', title: 'd.md', filePath: 'C:/n/D.md' })]));
     await closeTab('d');
     expect(await reopenClosed()).toBeUndefined();
-    expect(petMoment).toHaveBeenCalledWith('relief');
+    expect(petMoment).toHaveBeenCalledWith('relief', 'x2') // on the tab that is open again;
     expect(getTabs().filter((t) => t.filePath).map((t) => t.id)).toEqual(['x2']);
     const copy = getTabs().find((t) => t.title === 'd.md (closed)');
     expect(copy?.mode).toBe('read');

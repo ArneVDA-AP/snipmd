@@ -164,7 +164,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .drag-region { flex: 1; min-width: 32px; align-self: stretch; }
 /* Snip (pet.ts): its frames and their timing are drawn and played by petSprite.ts. */
 .pet { display: grid; place-items: center; flex: none; align-self: center; margin-left: var(--s1); }
-.pet svg { display: block; pointer-events: none; }
+.pet svg { position: relative; z-index: 1; display: block; pointer-events: none; } /* over the tabs it walks to */
 .pet .body, .pet .zzz { fill: var(--pet-body); }
 .pet .claw { fill: var(--pet-claw); }
 .pet .eye { fill: var(--pet-eye); }

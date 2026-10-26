@@ -1,9 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom has neither media queries nor Web Animations: record what Snip asks for.
-const played: { keys: Keyframe[]; opts: KeyframeAnimationOptions; paused: boolean }[] = [];
+const played: { el: Element; keys: Keyframe[]; opts: KeyframeAnimationOptions; paused: boolean; done: () => void; cut: () => void }[] = [];
 let reduced = false;
 let focused = true;
+
+const box = (left: number, width: number) => ({ left, right: left + width, width }) as DOMRect;
+/** Two tabs in a strip from 0 to 80 px: `a` in view, `b` scrolled half out. */
+const strip = document.createElement('div');
+strip.getBoundingClientRect = () => box(0, 80);
+const tabs: Record<string, HTMLElement> = {};
+for (const [id, left] of [['a', 0], ['b', 60]] as const) {
+  tabs[id] = document.createElement('div');
+  tabs[id].getBoundingClientRect = () => box(left, 60);
+  strip.append(tabs[id]);
+}
+/** The walks Snip started, as [from, to] px. */
+const walks = () => played.filter((p) => p.el.tagName === 'svg').map((p) => p.keys.map((k) => k.transform));
 
 async function mounted(dpr = 1, on = true) {
   vi.resetModules();
@@ -11,20 +24,30 @@ async function mounted(dpr = 1, on = true) {
   Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
   window.matchMedia = ((q: string) => ({ matches: q.includes('reduce') && reduced, addEventListener: () => {} })) as never;
   vi.spyOn(document, 'hasFocus').mockImplementation(() => focused);
-  Element.prototype.animate = function (keys: Keyframe[], opts: KeyframeAnimationOptions) {
-    const a = { keys, opts, paused: false };
+  Element.prototype.animate = function (this: Element, keys: Keyframe[], opts: KeyframeAnimationOptions) {
+    let done = () => {};
+    let cut = () => {};
+    const finished = new Promise<void>((res, rej) => ((done = res), (cut = rej)));
+    finished.catch(() => {});
+    const a = { el: this, keys, opts, paused: false, done, cut };
     played.push(a);
-    return { pause: () => (a.paused = true) } as unknown as Animation;
+    return {
+      finished,
+      pause: () => (a.paused = true),
+      cancel: () => cut(),
+      effect: { getComputedTiming: () => ({ progress: 0.5 }) }
+    } as unknown as Animation;
   } as never;
   Element.prototype.getAnimations = () => [];
   const pet = await import('./pet');
   const slot = document.createElement('span');
-  pet.mountPet(slot, on);
+  slot.getBoundingClientRect = () => box(100, 22);
+  pet.mountPet(slot, on, (id) => tabs[id]);
   vi.advanceTimersByTime(200); // the sprites load when the window is idle
   await vi.dynamicImportSettled();
   const svg = slot.firstElementChild!;
   /** The state whose strip shows. */
-  const state = () => ['idle', 'clap', 'relief', 'worried', 'sleep'][[...svg.children].findIndex((g) => g.getAttribute('display') === 'inline')];
+  const state = () => ['idle', 'clap', 'relief', 'worried', 'sleep', 'walk'][[...svg.children].findIndex((g) => g.getAttribute('display') === 'inline')];
   return { pet, slot, svg, state };
 }
 
@@ -41,7 +64,7 @@ describe('Snip', () => {
     const { slot, svg, state } = await mounted();
     expect(slot.getAttribute('aria-hidden')).toBe('true');
     expect(state()).toBe('idle');
-    expect(svg.children).toHaveLength(5);
+    expect(svg.children).toHaveLength(6);
     const idleParts = new Set([...svg.children[0].querySelectorAll('path')].map((p) => p.getAttribute('class')));
     expect([...idleParts].sort()).toEqual(['body', 'claw', 'eye', 'pupil']);
   });
@@ -123,6 +146,45 @@ describe('Snip', () => {
     pet.petMoment('clap');
     expect(state()).toBe('clap');
     expect(played).toHaveLength(0);
+  });
+
+  it('walks to the tab of a moment, plays it there, and walks back', async () => {
+    const { pet, state } = await mounted();
+    pet.petMoment('clap', 'a');
+    expect(state()).toBe('walk');
+    // tab a ends at 60: Snip's middle 26 + 11 px left of that, in whole 2 px cells, from its own middle at 111
+    expect(walks()).toEqual([['translateX(0px)', 'translateX(-88px)']]);
+    played.at(-1)!.done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state()).toBe('clap');
+    vi.advanceTimersByTime(1200);
+    expect(state()).toBe('walk');
+    expect(walks()[1]).toEqual(['translateX(-88px)', 'translateX(0px)']);
+    played.at(-1)!.done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state()).toBe('idle');
+  });
+
+  it('a newer moment cuts the walk and starts from where Snip got to', async () => {
+    const { pet, state } = await mounted();
+    pet.petMoment('clap', 'a');
+    pet.petMoment('worried', 'a');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(walks()[1]).toEqual(['translateX(-44px)', 'translateX(-88px)']); // halfway, per the mocked progress
+    played.at(-1)!.done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state()).toBe('worried');
+  });
+
+  it('plays in place for a tab out of view, without a tab, or with reduced motion', async () => {
+    const { pet, state } = await mounted();
+    pet.petMoment('clap', 'b');
+    pet.petMoment('relief');
+    expect(state()).toBe('relief');
+    expect(walks()).toEqual([]);
+    reduced = true;
+    pet.petMoment('clap', 'a');
+    expect(walks()).toEqual([]);
   });
 
   it.each([

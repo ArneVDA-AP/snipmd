@@ -29,7 +29,7 @@ export const writeGeneration = (id: string): number => generation.get(id) ?? 0;
 
 /** A tab whose file changed outside SnipMD while it had changes: autosave pauses until the user chooses (SPEC §6.1). */
 export function setConflict(id: string, on: boolean): void {
-  if (on && !conflicts.has(id)) petMoment('worried');
+  if (on && !conflicts.has(id)) petMoment('worried', id);
   if (on) conflicts.add(id);
   else conflicts.delete(id);
 }

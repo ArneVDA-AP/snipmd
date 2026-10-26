@@ -45,7 +45,7 @@ describe('conflicts', () => {
     setConflict('c', true);
     setConflict('c', true);
     expect(petMoment).toHaveBeenCalledTimes(1); // Snip is worried once, when the conflict starts
-    expect(petMoment).toHaveBeenCalledWith('worried');
+    expect(petMoment).toHaveBeenCalledWith('worried', 'c');
     expect(inConflict('c')).toBe(true);
     expect(inConflict('d')).toBe(false);
     setConflict('c', false);

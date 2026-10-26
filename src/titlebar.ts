@@ -129,6 +129,11 @@ export class Titlebar {
     }
   }
 
+  /** A tab's element in the strip, for Snip to walk to. */
+  tabEl(id: string): HTMLElement | undefined {
+    return this.els.get(id)?.el;
+  }
+
   private create(id: string): TabEl {
     const el = document.createElement('div');
     el.setAttribute('role', 'tab');

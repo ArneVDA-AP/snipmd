@@ -405,7 +405,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
     await activate(open.id);
     if (tab.dirty && text !== textOf(open)) await openCopy(`${tab.title} (closed)`, text, open.id);
     changed({ immediate: true });
-    petMoment('relief');
+    petMoment('relief', open.id);
     return undefined;
   }
   // Open again at once, at the end of the strip, so a second Ctrl+Shift+T during the read below takes the next one.
@@ -430,7 +430,7 @@ export async function reopenClosed(id?: string): Promise<TabState | undefined> {
   // A tab the user went to during the read keeps the focus; a close of the shown tab does not count.
   if (activeId === shown || !openTab(shown)) await activate(tab.id);
   changed({ immediate: true });
-  petMoment('relief');
+  petMoment('relief', tab.id);
   return tab;
 }
 
