@@ -4,6 +4,9 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Changed
+- Asleep, Snip's Z floats above its back instead of touching it.
+
 ## [1.1.0-3] - 2026-10-26
 
 A pre-release that brings Snip, for the Windows and Mac tests.
