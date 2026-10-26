@@ -25,6 +25,9 @@ public static class Win {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, UIntPtr w, string l, uint flags, uint ms, out UIntPtr r);
+  // What Settings broadcasts after a theme change; a registry write alone reaches no open window.
+  public static void ThemeChanged() { UIntPtr r; SendMessageTimeout((IntPtr)0xffff, 0x1A, UIntPtr.Zero, "ImmersiveColorSet", 2, 5000, out r); }
   public static uint FgPid() { uint p; GetWindowThreadProcessId(GetForegroundWindow(), out p); return p; }
 }
 '@
@@ -147,7 +150,7 @@ try {
     Stop-Snip $p
   }
   if ($SnipSleep) {
-    # One wait gives both themes: the open window follows the system theme.
+    # One wait gives both themes: the open window follows the system theme once Windows announces it.
     Set-ItemProperty -Path $themeKey -Name AppsUseLightTheme -Value 1 -Type DWord
     $p = Start-Snip (Join-Path $root 'sleep') @($note)
     Start-Sleep -Seconds 615
@@ -155,6 +158,7 @@ try {
     Start-Sleep -Milliseconds 500
     Shot $p 'snip-sleep-light'
     Set-ItemProperty -Path $themeKey -Name AppsUseLightTheme -Value 0 -Type DWord
+    [Win]::ThemeChanged()
     Start-Sleep -Seconds 2
     Shot $p 'snip-sleep-dark'
     Stop-Snip $p
