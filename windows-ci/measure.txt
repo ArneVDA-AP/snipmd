@@ -1,0 +1,8 @@
+Last start: page / html / script / session / ready (ms from process start) 362.3 / 390.3 / 445.6 / 451.3 / 509.8
+Double-click to typing, first start (ms, in process / from launch) 3458.4 / 3,562
+Double-click to typing, later starts (ms, median in process / from launch) 539.6 / 566
+SnipMD's own start, page to ready (ms, median of all starts) 152.5
+Ctrl+V to 4K screenshot visible (ms, median)               89.8
+Memory, 5 tabs and 20 images (MB, private working set / private bytes) 89.0 / 127.9
+Installer (MB)                                             1.48
+Data and fixtures: C:\Users\runneradmin\AppData\Local\Temp\snipmd-measure-47f9e0ab (delete when done)
