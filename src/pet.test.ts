@@ -110,13 +110,13 @@ describe('Snip', () => {
     const friend = slot.querySelector('svg.friend') as SVGSVGElement;
     expect(walks()).toEqual([['translateX(924px)', 'translateX(24px)']]); // from x = 1024, to one cell right of Snip
     expect(state()).toBe('sleep');
-    played.findLast((p) => p.el === friend)!.done();
+    played.filter((p) => p.el === friend).at(-1)!.done();
     await vi.advanceTimersByTimeAsync(500);
     expect(state()).toBe('clap');
     await vi.advanceTimersByTimeAsync(1500);
     expect(state()).toBe('idle');
     expect(walks()[1]).toEqual(['translateX(24px)', 'translateX(924px)']);
-    played.findLast((p) => p.el === friend)!.done();
+    played.filter((p) => p.el === friend).at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(friend.style.display).toBe('none');
   });
