@@ -168,6 +168,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .pet .body, .pet .zzz { fill: var(--pet-body); }
 .pet .claw { fill: var(--pet-claw); }
 .pet .friend { position: absolute; left: 0; top: 0; } /* Snip's friend, who wakes it: the two colours swapped */
+.pet .friend.gone { display: none; }
 .pet .friend .body { fill: var(--pet-claw); }
 .pet .friend .claw { fill: var(--pet-body); }
 .pet .eye { fill: var(--pet-eye); }

@@ -6,7 +6,7 @@ import { idle } from './dom';
 import { NS } from './icons';
 
 type Moment = 'clap' | 'relief' | 'worried' | 'saved';
-export type State = 'idle' | 'clap' | 'relief' | 'worried' | 'sleep' | 'walk';
+export type State = 'idle' | 'clap' | 'relief' | 'worried' | 'sleep' | 'walk' | 'wave';
 
 const CELLS = 11;
 /** How long one run of each state lasts, and how often it runs (Infinity loops). A moment shows for `ms × runs`. */
@@ -17,7 +17,8 @@ const TIMING: Timing = {
   relief: { ms: 2400, runs: 1 },
   worried: { ms: 2000, runs: 2 },
   sleep: { ms: 4000, runs: Infinity },
-  walk: { ms: 360, runs: Infinity }
+  walk: { ms: 360, runs: Infinity },
+  wave: { ms: 500, runs: Infinity }
 };
 const SLEEP_MS = 10 * 60_000;
 /** Walking speed in cells per second, and the longest walk: a far tab is reached faster, not later. */
@@ -25,6 +26,9 @@ const CELLS_PER_S = 40;
 const WALK_MAX_MS = 1400;
 /** Where Snip stands over a tab: left of its close button, which stays free. */
 const CLOSE_ROOM = 26;
+/** How long Snip looks round at the end of a walk, and the wait between idle glances: 20 to 45 s, never regular. */
+const LOOK_MS = 300;
+const GLANCE_MS = () => 20_000 + Math.random() * 25_000;
 
 /** A sprite in the bar and where it stands, in px right of the slot. */
 interface Crab {
@@ -32,6 +36,9 @@ interface Crab {
   /** Shows a state; Snip's goes through `show`, which keeps a loop that already plays. */
   set: (state: State) => void;
   x: number;
+  /** 1 looks left (the drawing), -1 is the drawing mirrored: looking right. */
+  face: 1 | -1;
+  /** The walk, or the still placement, that holds the crab where it stands. */
   walker?: Animation;
   /** Where the current walk started, and whether it is still under way. */
   start: number;
@@ -98,7 +105,8 @@ export function mountPet(into: HTMLElement, on: boolean, tab: (id: string) => HT
   slot.setAttribute('aria-hidden', 'true');
   slot.setAttribute('data-tauri-drag-region', ''); // the bar still drags the window from here
   slot.hidden = !on;
-  snip = { svg: sprite(), set: show, x: 0, start: 0, walking: false };
+  snip = { svg: sprite(), set: show, x: 0, face: 1, start: 0, walking: false };
+  setTimeout(glance, GLANCE_MS());
   slot.append(snip.svg);
   fit();
   lastSave = Date.now();
@@ -141,7 +149,28 @@ function spot(id: string): number | undefined {
   return Math.round((center - (home.left + home.width / 2)) / cellPx()) * cellPx();
 }
 
-/** Walks `crab` sideways to `to`, one cell per step; resolves false when a newer walk took over. */
+const pose = (x: number, face: number) => `translateX(${x}px) scaleX(${face})`;
+
+/** Holds `crab` at `x`, looking `face`, with no motion: the mirror flips only the pupils, the rest is symmetric. */
+function place(crab: Crab, x: number, face: 1 | -1): void {
+  crab.walker?.cancel();
+  const at = pose(x, face);
+  crab.walker = crab.svg.animate([{ transform: at }, { transform: at }], { duration: 0, fill: 'forwards' });
+  Object.assign(crab, { x, face, walking: false });
+}
+
+/** Turns a crab that stands still; one that walks keeps looking where it goes. */
+function turn(crab: Crab, face: 1 | -1): void {
+  if (!crab.walking && crab.face !== face) place(crab, crab.x, face);
+}
+
+/** Sine in-out: where a walk is, `0`–`1`, at time `t`; `easeAt` is its inverse. */
+const easeAt = (p: number) => Math.acos(1 - 2 * p) / Math.PI;
+
+/**
+ * Walks `crab` sideways to `to`, one cell per step, looking where it goes: slow to start, quicker in
+ * the middle, slowing to stop. Resolves false when a newer walk took over.
+ */
 async function walk(crab: Crab, to: number): Promise<boolean> {
   const cell = cellPx();
   let at = crab.x;
@@ -149,17 +178,21 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
     // A cut walk: start from where it got to, then stop it (its promise then resolves false).
     const p = crab.walker.effect?.getComputedTiming().progress;
     if (p != null) at = Math.round((crab.start + (crab.x - crab.start) * p) / cell) * cell;
-    crab.walker.cancel();
   }
+  crab.walker?.cancel();
   const steps = Math.max(1, Math.round(Math.abs(to - at) / cell));
+  const face = to > at ? -1 : to < at ? 1 : crab.face;
+  const step = (to - at) / steps;
+  // One keyframe per cell, held until the eased curve reaches the next cell.
+  const keys: Keyframe[] = Array.from({ length: steps + 1 }, (_, k) => ({
+    offset: easeAt(k / steps),
+    easing: 'step-end',
+    transform: pose(at + k * step, face)
+  }));
   crab.set('walk');
-  const a = crab.svg.animate([{ transform: `translateX(${at}px)` }, { transform: `translateX(${to}px)` }], {
-    duration: Math.min(WALK_MAX_MS, (steps / CELLS_PER_S) * 1000),
-    easing: `steps(${steps}, end)`,
-    fill: 'forwards'
-  });
+  const a = crab.svg.animate(keys, { duration: Math.min(WALK_MAX_MS, (steps / CELLS_PER_S) * 1000), fill: 'forwards' });
   if (!document.hasFocus()) a.pause(); // like the frames: an unfocused window plays nothing
-  Object.assign(crab, { walker: a, start: at, x: to, walking: true });
+  Object.assign(crab, { walker: a, start: at, x: to, face, walking: true });
   try {
     await a.finished;
     crab.walking = false;
@@ -167,6 +200,15 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
   } catch {
     return false; // cancelled by a newer walk
   }
+}
+
+/** Now and then, idle at home, Snip looks right for a moment. Only while the window has focus. */
+function glance(): void {
+  setTimeout(glance, GLANCE_MS());
+  if (state !== 'idle' || snip.x !== 0 || snip.walking || slot.hidden || still() || !document.hasFocus()) return;
+  const me = visit;
+  turn(snip, -1);
+  setTimeout(() => me === visit && turn(snip, 1), 900);
 }
 
 /** Something happened in the app; `tab` is the tab it happened in, if any. */
@@ -185,11 +227,15 @@ async function visitTab(moment: Exclude<Moment, 'saved'>, tab: string | undefine
   const to = tab === undefined || !snip ? undefined : spot(tab);
   if (to !== undefined && (to !== snip.x || snip.walking) && !(await walk(snip, to))) return;
   if (me !== visit) return;
+  turn(snip, 1);
   show(moment);
   const { ms, runs } = TIMING[moment];
   backTimer = setTimeout(async () => {
     if (snip.x !== 0 && !(await walk(snip, 0))) return;
-    if (me === visit) show('idle');
+    if (me !== visit) return;
+    show('idle');
+    await wait(LOOK_MS); // home, it looks back over the bar before it turns round
+    if (me === visit) turn(snip, 1);
   }, ms * runs);
 }
 
@@ -200,15 +246,16 @@ function theFriend(): Crab | undefined {
   svg.classList.add('friend');
   slot.append(svg);
   const play = draw(svg, TIMING);
-  friend = { svg, set: play, x: 0, start: 0, walking: false };
+  friend = { svg, set: play, x: 0, face: 1, start: 0, walking: false };
   fit();
   return friend;
 }
 
 /**
  * The first save after a nap: a friend walks in from the right edge of the window, taps Snip awake,
- * they clap together, and the friend walks off again. A moment meanwhile takes Snip away; the friend
- * then just leaves. With reduced motion, or before the sprites load, Snip simply wakes.
+ * Snip turns to it and they clap together, the friend waves and walks off, and Snip watches it go.
+ * A moment meanwhile takes Snip away; the friend then just leaves. With reduced motion, or before the
+ * sprites load, Snip simply wakes.
  */
 async function wakeUp(): Promise<void> {
   const me = ++visit;
@@ -217,22 +264,29 @@ async function wakeUp(): Promise<void> {
   if (!f) return show('idle');
   const cell = cellPx();
   const away = Math.ceil((window.innerWidth - slot.getBoundingClientRect().left) / cell) * cell;
-  f.walker?.cancel(); // a friend still leaving from the last nap turns round off-screen
-  Object.assign(f, { x: away, walking: false });
-  f.svg.style.transform = `translateX(${away}px)`;
-  f.svg.style.display = '';
+  place(f, away, 1); // a friend still leaving from the last nap turns round off-screen
+  f.svg.classList.remove('gone');
   const leave = async () => {
-    if (await walk(f, away)) f.svg.style.display = 'none';
+    if (await walk(f, away)) f.svg.classList.add('gone');
   };
   if (!(await walk(f, snip.x + cell * (CELLS + 1))) || me !== visit) return leave();
   f.set('clap'); // the tap
   await wait(500);
   if (me !== visit) return leave();
+  turn(snip, -1);
   show('clap');
   await wait(TIMING.clap.ms);
   if (me !== visit) return leave();
   show('idle');
-  f.set('idle');
-  await wait(300);
-  await leave();
+  f.set('wave');
+  await wait(700);
+  const gone = leave();
+  await wait(700);
+  if (me === visit) show('wave'); // and Snip waves back
+  await gone;
+  await wait(LOOK_MS);
+  if (me === visit) {
+    show('idle');
+    turn(snip, 1);
+  }
 }

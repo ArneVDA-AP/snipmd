@@ -15,8 +15,8 @@ for (const [id, left] of [['a', 0], ['b', 60]] as const) {
   tabs[id].getBoundingClientRect = () => box(left, 60);
   strip.append(tabs[id]);
 }
-/** The walks Snip started, as [from, to] px. */
-const walks = () => played.filter((p) => p.el.tagName === 'svg').map((p) => p.keys.map((k) => k.transform));
+/** The walks the crabs started, as their first and last pose; a still placement (duration 0) is no walk. */
+const walks = () => played.filter((p) => p.el.tagName === 'svg' && p.opts.duration).map((p) => [p.keys[0].transform, p.keys.at(-1)!.transform]);
 
 async function mounted(dpr = 1, on = true) {
   vi.resetModules();
@@ -47,7 +47,7 @@ async function mounted(dpr = 1, on = true) {
   await vi.dynamicImportSettled();
   const svg = slot.firstElementChild!;
   /** The state whose strip shows. */
-  const state = () => ['idle', 'clap', 'relief', 'worried', 'sleep', 'walk'][[...svg.children].findIndex((g) => g.getAttribute('display') === 'inline')];
+  const state = () => ['idle', 'clap', 'relief', 'worried', 'sleep', 'walk', 'wave'][[...svg.children].findIndex((g) => g.getAttribute('display') === 'inline')];
   return { pet, slot, svg, state };
 }
 
@@ -64,7 +64,7 @@ describe('Snip', () => {
     const { slot, svg, state } = await mounted();
     expect(slot.getAttribute('aria-hidden')).toBe('true');
     expect(state()).toBe('idle');
-    expect(svg.children).toHaveLength(6);
+    expect(svg.children).toHaveLength(7);
     const idleParts = new Set([...svg.children[0].querySelectorAll('path')].map((p) => p.getAttribute('class')));
     expect([...idleParts].sort()).toEqual(['body', 'claw', 'eye', 'pupil']);
   });
@@ -103,22 +103,30 @@ describe('Snip', () => {
     expect(state()).toBe('idle');
   });
 
-  it('after a nap a friend walks in from the window edge, taps Snip awake, they clap and it walks off', async () => {
-    const { pet, slot, state } = await mounted();
+  it('after a nap a friend walks in from the window edge, taps Snip awake, they clap, wave, and it walks off', async () => {
+    const { pet, slot, svg, state } = await mounted();
     pet.petNap();
     pet.petMoment('saved');
     const friend = slot.querySelector('svg.friend') as SVGSVGElement;
-    expect(walks()).toEqual([['translateX(924px)', 'translateX(24px)']]); // from x = 1024, to one cell right of Snip
+    const lastOf = (el: Element) => played.filter((p) => p.el === el).at(-1)!;
+    // from x = 1024, looking left at Snip, to one cell right of it
+    expect(walks()).toEqual([['translateX(924px) scaleX(1)', 'translateX(24px) scaleX(1)']]);
     expect(state()).toBe('sleep');
-    played.filter((p) => p.el === friend).at(-1)!.done();
+    lastOf(friend).done();
     await vi.advanceTimersByTimeAsync(500);
     expect(state()).toBe('clap');
-    await vi.advanceTimersByTimeAsync(1500);
+    expect(lastOf(svg).keys[0].transform).toBe('translateX(0px) scaleX(-1)'); // Snip turned to its friend
+    await vi.advanceTimersByTimeAsync(1200);
     expect(state()).toBe('idle');
-    expect(walks()[1]).toEqual(['translateX(24px)', 'translateX(924px)']);
-    played.filter((p) => p.el === friend).at(-1)!.done();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(friend.style.display).toBe('none');
+    await vi.advanceTimersByTimeAsync(700);
+    expect(walks()[1]).toEqual(['translateX(24px) scaleX(-1)', 'translateX(924px) scaleX(-1)']);
+    await vi.advanceTimersByTimeAsync(700);
+    expect(state()).toBe('wave');
+    lastOf(friend).done();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(friend.classList.contains('gone')).toBe(true);
+    expect(state()).toBe('idle');
+    expect(lastOf(svg).keys[0].transform).toBe('translateX(0px) scaleX(1)'); // and turned back
   });
 
   it('a moment during the visit takes Snip away, and the friend leaves', async () => {
@@ -130,7 +138,17 @@ describe('Snip', () => {
     pet.petMoment('worried');
     await vi.advanceTimersByTimeAsync(400);
     expect(state()).toBe('worried');
-    expect(walks()[1]).toEqual(['translateX(24px)', 'translateX(924px)']);
+    expect(walks()[1]).toEqual(['translateX(24px) scaleX(-1)', 'translateX(924px) scaleX(-1)']);
+  });
+
+  it('idle at home it glances right now and then, at irregular times, and looks back', async () => {
+    const { svg } = await mounted();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const poses = () => played.filter((p) => p.el === svg).map((p) => p.keys[0].transform);
+    await vi.advanceTimersByTimeAsync(45_000); // the first glance comes within 45 s
+    expect(poses()).toContain('translateX(0px) scaleX(-1)');
+    await vi.advanceTimersByTimeAsync(900);
+    expect(poses().at(-1)).toBe('translateX(0px) scaleX(1)');
   });
 
   it('other moments do not keep it awake, and asleep it does not restart its nap', async () => {
@@ -183,14 +201,21 @@ describe('Snip', () => {
     const { pet, state } = await mounted();
     pet.petMoment('clap', 'a');
     expect(state()).toBe('walk');
-    // tab a ends at 60: Snip's middle 26 + 11 px left of that, in whole 2 px cells, from its own middle at 111
-    expect(walks()).toEqual([['translateX(0px)', 'translateX(-88px)']]);
+    // tab a ends at 60: Snip's middle 26 + 11 px left of that, in whole 2 px cells, from its own middle at 111;
+    // walking left it looks left, as drawn
+    expect(walks()).toEqual([['translateX(0px) scaleX(1)', 'translateX(-88px) scaleX(1)']]);
+    // one keyframe per cell, eased: the first and last hops take longer than the middle ones
+    const at = played.at(-1)!.keys.map((k) => k.offset as number);
+    expect(at).toHaveLength(45);
+    const hop = (i: number) => at[i + 1] - at[i];
+    expect(hop(0)).toBeGreaterThan(hop(22));
+    expect(hop(43)).toBeGreaterThan(hop(22));
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(state()).toBe('clap');
     vi.advanceTimersByTime(1200);
     expect(state()).toBe('walk');
-    expect(walks()[1]).toEqual(['translateX(-88px)', 'translateX(0px)']);
+    expect(walks()[1]).toEqual(['translateX(-88px) scaleX(-1)', 'translateX(0px) scaleX(-1)']); // looking where it goes
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(state()).toBe('idle');
@@ -201,7 +226,7 @@ describe('Snip', () => {
     pet.petMoment('clap', 'a');
     pet.petMoment('worried', 'a');
     await vi.advanceTimersByTimeAsync(0);
-    expect(walks()[1]).toEqual(['translateX(-44px)', 'translateX(-88px)']); // halfway, per the mocked progress
+    expect(walks()[1]).toEqual(['translateX(-44px) scaleX(1)', 'translateX(-88px) scaleX(1)']); // halfway, per the mocked progress
     played.at(-1)!.done();
     await vi.advanceTimersByTimeAsync(0);
     expect(state()).toBe('worried');
