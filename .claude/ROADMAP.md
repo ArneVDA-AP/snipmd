@@ -20,12 +20,11 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `docs/install-macos.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## 1.1
-`v1.1.0-1`, `v1.1.0-2` and `v1.1.0-3` (Snip) are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59), a Check for updates command (#68).
+`v1.1.0-1`, `v1.1.0-2` and `v1.1.0-3` (Snip) are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59), telling users about a newer version (#51).
 
-Open before a 1.1 release:
-1. **Mac test** of the pre-release `v1.1.0-3` (it has Snip; `v1.1.0-2` was never tested on a Mac): the plan is `TESTPLAN-MAC.md` on `test/mac-20261023` (hertest of the report, the new features, the macOS-only checks such as ⇧⌘P firing once and the clipboard, and the `docs/releasing.md` checklist). Take the `.preview.dmg` from the Releases page.
-2. **Windows test** of `v1.1.0-1` (2026-10-24, report on `test/w11-20261023`): no failures. Its four remarks are fixed in `v1.1.0-2` (the reason in the first-save bar, no spellcheck in code, plain text colour in unhighlighted blocks, the `.preview` dmg name). Left for the owner: holding Enter on a toggle (B4, computer use cannot hold a key), light and dark theme (C2), the USB stick (E2), the display scale (E3), and AZERTY `Ctrl+1`/`Ctrl+2` (E1).
-3. **Snip on Windows** in `v1.1.0-3`, by the owner: it reads as a crab in both themes and stays sharp at 100%, 125%, 150% and 200%; clap on a paste, relief on reopening a closed tab, worried on an outside change, asleep after 10 minutes without a save.
+Open before a 1.1 release, both on `v1.1.0-3`:
+1. **Windows test**: `TESTPLAN-WIN11.md` on `test/w11-20261026`. Installing over the previous version, Snip, a retest of the four remarks fixed in `v1.1.0-2`, and what the `v1.1.0-1` test left (theme, display scale, USB stick, a held key, AZERTY). The `v1.1.0-1` test (report on `test/w11-20261023`) found no failures.
+2. **Mac test**: `TESTPLAN-MAC.md` on `test/mac-20261026`, by the Mac tester and their Claude session. No version has been tested on a real Mac yet; the plan holds the retest of the 23 October report, the 1.1 features, Snip and the `docs/releasing.md` checklist. The runner probes passed on the release (*Release macOS* run 9).
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
@@ -38,6 +37,7 @@ How we work, one line each: what, and why. Autonomous runs add theirs here. Prod
 - **Repo front** (owner, 2026-10-24). The root holds only what users and the build need; maintainer docs are in `docs/`, community files in `.github/`, session state (`CLAUDE.md`, this file) and agent files in `.claude/`. Release pages show the version's CHANGELOG section; proposals are issues.
 - **Contributor rules** (owner, 2026-10-24) live in `docs/CONVENTIONS.md`, which `CLAUDE.md` imports, so a contributor without Claude finds them and sessions read the same text. Product and build decisions moved out of this file for the same reason.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
+- **Test plans** (owner, 2026-10-26). Each step says who does it: the runner (Claude starts a workflow), Claude on the machine with computer use, Claude with one action from the tester (a setting, a prompt, a USB stick), or the tester alone, with the reason. As much as possible goes to the runner and to Claude; the Mac tester works the same way.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.
 - **Windows testing.** A tester session on the owner's PC tests and reports; the cloud session fixes. That keeps one writer for the code.
 - **Tags.** A cloud session cannot push tags; the owner pushes the tag, and *Release macOS* is then run on it with *publish* for a macOS preview.

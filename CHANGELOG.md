@@ -6,7 +6,7 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 
 ## [1.1.0-3] - 2026-10-26
 
-A pre-release that brings Snip, for the Windows test.
+A pre-release that brings Snip, for the Windows and Mac tests.
 
 ### Added
 - Snip, a small pixel crab right of the `+` button. It claps when a screenshot lands in a note, is relieved when a closed tab comes back, looks worried when a note changed outside SnipMD, and falls asleep when nothing is saved for a while. Switch it off with Show Snip in the command menu.
