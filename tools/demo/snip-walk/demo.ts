@@ -1,7 +1,7 @@
 // The demo's panel: pick a tab, play one of Snip's moments there. The moments are the ones the app
 // raises itself (a pasted image, a change outside SnipMD, a tab back); here a button raises them.
 import '../../../src/main';
-import { petMoment } from '../../../src/pet';
+import { petMoment, petNap } from '../../../src/pet';
 
 type Play = 'clap' | 'worried' | 'relief';
 
@@ -27,7 +27,7 @@ panel.className = 'demo';
 panel.setAttribute('aria-label', 'Snip demo');
 
 const intro = document.createElement('p');
-intro.textContent = 'Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan.';
+intro.textContent = 'Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan. Na een dutje (in de app: 10 minuten zonder opslaan) maakt een vriendje hem wakker bij de volgende save.';
 
 const tabRow = document.createElement('div');
 tabRow.className = 'row';
@@ -79,7 +79,14 @@ moments.append(
   })
 );
 
-panel.append(intro, tabRow, moments);
+const nap = document.createElement('div');
+nap.className = 'row';
+const napLabel = document.createElement('span');
+napLabel.className = 'label';
+napLabel.textContent = 'Dutje';
+nap.append(napLabel, button('Laat inslapen', petNap), button('Opslaan', () => petMoment('saved')));
+
+panel.append(intro, tabRow, moments, nap);
 document.body.append(panel);
 
 // The strip is drawn once the session is restored; follow it from then on.

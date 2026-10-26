@@ -98,8 +98,39 @@ describe('Snip', () => {
     expect(state()).toBe('idle');
     vi.advanceTimersByTime(60_000);
     expect(state()).toBe('sleep');
+    reduced = true; // without the friend's visit (next test) a save wakes it at once
     pet.petMoment('saved');
     expect(state()).toBe('idle');
+  });
+
+  it('after a nap a friend walks in from the window edge, taps Snip awake, they clap and it walks off', async () => {
+    const { pet, slot, state } = await mounted();
+    pet.petNap();
+    pet.petMoment('saved');
+    const friend = slot.querySelector('svg.friend') as SVGSVGElement;
+    expect(walks()).toEqual([['translateX(924px)', 'translateX(24px)']]); // from x = 1024, to one cell right of Snip
+    expect(state()).toBe('sleep');
+    played.findLast((p) => p.el === friend)!.done();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(state()).toBe('clap');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(state()).toBe('idle');
+    expect(walks()[1]).toEqual(['translateX(24px)', 'translateX(924px)']);
+    played.findLast((p) => p.el === friend)!.done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(friend.style.display).toBe('none');
+  });
+
+  it('a moment during the visit takes Snip away, and the friend leaves', async () => {
+    const { pet, state } = await mounted();
+    pet.petNap();
+    pet.petMoment('saved');
+    played.at(-1)!.done();
+    await vi.advanceTimersByTimeAsync(100);
+    pet.petMoment('worried');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(state()).toBe('worried');
+    expect(walks()[1]).toEqual(['translateX(24px)', 'translateX(924px)']);
   });
 
   it('other moments do not keep it awake, and asleep it does not restart its nap', async () => {
