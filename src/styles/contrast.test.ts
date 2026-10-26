@@ -36,7 +36,7 @@ const PAIRS: [string, string, number][] = [
   ['info-fg', 'info-bg', 3], ['warn-fg', 'warn-bg', 3], ['error-fg', 'error-bg', 3],
   ['focus', 'bg', 3], ['focus', 'chrome', 3], ['focus', 'info-bg', 3], ['focus', 'warn-bg', 3], ['focus', 'error-bg', 3],
   ['tok-keyword', 'bg', 4.5], ['tok-string', 'bg', 4.5], ['tok-comment', 'bg', 4.5], ['tok-number', 'bg', 4.5], ['tok-type', 'bg', 4.5],
-  ['pet-body', 'chrome', 3], ['pet-claw', 'chrome', 3], ['pet-brow', 'chrome', 3], ['pet-eye', 'pet-body', 3]
+  ['pet-body', 'chrome', 3], ['pet-claw', 'chrome', 3], ['pet-eye', 'pet-body', 3], ['pet-pupil', 'pet-eye', 3]
 ];
 
 describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_name, t) => {
