@@ -4,6 +4,10 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [1.1.0-3] - 2026-10-26
+
+A pre-release that brings Snip, for the Windows test.
+
 ### Added
 - Snip, a small pixel crab right of the `+` button. It claps when a screenshot lands in a note, is relieved when a closed tab comes back, looks worried when a note changed outside SnipMD, and falls asleep when nothing is saved for a while. Switch it off with Show Snip in the command menu.
 
@@ -66,6 +70,7 @@ The first full release. It replaces the 0.1.0 prototype; open tabs and untitled 
 ## [0.1.0] - 2026-10-17
 Prototype.
 
+[1.1.0-3]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-2...v1.1.0-3
 [1.1.0-2]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-1...v1.1.0-2
 [1.1.0-1]: https://github.com/ArneVDA-AP/snipmd/compare/v1.0.0...v1.1.0-1
 [1.0.0]: https://github.com/ArneVDA-AP/snipmd/compare/v0.1.0...v1.0.0

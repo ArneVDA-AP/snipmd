@@ -43,7 +43,7 @@ describe('Snip', () => {
     expect(state()).toBe('idle');
     expect(svg.children).toHaveLength(5);
     const idleParts = new Set([...svg.children[0].querySelectorAll('path')].map((p) => p.getAttribute('class')));
-    expect([...idleParts].sort()).toEqual(['body', 'claw', 'eye']);
+    expect([...idleParts].sort()).toEqual(['body', 'claw', 'eye', 'pupil']);
   });
 
   it('claps on a pasted image and goes back to idle when the clap is over', async () => {
