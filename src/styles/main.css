@@ -163,10 +163,14 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line-strong
 .new-tab:active { background: var(--pressed); }
 .drag-region { flex: 1; min-width: 32px; align-self: stretch; }
 /* Snip (pet.ts): its frames and their timing are drawn and played by petSprite.ts. */
-.pet { display: grid; place-items: center; flex: none; align-self: center; margin-left: var(--s1); }
-.pet svg { display: block; pointer-events: none; }
+.pet { position: relative; display: grid; place-items: center; flex: none; align-self: center; margin-left: var(--s1); }
+.pet svg { position: relative; z-index: 1; display: block; pointer-events: none; } /* over the tabs it walks to */
 .pet .body, .pet .zzz { fill: var(--pet-body); }
 .pet .claw { fill: var(--pet-claw); }
+.pet .friend { position: absolute; left: 0; top: 0; } /* Snip's friend, who wakes it: the two colours swapped */
+.pet .friend.gone { display: none; }
+.pet .friend .body { fill: var(--pet-claw); }
+.pet .friend .claw { fill: var(--pet-body); }
 .pet .eye { fill: var(--pet-eye); }
 .pet .pupil { fill: var(--pet-pupil); }
 .mode-chip { display: flex; align-items: center; gap: 6px; align-self: center; height: 24px; margin-right: var(--s2); padding: 0 var(--s2); border-radius: var(--r-sm); color: var(--text-muted); font-size: var(--fs-caption); }

@@ -26,6 +26,16 @@ const FRAMES: Record<State, string[][]> = {
   sleep: [
     ['......zzzz.', '........z..', '.......z...', '......zzzz.', '...........', '..#######..', 'c#########c', 'cc#kk#kk#cc', '###########', '.#########.', '#.#.....#.#'],
     ['......zzzz.', '........z..', '.......z...', '......zzzz.', '...........', '...........', 'c.#######.c', 'cc#######cc', '##kk###kk##', '.#########.', '#.#.....#.#']
+  ],
+  // sideways, claws up, the legs taking turns
+  walk: [
+    ['...........', 'c.c.....c.c', 'ccc.....ccc', 'ccc.....ccc', '.cc#####cc.', '.##wk#wk##.', '###kk#kk###', '###########', '.#########.', '#.#.....#.#', '#..#...#..#'],
+    ['c.c.....c.c', 'ccc.....ccc', 'ccc.....ccc', '.c.......c.', '.cc#####cc.', '.##wk#wk##.', '###kk#kk###', '###########', '.#########.', '.#.#...#.#.', '.#..#.#..#.']
+  ],
+  // one claw up, then the other, smiling
+  wave: [
+    ['c.c........', 'ccc.....c.c', 'ccc.....ccc', '.c......ccc', '.cc#####cc.', '.##wk#wk##.', '###kk#kk###', '###########', '.###kkk###.', '#.#.....#.#', '#..#...#..#'],
+    ['........c.c', 'c.c.....ccc', 'ccc.....ccc', 'ccc......c.', '.cc#####cc.', '.##wk#wk##.', '###kk#kk###', '###########', '.###kkk###.', '#.#.....#.#', '#..#...#..#']
   ]
 };
 const PART: Record<string, string> = { c: 'claw', '#': 'body', k: 'eye', w: 'pupil', z: 'zzz' };
@@ -35,7 +45,9 @@ const AT: Record<State, [number, number][]> = {
   clap: [[0, 2], [0.08, 1], [0.17, 2], [0.25, 1], [0.42, 2]],
   relief: [[0, 1], [0.35, 2], [0.75, 1]],
   worried: [[0, 1], [0.6, 2], [0.65, 1], [0.7, 2], [0.75, 1]],
-  sleep: [[0, 1], [0.5, 2]]
+  sleep: [[0, 1], [0.5, 2]],
+  walk: [[0, 1], [0.5, 2]],
+  wave: [[0, 1], [0.5, 2]]
 };
 
 /** One path per part, cell runs joined per row, `dx` cells to the right. */
@@ -72,8 +84,9 @@ export function drawPet(svg: SVGSVGElement, timing: Timing): (state: State) => v
   });
   svg.replaceChildren(...strips);
   const still = matchMedia('(prefers-reduced-motion: reduce)');
-  window.addEventListener('blur', () => svg.getAnimations({ subtree: true }).forEach((a) => a.pause()));
-  window.addEventListener('focus', () => svg.getAnimations({ subtree: true }).forEach((a) => a.play()));
+  // Only what runs is paused, and only what is paused plays on: play() on a finished walk would run it again.
+  window.addEventListener('blur', () => svg.getAnimations({ subtree: true }).forEach((a) => a.playState === 'running' && a.pause()));
+  window.addEventListener('focus', () => svg.getAnimations({ subtree: true }).forEach((a) => a.playState === 'paused' && a.play()));
   return (state) => {
     strips.forEach((g, i) => {
       g.getAnimations().forEach((a) => a.cancel());

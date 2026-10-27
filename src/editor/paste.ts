@@ -35,7 +35,7 @@ export function placeImages(tabId: string, images: SavedImage[], at?: number): v
   for (const i of images) primeAssetCache(tabId, i.link, i.absPath);
   insertLinks(tabId, images.map((i) => i.link), at);
   scheduleSessionSave({ immediate: true });
-  petMoment('clap');
+  petMoment('clap', tabId);
 }
 
 async function pasteImage(tabId: string, file: File, start: number): Promise<void> {

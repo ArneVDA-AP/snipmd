@@ -163,7 +163,7 @@ describe('placeImages', () => {
     expect(view.state.selection.main.head).toBe('hello\n![snip](l.png)\n'.length);
     expect(scheduleSessionSave).toHaveBeenCalledWith({ immediate: true }); // SPEC §7: right after a paste
     expect(primeAssetCache).toHaveBeenCalledWith('a', 'l.png', '/abs/l.png');
-    expect(petMoment).toHaveBeenCalledWith('clap'); // Snip claps for a paste and a drop alike
+    expect(petMoment).toHaveBeenCalledWith('clap', 'a'); // Snip claps in the tab for a paste and a drop alike
   });
 
   it('a tab that is gone takes nothing and throws nothing', () => {

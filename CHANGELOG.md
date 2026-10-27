@@ -6,6 +6,9 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 
 ### Changed
 - Asleep, Snip's Z floats above its back instead of touching it.
+- Snip walks to the tab where something happens (a screenshot lands, a note changed outside SnipMD, a closed tab comes back), reacts there and walks back. With reduced motion it stays where it is.
+- After a nap, the next save brings a friend in the swapped colours who wakes Snip; they clap and wave, and the friend walks off.
+- At rest, Snip now and then glances around.
 
 ## [1.1.0-3] - 2026-10-26
 
