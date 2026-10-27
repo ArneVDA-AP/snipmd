@@ -24,7 +24,7 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 
 Open before a 1.1 release, on `v1.1.0-3`:
 1. **Windows test**: done 2026-10-26, report `findings/windows/w11-20261026.md` on `test/w11-20261026`. Snip passed (S1–S7). The two failures:
-   - The setup recommends uninstalling the older version first, then closes a running SnipMD hard. This is stock Tauri behaviour on every upgrade, and no data is at risk because SnipMD saves on blur: #74 (proposal: a line in the install text for 1.1).
+   - The setup recommends uninstalling the older version first, then closes a running SnipMD hard. This is stock Tauri behaviour on every upgrade, and no data is at risk because SnipMD saves on blur: #74. For 1.1 the README and the release notes say how to update; a setup that skips the page waits for #51.
    - The runner's dark sleep screenshot was the light one. Fixed by #71: *Windows run* 12 on `main` has a dark and a light sleep shot.
 
    Still open, with the tester: the light theme (CT1), display scale 125–200% (CT2), the window shrunk at first start (CT3), the USB stick (CT4), a held Enter in the menu (T1) and a day of normal use (T3). AZERTY (T2) needs another keyboard.
