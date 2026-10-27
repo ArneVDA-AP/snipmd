@@ -9,8 +9,7 @@ Before the release: the Windows tests on the owner's PC passed (three defects fi
 
 Open:
 1. **macOS on a real Mac**: the checklist in `docs/releasing.md` (#30). The first Mac test report (2026-10-23) covered the editor and read mode, not the checklist (iCloud stamps, the privacy prompt, Retina, the feel next to native apps). Until the checklist passes, macOS stays a preview and the repo description names only Windows.
-2. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen).
-3. **Dependabot**: #44 (actions group) and #43 (`rand` 0.8 → 0.10, a major with API changes; needs `cargo test`).
+2. Left from the Windows tests: a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen when shrunk to fit (fixed in #38, not yet seen on a real screen). The 1.1 test plan carries them as CT4, T2 and CT3.
 
 The last budget measurement is in `docs/releasing.md`.
 
@@ -20,15 +19,16 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 - **Signing.** No Apple Developer account yet, so builds are ad-hoc signed and need the first-start steps in `docs/install-macos.md`. Signing and notarization are wired in `release-macos.yml` behind secrets.
 
 ## 1.1
-`v1.1.0-1`, `v1.1.0-2` and `v1.1.0-3` (Snip) are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59), telling users about a newer version (#51).
+`v1.1.0-1`, `v1.1.0-2`, `v1.1.0-3` (Snip) and `v1.1.0-4` (Snip walks to the tab, the wake-up friend) are pre-releases; `CHANGELOG.md` says what they add. Backlog: inserting a table (#58), renaming a note by double-clicking its tab (#59), telling users about a newer version (#51).
 
-Open before a 1.1 release, on `v1.1.0-3`:
-1. **Windows test**: done 2026-10-26, report `findings/windows/w11-20261026.md` on `test/w11-20261026`. Snip passed (S1–S7). The two failures:
-   - The setup recommends uninstalling the older version first, then closes a running SnipMD hard. This is stock Tauri behaviour on every upgrade, and no data is at risk because SnipMD saves on blur: #74. For 1.1 the README and the release notes say how to update; a setup that skips the page waits for #51.
-   - The runner's dark sleep screenshot was the light one. Fixed by #71: *Windows run* 12 on `main` has a dark and a light sleep shot.
+Open before 1.1.0:
+1. **Tag `v1.1.0-4`** (owner): the version bump is on `main`. Snip's walk and wake-up (#73) came after the Windows test of `v1.1.0-3`, so 1.1.0 is not tagged on code no real Windows screen has run.
+2. **Windows test of `v1.1.0-4`**: Snip's new moves, plus the steps left from the test of `v1.1.0-3` (report `findings/windows/w11-20261026.md` on `test/w11-20261026`; Snip S1–S7 passed there): the light theme (CT1), display scale 125–200% (CT2), the window shrunk at first start (CT3), the USB stick (CT4), a held Enter in the menu (T1) and a day of normal use (T3). AZERTY (T2) needs another keyboard and does not block.
+3. **The release itself**: the hygiene pass, a final review, the version set to `1.1.0`, one CHANGELOG section with everything since 1.0.0, then the owner's tag and smoke test step 8 (install over `1.0.0` and over `1.1.0-4`).
 
-   Still open, with the tester: the light theme (CT1), display scale 125–200% (CT2), the window shrunk at first start (CT3), the USB stick (CT4), a held Enter in the menu (T1) and a day of normal use (T3). AZERTY (T2) needs another keyboard.
-2. **Mac test**: `TESTPLAN-MAC.md` on `test/mac-20261026`, by an independent Mac tester and their Claude session, as a favour, so it has no deadline. No report yet. No version has been tested on a real Mac yet; the plan holds the retest of the 23 October report, the 1.1 features, Snip and the `docs/releasing.md` checklist. The runner probes passed on the release (*Release macOS* run 9).
+Settled for 1.1: the setup's "uninstall the older version first" page (#74) is stock Tauri behaviour with no data at risk; the README and release notes say how to update (#77), and a setup that skips the page waits for #51.
+
+Not blocking 1.1: the **Mac test** (`TESTPLAN-MAC.md` on `test/mac-20261026`), by an independent Mac tester and their Claude session as a favour, with no deadline. No version has run on a real Mac yet; macOS stays a preview until the `docs/releasing.md` checklist passes. The runner probes passed on *Release macOS* run 9.
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.

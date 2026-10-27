@@ -2,7 +2,9 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0-4] - 2026-10-27
+
+A pre-release for the Windows test of Snip's new moves.
 
 ### Changed
 - Asleep, Snip's Z floats above its back instead of touching it.
@@ -76,6 +78,7 @@ The first full release. It replaces the 0.1.0 prototype; open tabs and untitled 
 ## [0.1.0] - 2026-10-17
 Prototype.
 
+[1.1.0-4]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-3...v1.1.0-4
 [1.1.0-3]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-2...v1.1.0-3
 [1.1.0-2]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-1...v1.1.0-2
 [1.1.0-1]: https://github.com/ArneVDA-AP/snipmd/compare/v1.0.0...v1.1.0-1
