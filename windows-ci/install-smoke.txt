@@ -1,0 +1,7 @@
+installed in 2.1 s: C:\Users\runneradmin\AppData\Local\SnipMD\snip-md.exe
+.md association: Markdown Document
+installed app ready: ready	612.2
+session written on close: yes
+uninstalled: True
+note kept after uninstall: True
+SMOKE TEST PASSED
