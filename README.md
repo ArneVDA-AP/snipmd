@@ -58,6 +58,8 @@ On macOS, `Cmd` replaces `Ctrl`, except `Ctrl+Tab`, which stays `Ctrl`, and repl
 ## Install
 Download `SnipMD_<version>_x64-setup.exe` from [Releases](https://github.com/ArneVDA-AP/snipmd/releases/latest). It installs per user, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it; pick SnipMD once under *Open with* to open notes with a double-click. The installer is not code-signed yet, so SmartScreen may warn on the first run: choose *More info*, then *Run anyway*. Signing is on its way: see the [code signing policy](docs/code-signing.md).
 
+To update, close SnipMD and run the new setup. If it offers to uninstall the older version first, either choice keeps your notes and open tabs; leave *Delete the application data* unticked.
+
 An MSI for managed installs and a portable exe are on the same page.
 
 ## What's new
