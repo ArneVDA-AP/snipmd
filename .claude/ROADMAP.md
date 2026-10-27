@@ -28,8 +28,7 @@ Open before a 1.1 release, on `v1.1.0-3`:
    - The runner's dark sleep screenshot was the light one. Fixed by #71: *Windows run* 12 on `main` has a dark and a light sleep shot.
 
    Still open, with the tester: the light theme (CT1), display scale 125–200% (CT2), the window shrunk at first start (CT3), the USB stick (CT4), a held Enter in the menu (T1) and a day of normal use (T3). AZERTY (T2) needs another keyboard.
-2. **Mac test**: `TESTPLAN-MAC.md` on `test/mac-20261026`, by the Mac tester and their Claude session; no report yet. No version has been tested on a real Mac yet; the plan holds the retest of the 23 October report, the 1.1 features, Snip and the `docs/releasing.md` checklist. The runner probes passed on the release (*Release macOS* run 9).
-3. **#73** (Snip walks to a tab, a friend wakes it) merges after both tests (owner, 2026-10-26), so they test the Snip they started with.
+2. **Mac test**: `TESTPLAN-MAC.md` on `test/mac-20261026`, by an independent Mac tester and their Claude session, as a favour: no deadline, and nothing waits on it but this item. No report yet. No version has been tested on a real Mac yet; the plan holds the retest of the 23 October report, the 1.1 features, Snip and the `docs/releasing.md` checklist. The runner probes passed on the release (*Release macOS* run 9).
 
 ## After v1
 - Issues: [#25](../../issues/25) data-safety edge cases, [#26](../../issues/26) performance, [#27](../../issues/27) code structure, [#28](../../issues/28) paste position, [#29](../../issues/29) tooling.
