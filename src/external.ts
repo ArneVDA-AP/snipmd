@@ -1,7 +1,7 @@
 // External changes (SPEC §6.1): notes edited outside SnipMD are reloaded in place, or put in conflict.
 // This module owns the conflict state of a tab and its bar; saving asks it through resolveConflict
 // and handleRefusedWrite. Bar actions hold only the tab id and look the tab up when they run.
-import type { DiskStamp, TabState } from './types';
+import type { DiskStamp, Expected, TabState } from './types';
 import { readNote, statNote } from './ipc';
 import { getTabs, loadText, markDirty, markSaved, openCopy, openTab } from './tabs';
 import { inConflict, isWriting, setConflict, writeGeneration } from './diskState';
@@ -11,7 +11,9 @@ const WATCH_MS = 2000;
 const barKey = (id: string): string => `external:${id}`;
 /** Errors of the bar's actions get their own key, so the conflict bar and its choices stay. */
 const errorKey = (id: string): string => `external-error:${id}`;
-const same = (a: DiskStamp, b: DiskStamp): boolean => a.mtimeMs === b.mtimeMs && a.size === b.size;
+/** The file is what the tab expects: its stamp, or no file at all. */
+const matches = (now: DiskStamp | null, disk: Expected): boolean =>
+  disk === 'absent' ? now === null : now !== null && disk !== null && now.mtimeMs === disk.mtimeMs && now.size === disk.size;
 
 /** Saving, passed in by startExternalWatch (saving imports this module, not the other way round). */
 let saveTab: ((id: string) => Promise<boolean>) | null = null;
@@ -91,7 +93,7 @@ function raiseGone(tab: TabState): void {
     text: `${tab.title} is no longer on disk.`,
     actions: [
       act(id, 'Save again', 'save', (t) => {
-        t.disk = null; // nothing to compare with: the write recreates the file
+        t.disk = 'absent'; // the write recreates the file, but never replaces one that is there again
         resolveConflict(id);
         return void save(id);
       }, true)
@@ -117,7 +119,7 @@ async function checkTab(tab: TabState): Promise<void> {
   const stamp = await statNote(tab.filePath!);
   // A write that started or ended during the stat makes its answer stale; the next check sees the truth.
   if (writeGeneration(tab.id) !== generation || isWriting(tab.id) || inConflict(tab.id) || !openTab(tab.id)) return;
-  if (stamp && tab.disk && same(stamp, tab.disk)) clearInfo(barKey(tab.id));
+  if (matches(stamp, tab.disk)) clearInfo(barKey(tab.id));
   else await outside(tab, stamp);
 }
 

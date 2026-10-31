@@ -1,5 +1,5 @@
 // Session persistence: %APPDATA%/com.snipmd.desktop/session.json is the only store (SPEC §7).
-import type { ClosedTab, DiskStamp, SessionFile, TabState, TextFormat } from './types';
+import type { ClosedTab, Expected, SessionFile, TabState, TextFormat } from './types';
 import { loadSessionRaw, saveSessionRaw } from './ipc';
 import { clearInfo, showError } from './infobar';
 import { normPath } from './paths';
@@ -82,12 +82,13 @@ function parseTab(raw: unknown): TabState | null {
     mode: t.mode === 'read' || t.mode === 'preview' ? 'read' : 'edit',
     cursor: num(t.cursor ?? t.cursorPos),
     scrollTop: num(t.scrollTop),
-    disk: parseStamp(t.disk),
+    disk: parseDisk(t.disk),
     format: parseFormat(t.format)
   };
 }
 
-function parseStamp(raw: unknown): DiskStamp | null {
+function parseDisk(raw: unknown): Expected {
+  if (raw === 'absent') return raw;
   const s = raw as { mtimeMs?: unknown; size?: unknown } | null;
   return s && typeof s.mtimeMs === 'number' && typeof s.size === 'number' ? { mtimeMs: s.mtimeMs, size: s.size } : null;
 }

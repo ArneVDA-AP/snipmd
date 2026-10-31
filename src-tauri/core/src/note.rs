@@ -16,6 +16,27 @@ pub struct DiskStamp {
     pub size: u64,
 }
 
+/// What a write expects on disk: the stamp the tab knows, or `"absent"`: a gone note saved again may
+/// recreate the file, never replace one that is there again.
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum Expected {
+    Stamp(DiskStamp),
+    Absent(Absent),
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Absent {
+    Absent,
+}
+
+impl From<DiskStamp> for Expected {
+    fn from(s: DiskStamp) -> Self {
+        Expected::Stamp(s)
+    }
+}
+
 /// A write either happened, or was refused because the file is no longer the one the tab knows.
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(untagged)]
@@ -80,13 +101,17 @@ fn read_head(p: &Path) -> io::Result<Vec<u8>> {
 }
 
 /// Writes `content` atomically in `format` (None: the format the file has, or a new file's). With
-/// `expected`, a file whose stamp differs (changed or gone outside SnipMD) is not written and its
-/// stamp now comes back as `Changed`.
-pub fn write(path: &Path, content: &str, format: Option<TextFormat>, expected: Option<DiskStamp>) -> Result<WriteOutcome, String> {
+/// `expected`, a file that is not what the tab expects (changed, gone, or there again) is not written
+/// and its stamp now comes back as `Changed`.
+pub fn write(path: &Path, content: &str, format: Option<TextFormat>, expected: Option<Expected>) -> Result<WriteOutcome, String> {
     let name = note_name(path);
     if let Some(expected) = expected {
         let now = stamp(path).map_err(|e| format!("Failed to check {name} before saving: {e}"))?;
-        if now != Some(expected) {
+        let want = match expected {
+            Expected::Stamp(s) => Some(s),
+            Expected::Absent(_) => None,
+        };
+        if now != want {
             return Ok(WriteOutcome::Changed { changed: now });
         }
     }

@@ -18,6 +18,7 @@ vi.mock('./tabs', () => ({
   getTab: (id: string) => h.tabs.find((t) => t.id === id),
   openTab: (id: string) => h.tabs.find((t) => t.id === id),
   allTabs: () => h.tabs,
+  openTabAt: () => undefined,
   textOf: (t: { text: string }) => t.text,
   markSaved: vi.fn((id: string, w: { text: string; path?: string }) => {
     const t = h.tabs.find((x) => x.id === id);

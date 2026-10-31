@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use std::io::ErrorKind;
-use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, note::{self, note_name, DiskStamp, NoteFile, WriteOutcome}, paths::{self, resolve_image, AllowedSet}, session, text::TextFormat};
+use snipmd_core::{assets::{self, assets_dir_for}, atomic, cleanup, links::encode_link_path, naming, note::{self, note_name, DiskStamp, Expected, NoteFile, WriteOutcome}, paths::{self, resolve_image, AllowedSet}, session, text::TextFormat};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::SystemTime;
@@ -289,7 +289,7 @@ fn write_markdown_file(
     path: String,
     content: String,
     format: Option<TextFormat>,
-    expected: Option<DiskStamp>,
+    expected: Option<Expected>,
 ) -> Result<WriteOutcome, String> {
     note::write(&check_path(&app, &path)?, &content, format, expected)
 }

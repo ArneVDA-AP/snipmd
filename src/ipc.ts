@@ -2,7 +2,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import type { DiskStamp, DroppedFiles, NoteFile, PrefixMove, SavedImage, TextFormat, WriteOutcome } from './types';
+import type { DiskStamp, DroppedFiles, Expected, NoteFile, PrefixMove, SavedImage, TextFormat, WriteOutcome } from './types';
 
 /** Headers that tell Rust which tab and note an image belongs to. The path is percent-encoded (headers are ASCII). */
 function imageHeaders(tabId: string, notePath: string | null): Record<string, string> {
@@ -21,9 +21,9 @@ export function importImage(tabId: string, notePath: string | null, src: string)
 
 /**
  * Writes a note in `format` (null: the format of the file on disk, or the system's for a new one: CRLF on Windows, LF on macOS). With
- * `expected`, Rust refuses when the file's stamp differs (changed or gone outside SnipMD) and says so.
+ * `expected`, Rust refuses when the file is not what the tab expects (changed, gone, or back) and says so.
  */
-export function writeNote(path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<WriteOutcome> {
+export function writeNote(path: string, text: string, format: TextFormat | null, expected: Expected): Promise<WriteOutcome> {
   return invoke<WriteOutcome>('write_markdown_file', { path, content: text, format, expected });
 }
 

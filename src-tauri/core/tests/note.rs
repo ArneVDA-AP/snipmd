@@ -1,4 +1,4 @@
-use snipmd_core::note::{read, stamp, write, DiskStamp, WriteOutcome};
+use snipmd_core::note::{read, stamp, write, Absent, DiskStamp, Expected, WriteOutcome};
 use snipmd_core::text::TextFormat;
 use std::fs::{self, File};
 use std::path::PathBuf;
@@ -45,7 +45,7 @@ fn a_write_with_the_stamp_the_tab_knows_goes_through() {
     let d = dir("match");
     let p = d.join("a.md");
     let s = written(write(&p, "one", None, None).unwrap());
-    assert!(matches!(write(&p, "two", None, Some(s)).unwrap(), WriteOutcome::Written { .. }));
+    assert!(matches!(write(&p, "two", None, Some(s.into())).unwrap(), WriteOutcome::Written { .. }));
     assert_eq!(read(&p).unwrap().text, "two");
 }
 
@@ -57,7 +57,7 @@ fn a_file_changed_outside_is_not_written_and_its_stamp_now_comes_back() {
     fs::write(&p, "changed outside, longer").unwrap();
     let now = stamp(&p).unwrap();
     assert_ne!(now, Some(s));
-    assert_eq!(write(&p, "mine again", None, Some(s)).unwrap(), WriteOutcome::Changed { changed: now });
+    assert_eq!(write(&p, "mine again", None, Some(s.into())).unwrap(), WriteOutcome::Changed { changed: now });
     assert_eq!(fs::read_to_string(&p).unwrap(), "changed outside, longer");
 }
 
@@ -68,7 +68,7 @@ fn a_change_that_keeps_the_size_but_moves_the_time_is_a_change_too() {
     let s = written(write(&p, "mine", None, None).unwrap());
     let f = File::options().write(true).open(&p).unwrap();
     f.set_modified(f.metadata().unwrap().modified().unwrap() + Duration::from_secs(2)).unwrap();
-    assert!(matches!(write(&p, "mine again", None, Some(s)).unwrap(), WriteOutcome::Changed { changed: Some(_) }));
+    assert!(matches!(write(&p, "mine again", None, Some(s.into())).unwrap(), WriteOutcome::Changed { changed: Some(_) }));
     assert_eq!(fs::read_to_string(&p).unwrap(), "mine");
 }
 
@@ -78,7 +78,7 @@ fn a_file_gone_outside_is_not_recreated_by_a_stamped_write_but_is_by_save_again(
     let p = d.join("a.md");
     let s = written(write(&p, "mine", None, None).unwrap());
     fs::remove_file(&p).unwrap();
-    assert_eq!(write(&p, "mine", None, Some(s)).unwrap(), WriteOutcome::Changed { changed: None });
+    assert_eq!(write(&p, "mine", None, Some(s.into())).unwrap(), WriteOutcome::Changed { changed: None });
     assert!(!p.exists());
     // Save again: the tab dropped its stamp, so the write recreates the file.
     written(write(&p, "mine", None, None).unwrap());
@@ -133,7 +133,7 @@ fn a_stat_that_fails_is_an_error_not_a_gone_file() {
     fs::write(d.join("file"), "x").unwrap();
     let p = d.join("file").join("a.md");
     assert!(stamp(&p).is_err());
-    let err = write(&p, "x", None, Some(DiskStamp { mtime_ms: 1.0, size: 1 })).unwrap_err();
+    let err = write(&p, "x", None, Some(DiskStamp { mtime_ms: 1.0, size: 1 }.into())).unwrap_err();
     assert!(err.starts_with("Failed to check a.md before saving: "), "{err}");
 }
 
@@ -145,4 +145,32 @@ fn the_format_is_read_past_a_long_first_line() {
     fs::write(&p, format!("{line}\r\nb\r\n")).unwrap();
     write(&p, "x\ny", None, None).unwrap();
     assert_eq!(fs::read(&p).unwrap(), b"x\r\ny");
+}
+
+const ABSENT: Option<Expected> = Some(Expected::Absent(Absent::Absent));
+
+#[test]
+fn a_write_that_expects_no_file_recreates_a_gone_note() {
+    let d = dir("absent-gone");
+    let p = d.join("a.md");
+    assert!(matches!(write(&p, "again", None, ABSENT).unwrap(), WriteOutcome::Written { .. }));
+    assert_eq!(read(&p).unwrap().text, "again");
+}
+
+#[test]
+fn a_write_that_expects_no_file_never_replaces_a_note_that_is_there_again() {
+    let d = dir("absent-back");
+    let p = d.join("a.md");
+    fs::write(&p, "newer note").unwrap();
+    let now = stamp(&p).unwrap();
+    assert_eq!(write(&p, "old tab", None, ABSENT).unwrap(), WriteOutcome::Changed { changed: now });
+    assert_eq!(read(&p).unwrap().text, "newer note");
+}
+
+#[test]
+fn the_page_sends_absent_as_a_string_and_a_stamp_as_an_object() {
+    assert_eq!(serde_json::from_str::<Option<Expected>>(r#""absent""#).unwrap(), ABSENT);
+    let s: Option<Expected> = serde_json::from_str(r#"{"mtimeMs":5,"size":2}"#).unwrap();
+    assert_eq!(s, Some(DiskStamp { mtime_ms: 5.0, size: 2 }.into()));
+    assert_eq!(serde_json::from_str::<Option<Expected>>("null").unwrap(), None);
 }

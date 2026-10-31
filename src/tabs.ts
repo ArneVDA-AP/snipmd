@@ -138,6 +138,9 @@ function pruneClosed(now: number): void {
 const byPath = (path: string, open: boolean): TabState | undefined =>
   (open ? getTabs() : closedTabs()).find((t) => t.filePath !== null && samePath(t.filePath, path));
 
+/** The open tab of the note at `path`: one tab per note (SPEC §6.4). */
+export const openTabAt = (path: string): TabState | undefined => byPath(path, true);
+
 export function setLastFolder(folder: string): void {
   lastFolder = folder;
 }
