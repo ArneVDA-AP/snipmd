@@ -1,0 +1,55 @@
+# Lens: keep the webview (Tauri + WebView2 / WKWebView)
+
+Advocacy lens, asked for: the strongest honest case for keeping the webview, and where it is weakest. No decision is closed here; the choice is the owner's.
+Labels: each statement cites file:line. [comp] = computed from the cited inputs. [inf] = my inference, with what would confirm it. "NF" = the facts file looked and found nothing, which is not proof of absence (facts-rust-gui.md:3).
+Short names: SPEC = docs/SPEC.md, ARCH = docs/ARCHITECTURE.md, REL = docs/releasing.md, GUI = facts-rust-gui.md, PLAT = facts-platform.md, MEAS = measurements.md, I81 = issue-81.md.
+
+## 1. Candidate reasons to go native: verdicts
+
+| Reason | Verdict | Fact behind it |
+|---|---|---|
+| Cold start < 300 ms | **Holds** | WebView2 needs about 0.6 s before any page loads and "an app cannot shorten that" (SPEC:152). Measured cold start 722–784 ms; SnipMD's own part 131–139 ms (REL:56–57). The one webview trick that got close, a warm broker, reached about 320 ms and crashed the start when options differed, so it is out (ARCH:74). Native prototypes drew a first frame in 55–72 ms (egui) and 122–158 ms warm (iced) on Linux with software rendering (MEAS:11). Even with SnipMD's own part at zero, the webview floor is about 600 ms, twice the goal [comp: SPEC:152 vs 300 ms]. Note: the SPEC target is < 1 s (SPEC:145) and it is met (REL:57); 300 ms is a new goal, not a SPEC miss. |
+| Memory | **Does not hold** on present evidence | Measured 98–104 MB against a 120 MB budget (REL:54). Native prototypes showed 203–213 MB RSS with a 4K image, but on Mesa software rendering, explicitly not comparable to Windows (MEAS:5, MEAS:14, MEAS:18). No WebView2 MB figure exists in the facts (PLAT:58–59). Nothing shows native would be lower on Windows [inf: confirm with the egui prototype built and measured on Windows with a GPU via `tools/measure/measure.ps1`]. |
+| Linux | **Does not hold** today | Linux builds are out of scope (SPEC:189, SPEC:191). If scope changed it would **partly hold**: WebKitGTK instability is an open Tauri discussion since 2024, CEF is "very experimental" on a branch, no release (PLAT:69–77). |
+| Independence from WebView2 / WKWebView behaviour | **Partly** | Real coupling exists: macOS clipboard keys work only through an Edit menu (SPEC:212), Paste as Plain Text needs a Rust `paste-text` event because WKWebView pastes only via the menu (ARCH:34), browser keys and page menu switched off (ARCH:71), `autocomplete=off` against WebView2's "Saved info" popup (ARCH:72), CSP nonce plumbing for CodeMirror (ARCH:70). But native swaps this for coupling to pre-1.0 crates: gpui "often breaking changes" (GUI:14), egui breaking each release (GUI:80), iced "experimental" (GUI:63), Xilem "experimental" (GUI:100), Floem no release in nearly two years (GUI:133). Each workaround above is a few lines and already shipped [inf: confirm by line count of `platform.ts`, `macos.rs` paste path]. |
+| Security surface (SPEC §8) | **Partly** | Native removes the script engine, so the "note runs code" class disappears by construction [inf]. But §8 is met today: DOMPurify plus strict CSP (SPEC:131–133), app controls added after sanitizing (SPEC:132, ARCH:33), release check with `evil.md` (REL:42). The allowed set and path checks live in Rust and `snipmd-core` (SPEC:134, ARCH:21, ARCH:40) and are kept under either option [inf]. A native read mode still needs HTML scrubbing: comrak scrubs raw HTML by default and suggests ammonia (PLAT:124–125). |
+| Plugin isolation (#81) | **Does not hold**; it points the other way | #81 assumes each third-party plugin in an isolated iframe or worker, talking by messages, with CodeMirror editor extensions and a CSS layer as extension points (I81:3). The webview supplies iframe/worker isolation, CSS and CodeMirror as-is [inf]. Native would need a Wasm or script runtime (wasmtime, wasmi, Extism, rquickjs, mlua; PLAT:100–108) with no size or startup figures found (PLAT:104), and would drop the CodeMirror and CSS extension points #81 lists [inf]. Open cost on the webview side: iframe vs worker memory against the 120 MB budget is an open #81 question (I81:4); headroom today is 16–22 MB [comp: 120 minus REL:54]. |
+| Rendering control | **Partly** | Native owns every pixel. But today's visuals are already reached in the webview: Mica on Windows 11 (SPEC:52, ARCH:69), Snip via Web Animations with CSP untouched (ARCH:60), WCAG AA contrast tested (ARCH:36). macOS vibrancy is blocked by a private API (SPEC:224, ARCH:75); whether a native stack avoids that is NF in the facts. Native first frame cost includes shader setup that took 3743 ms on one cold iced run (MEAS:12, software Vulkan only). |
+
+## 2. Editor capabilities: webview today vs best native candidate
+
+| Capability | Webview today | Best native candidate per facts |
+|---|---|---|
+| IME | Engine's own text input under CodeMirror [inf: confirm with a Microsoft Pinyin / Japanese IME session in the release build]. Not separately cited in SnipMD docs. | egui improved IME in 0.35 but has open Windows/macOS/Linux IME issues (GUI:83–84); gpui handles WM_IME and TSF but has open Windows candidate-window bugs #64850, #59636 (GUI:21–22); Slint has fewer open issues listed, a search gap not proof (GUI:47, GUI:192). Not measured: no input method in Xvfb (MEAS:21). |
+| Spellcheck | The engine offers it on fields: SPEC has to turn it off in find fields (SPEC:66) [inf: so it is on for the editor where CodeMirror allows]. | No stack states spellcheck integration (GUI:6). Windows Spell Checking API exists (PLAT:21); binding in the `windows` crate NF (PLAT:37); NSSpellChecker NF (PLAT:44). AccessKit cannot yet expose spelling errors (#847 open, GUI:152). |
+| Accessibility | Webview a11y tree; macOS probe reads the top bar through Accessibility (ARCH:51); Snip hidden from screen readers (SPEC:51). Editor screen-reader quality not tested in the files read [inf]. | egui: AccessKit always on, native APIs on Windows and macOS, TextEdit SetValue/ReplaceSelectedText (GUI:81–82). gpui 0.2.2 on crates.io has no AccessKit; Zed main's support "mostly working" (GUI:23–25). AccessKit has no rich text yet (GUI:151); images interleaved with text in the tree NF (GUI:155). |
+| Bidi | Engine layout [inf]. | Parley does bidi via ICU4X (GUI:162); cosmic-text lists bidirectional selection as not ready (GUI:171); egui has no bidi statement (GUI:87). |
+| Selection / undo | CodeMirror: undo survives tab switches and first save; one undo covers edit plus renumbering (SPEC:64, SPEC:67). | egui TextEdit has undo (GUI:86) but a 0.37 selection regression #8763 (GUI:84). Parley undo NF (GUI:169). Xilem's "first-in-class text editing widget" is an open issue since 2024 (GUI:105). |
+| Block images between lines | CodeMirror `StateField` block widgets with async URL cache (ARCH:29, SPEC:58). Working today. | NF for gpui (GUI:29) and Slint (GUI:51). Neither prototype widget supports block widgets between lines; both put the image outside the text (MEAS:21). This is SPEC §2 step 2, the core loop (SPEC:18). |
+| Find / replace | CodeMirror search panel with match count (SPEC:66). | NF in the facts for every stack [inf: would be built in-house]. |
+| Highlighting | Lezer grammars, each language a lazy chunk, same colours in both modes (SPEC:65, ARCH:30, ARCH:63). | NF in the facts. Floem has an `editor` feature, Makepad a `code_editor` dir, details not read (GUI:120, GUI:138). |
+| Read-mode sanitizing | `marked` + DOMPurify; resolved image URLs set after sanitizing (ARCH:33). | comrak 652/652 CommonMark, 670/670 GFM, scrubs raw HTML by default (PLAT:123–124); pulldown-cmark with source offsets (PLAT:121); iced has `markdown::view` (GUI:69). Rendering to native widgets replaces "sanitize HTML" with "renderer ignores what it does not draw" [inf]. |
+
+Summary [inf]: on the nine capabilities the webview has a working, shipped answer for all nine; the best native candidate has a confirmed answer for some parts of IME, a11y, bidi and Markdown parsing, and NF for spellcheck, block images in the editor, find/replace and highlighting.
+
+## 3. Targeted changes inside the webview approach
+
+Options for the cold-start motive, each with consequences. None is proven to reach 300 ms.
+- **A. Trim SnipMD's own start** (131–139 ms, REL:56). Ceiling of the gain is about 0.13 s, leaving roughly 0.6 s [comp: REL:56–57, SPEC:152]. Cheap; does not reach 300 ms.
+- **B. Revisit the warm broker** that reached about 320 ms (ARCH:74), making its options match SnipMD's. Consequence: still above 300 ms as measured, and the crash it caused is the reason it was dropped [inf: confirm whether the crash was only the options mismatch].
+- **C. Lean on what the WebView2 performance doc says helps**: runtime already in memory when Edge runs, user data folder on fast local storage, one shared environment (PLAT:56–57). No ms figures exist (PLAT:58) [inf: measure each with `measure.ps1`].
+- **D. Native first paint before the webview** [inf, not in any fact file]: a plain Win32 window showing the last session text while WebView2 starts. Consequence: perceived start could drop, real typing time does not; the doc warns against WebView2 for splash screens (PLAT:56), which this avoids but does not test. Needs a prototype.
+- **E. Stay resident** [inf]: the warm path already hands a double-click to the open window (SPEC:152). A keep-running mode would make most opens warm, but changes "closing the window quits" on macOS (SPEC:231) and adds background memory. Owner decision.
+- **F. Accept the 1 s target** that SPEC sets and the app meets (SPEC:145, REL:57).
+
+Other motives:
+- Memory: headroom 16–22 MB for #81 [comp]; #81 already plans to load plugins after first paint (I81:3); MemoryUsageTargetLevel Low exists for inactive views (PLAT:57), of limited use with one view [inf].
+- Independence: keep logic moving into `snipmd-core` (2,122 lines, brief), which survives any UI change [inf]; the 4,209 TS + 5,362 test lines are what a native rewrite would replace (brief).
+- Linux: if scope ever opens, wait for Tauri CEF (PLAT:73–75) rather than rewrite [inf].
+- Size: today's installer is 1.37 MB (REL:55); native prototypes are 5–8 MB compressed before any SnipMD code (MEAS:10, MEAS:20).
+
+## 4. Weakest point of the keep-webview case
+
+**Cold start.** If the owner holds < 300 ms cold start as a must, the webview cannot meet it: the floor is about 0.6 s (SPEC:152), measured 722–784 ms (REL:57), and the best attempt (320 ms broker) was dropped for crashing (ARCH:74). A native window plus editor drew in 55–158 ms even on a software renderer (MEAS:11). No option in section 3 is backed by a figure under 300 ms.
+
+Second weakness: much of section 2 rests on NF entries for native stacks, which reflect a fetch run with docs.rs and vendor sites unreachable (GUI:5), not proven absence. A hands-on Windows IME and screen-reader test of egui or gpui (GUI:192) could narrow the gap. Third: the webview's IME, spellcheck and a11y quality in SnipMD itself is inferred here, not measured in the files read.
