@@ -511,6 +511,5 @@ export function markSaved(id: string, written: { text: string; stamp: DiskStamp;
   }
   tab.disk = written.stamp;
   if (textOf(tab) === written.text) tab.dirty = false;
-  petMoment('saved');
   changed({ immediate: true }); // SPEC §7: the session is written right after a save
 }

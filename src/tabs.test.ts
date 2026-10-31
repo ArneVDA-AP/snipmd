@@ -719,7 +719,6 @@ describe('markSaved and markDirty', () => {
     applyToTab('ms', { changes: { from: 2, insert: '!' } });
     markSaved('ms', { text: 'v1', stamp });
     expect(getTab('ms')).toMatchObject({ dirty: true, disk: stamp });
-    expect(petMoment).toHaveBeenCalledWith('saved');
     markSaved('ms', { text: 'v1!', stamp: { mtimeMs: 4, size: 3 } });
     expect(getTab('ms')).toMatchObject({ dirty: false, disk: { mtimeMs: 4, size: 3 } });
     markSaved('nope', { text: '', stamp });

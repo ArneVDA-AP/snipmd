@@ -1,6 +1,6 @@
 # SnipMD — Product Specification
 
-Applies to SnipMD 1.0. This file is the single source of truth for what SnipMD is and does.
+Applies to SnipMD 1.1. This file is the single source of truth for what SnipMD is and does.
 
 ## 1. North star
 
@@ -46,7 +46,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - **Show Snip**: on by default.
 - **Snip** is an 11×11 pixel crab that lives right of the `+` button, about 22 px tall (22 px at 100%, 150% and 200%), sized to a whole number of screen pixels per cell so it stays sharp at every display scale. It reacts only to the app's own moments, never to typing: it claps when an image lands in a note (paste or drop), sighs with relief when a closed tab comes back, and looks worried for 4 seconds when a note changed outside SnipMD and a choice waits (the info bar keeps the choice; Snip does not repeat it).
   - **Walking.** Each of those moments belongs to a tab, and Snip plays it on that tab: it walks sideways along the tab bar, one cell per step, slow to start and to stop, looking where it goes. It stops left of the tab's close button, which stays free, plays the moment, walks back and looks back over the bar before it turns round. A walk takes at most 1.4 s, however far the tab. If that spot is scrolled out of the strip, Snip plays the moment where it stands. A newer moment takes it to its own tab from wherever it is.
-  - **Naps.** It falls asleep after 10 minutes without a save. The next save brings a friend, the same crab with the two colours swapped (lime body, purple claws), who walks in from the right edge of the window and taps it awake. Snip turns to it, they clap together, they wave, and the friend walks off while Snip watches it go.
+  - **Naps.** It falls asleep after 10 minutes without a save (a note reloaded from disk is not one). The next save brings a friend, the same crab with the two colours swapped (lime body, purple claws), who walks in from the right edge of the window and taps it awake. Snip turns to it, they clap together, they wave, and the friend walks off while Snip watches it go.
   - **At rest** it breathes and blinks, and now and then, at irregular times 20 to 45 seconds apart, it glances right for a moment. Only one Snip lives in the bar; the friend only visits.
   - It has no sound, no text, no click action, and screen readers skip it. With reduced motion it shows still frames: it does not walk or glance, and a save after a nap wakes it without the friend. A window without focus plays nothing.
 - Follows the Windows light/dark setting, with the Mica backdrop behind the top bar on Windows 11. No other theming in v1.
@@ -87,8 +87,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
   - Name is prefilled from the first heading, slugified (`# DHCP-probleem lokaal B` → `dhcp-probleem-lokaal-b.md`); fallback `note-YYYYMMDD.md`.
   - Folder is the last folder used; the first time `Documents\Notes` (created if missing).
   - `Enter` saves, `Esc` cancels, "Other folder…" opens the native save dialog.
-  - A name that is taken or cannot be a file name turns red, turns Save off and says why next to the field (a `\` or `/` points to "Other folder…").
-  - If the name exists, the field turns red and Save is disabled; no overwrite prompt.
+  - A name that is taken or cannot be a file name turns red, turns Save off and says why next to the field (a `\` or `/` points to "Other folder…"); no overwrite prompt.
 
 ### 6.3 Images
 - **Location**: each note has its own folder `<note-stem>.assets/` next to it. `labo-04.md` → `labo-04.assets/`.

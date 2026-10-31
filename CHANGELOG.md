@@ -7,10 +7,10 @@ All notable changes to SnipMD. The format follows [Keep a Changelog](https://kee
 Everything new since 1.0.0. The pre-releases below were steps on the way for the Windows and Mac tests.
 
 ### Added
-- Command menu (`Ctrl+Shift+P`, `⇧⌘P` on macOS): every command and four toggles, kept in the session. Line breaks in read mode (off), clickable tasks in read mode, a Copy button on code blocks and a match count in find (on).
+- Command menu (`Ctrl+Shift+P`, `⇧⌘P` on macOS): every command and five toggles, kept in the session: line breaks in read mode (off), clickable tasks in read mode, a Copy button on code blocks, a match count in find and Show Snip (on).
 - Syntax highlighting of fenced code in writing and reading for JavaScript, TypeScript, JSON, CSS, HTML, Python, Rust, SQL, shell and YAML; each language loads the first time a block names it.
 - Moving tabs: drag a tab, or `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown`; the order is kept in the session.
-- Snip, a small pixel crab right of the `+` button. It walks to the tab where something happens and reacts there: it claps when a screenshot lands, is relieved when a closed tab comes back and looks worried when a note changed outside SnipMD. It naps when nothing is saved for a while, and the next save brings a friend who wakes it. With reduced motion it stays where it is. Switch it off with Show Snip in the command menu.
+- Snip, a small pixel crab right of the `+` button. It walks to the tab where something happens and reacts there: it claps when a screenshot lands, is relieved when a closed tab comes back and looks worried when a note changed outside SnipMD. It naps when nothing is saved for a while, and the next save brings a friend who wakes it; a note reloaded after a change made elsewhere no longer counts as a save. With reduced motion it stays where it is. Switch it off with Show Snip in the command menu.
 
 ### Changed
 - Lists and quotes follow the Markdown structure: Enter on an empty item or quote line ends the block, Tab nests an item to the width of its marker, ordered lists stay numbered after any edit, and Backspace leaves an empty item in two presses.
