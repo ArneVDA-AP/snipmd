@@ -24,8 +24,8 @@ vi.mock('./infobar', () => ({ showError: vi.fn(), showInfo: vi.fn(), clearInfo: 
 vi.mock('./preview/render', () => ({ renderRead: vi.fn(async () => document.createElement('article')) }));
 vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 
-import { claimNewNote, promoteUntitled, readNote, saveImage, saveSessionRaw, writeNote } from './ipc';
-import { showError } from './infobar';
+import { claimNewNote, pickSavePath, promoteUntitled, readNote, saveImage, saveSessionRaw, statNote, writeNote } from './ipc';
+import { showError, showInfo } from './infobar';
 import { askFirstSave } from './firstSaveBar';
 import { parseSettings } from './settings';
 
@@ -211,5 +211,90 @@ describe('startup, restore and reopen', () => {
     release();
     await closedShown;
     expect(tabsMod.getActiveTab()?.id).toBe('fn');
+  });
+});
+
+describe('a deleted note and a new note at its path', () => {
+  const PATH = 'C:/n/Untitled-1.md';
+  /** A disk that answers like note::write: a write that expects a stamp or no file finds what is there. */
+  let disk: Map<string, { text: string; stamp: { mtimeMs: number; size: number } }>;
+  let clock = 0;
+  const put = (path: string, text: string) => {
+    const stamp = { mtimeMs: ++clock, size: text.length };
+    disk.set(path, { text, stamp });
+    return stamp;
+  };
+  const action = (label: string) =>
+    vi.mocked(showInfo).mock.calls.flatMap((c) => c[0].actions ?? []).filter((a) => a.label === label).at(-1)!;
+
+  beforeEach(async () => {
+    disk = new Map();
+    vi.mocked(statNote).mockImplementation(async (p) => disk.get(p)?.stamp ?? null);
+    vi.mocked(readNote).mockImplementation(async (p) => ({ text: disk.get(p)!.text, format: { crlf: false, bom: false }, stamp: disk.get(p)!.stamp }));
+    vi.mocked(writeNote).mockImplementation(async (p, text, _f, expected) => {
+      const now = disk.get(p)?.stamp ?? null;
+      const found = expected === 'absent' ? now === null : expected === null || (now !== null && now.mtimeMs === expected.mtimeMs && now.size === expected.size);
+      return found ? { written: put(p, text) } : { changed: now };
+    });
+    put(PATH, 'mine');
+    await restore(session([tab({ id: 'old', title: 'Untitled-1.md', filePath: PATH }), tab({ id: 'new', content: 'newer' })]));
+    const external = await import('./external');
+    external.startExternalWatch(saving.saveTab);
+    window.dispatchEvent(new Event('blur')); // no timer: the test runs the checks
+    disk.delete(PATH); // deleted in Explorer
+    await external.checkTabs();
+  });
+
+  it('Save again recreates the file while nothing is there', async () => {
+    action('Save again').run();
+    await flush();
+    expect(disk.get(PATH)?.text).toBe('mine');
+    expect(getTab('old')!.dirty).toBe(false);
+  });
+
+  it('Save again never writes over a note that is at the path again: the tab gets the changed bar', async () => {
+    put(PATH, 'newer'); // put back by another app, or a sync
+    action('Save again').run();
+    await flush();
+    await flush();
+    expect(disk.get(PATH)?.text).toBe('newer');
+    expect(vi.mocked(showInfo).mock.calls.at(-1)![0].text).toBe('Untitled-1.md was changed outside SnipMD and you have changes too.');
+    action('Keep mine').run(); // the user's choice may replace it
+    await flush();
+    expect(disk.get(PATH)?.text).toBe('mine');
+  });
+
+  it('a new tab cannot be saved to the path the open tab of the deleted note holds', async () => {
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    vi.mocked(pickSavePath).mockResolvedValue(PATH);
+    expect(await saving.saveTab('new')).toBe(false);
+    expect(disk.has(PATH)).toBe(false);
+    expect(vi.mocked(showError).mock.calls.at(-1)![1]).toEqual(new Error('Untitled-1.md is open in another tab'));
+    vi.mocked(askFirstSave).mockResolvedValue({ folder: 'C:/n', name: 'Untitled-1.md' });
+    expect(await saving.saveTab('new')).toBe(false);
+    expect(claimNewNote).not.toHaveBeenCalled(); // refused before the bar's name creates the file
+    expect(getTab('new')!.filePath).toBeNull();
+  });
+
+  it('Save As cannot take the path another open tab holds either', async () => {
+    put('C:/n/b.md', 'b');
+    await tabsMod.openPath('C:/n/b.md');
+    const b = tabsMod.getActiveTab()!;
+    vi.mocked(pickSavePath).mockResolvedValue(PATH);
+    expect(await saving.saveAs(b.id)).toBe(false);
+    expect(disk.has(PATH)).toBe(false);
+    expect(b.filePath).toBe('C:/n/b.md');
+  });
+
+  it('once the old tab is closed, the path is free; reopening it then joins the new one and keeps its text', async () => {
+    await closeTab('old');
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    vi.mocked(pickSavePath).mockResolvedValue(PATH);
+    expect(await saving.saveTab('new')).toBe(true);
+    await flushDirty(); // the closed tab is in conflict: never written
+    expect(disk.get(PATH)?.text).toBe('newer');
+    await reopenClosed('old');
+    expect(tabsMod.getTabs().filter((t) => t.filePath === PATH).map((t) => t.id)).toEqual(['new']);
+    expect(tabsMod.getTabs().map((t) => t.title)).toContain('Untitled-1.md (closed)');
   });
 });

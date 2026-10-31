@@ -148,12 +148,18 @@ describe('checkTabs', () => {
     expect(m.saveTab).toHaveBeenCalledWith('a');
   });
 
-  it('Save again drops the old stamp, so the write recreates the file instead of being refused', async () => {
+  it('Save again expects no file: the write recreates it, but a note that is there again gets the changed bar', async () => {
     const tab = addTab('a');
     m.statNote.mockResolvedValue(null);
     await checkTabs();
     action('Save again').run();
-    expect(tab.disk).toBeNull();
+    expect(tab.disk).toBe('absent');
+    await checkTabs(); // still gone: what the tab expects, so no bar comes back
+    expect(inConflict('a')).toBe(false);
+    m.statNote.mockResolvedValue(S2);
+    await checkTabs();
+    expect(lastBar().text).toBe('a.md was changed outside SnipMD and you have changes too.');
+    setConflict('a', false);
   });
 
   it('conflict bars cannot be dismissed, and a failed action keeps the bar and reports beside it', async () => {

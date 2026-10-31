@@ -1,14 +1,14 @@
 // Saving notes: writes, autosave, the first save and Save As.
-import type { DiskStamp, TabState, TextFormat } from './types';
+import type { DiskStamp, Expected, TabState, TextFormat } from './types';
 import { claimNewNote, copyAssets, pickSavePath, promoteUntitled, writeNote } from './ipc';
 import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
 import { beginWrite, endWrite, inConflict } from './diskState';
 import { handleRefusedWrite, resolveConflict } from './external';
-import { allTabs, getTab, markSaved, openTab, setLastFolder, textOf } from './tabs';
+import { allTabs, getTab, markSaved, openTab, openTabAt, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
-import { dirname, normPath, samePath } from './paths';
+import { basename, dirname, normPath, samePath } from './paths';
 import { imageSavesSettled } from './editor/registry';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
@@ -20,10 +20,10 @@ const errorKey = (id: string): string => `save:${id}`;
 const imagesKey = (id: string): string => `images:${id}`;
 
 /**
- * One note write, marked for the external-change watch. With `expected`, a file that changed or went
- * away outside SnipMD is not written: the watch is told and null comes back.
+ * One note write, marked for the external-change watch. With `expected`, a file that is not what the
+ * tab expects is not written: the watch is told and null comes back.
  */
-async function writeFile(tab: TabState, path: string, text: string, format: TextFormat | null, expected: DiskStamp | null): Promise<DiskStamp | null> {
+async function writeFile(tab: TabState, path: string, text: string, format: TextFormat | null, expected: Expected): Promise<DiskStamp | null> {
   beginWrite(tab.id);
   try {
     const out = await writeNote(path, text, format, expected);
@@ -68,6 +68,15 @@ function writeTab(tab: TabState): Promise<boolean> {
 }
 
 /**
+ * Two open tabs on one file would write over each other, so a save never takes a path another open
+ * tab holds. A closed tab may: reopening it joins the open one and keeps its unsaved text in a copy.
+ */
+function refuseHeld(tab: TabState, path: string): void {
+  const held = openTabAt(path);
+  if (held && held !== tab) throw new Error(`${basename(path)} is open in another tab`);
+}
+
+/**
  * Untitled tab: ask where, write the note, and only then move its images and rewrite the links. Until
  * the note is written the tab stays untitled with its text and images untouched.
  */
@@ -75,10 +84,13 @@ async function firstSave(tab: TabState): Promise<boolean> {
   let step = 'choose a place for';
   try {
     const choice = await askFirstSave(tab, textOf(tab));
-    const picked = choice === 'other' ? await pickSavePath(tab.title) : choice && (await claimNewNote(choice.folder, choice.name));
+    if (!choice) return false;
+    step = 'save';
+    if (choice !== 'other') refuseHeld(tab, `${choice.folder}/${choice.name}`); // before the claim creates the file
+    const picked = choice === 'other' ? await pickSavePath(tab.title) : await claimNewNote(choice.folder, choice.name);
     if (!picked) return false;
     const target = normPath(picked);
-    step = 'save';
+    refuseHeld(tab, target);
     const text = textOf(tab);
     const stamp = await writeFile(tab, target, text, null, null);
     if (!stamp) return false;
@@ -126,6 +138,8 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
     if (!picked) return false;
     const target = normPath(picked);
     if (samePath(target, old)) return saveTab(tab.id);
+    step = 'save';
+    refuseHeld(tab, target);
     step = 'copy the images of';
     const move = await copyAssets(old, target);
     step = 'save';

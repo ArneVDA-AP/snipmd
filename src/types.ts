@@ -14,6 +14,13 @@ export interface DiskStamp {
   size: number;
 }
 
+/**
+ * What a write expects on disk: the stamp of the file after the last read or write; 'absent' for a
+ * gone note being saved again, which may recreate the file but never replace one that is there
+ * again; null for untitled tabs and unknown ones (no check).
+ */
+export type Expected = DiskStamp | 'absent' | null;
+
 /** Serializable state of one tab. The CodeMirror EditorState lives in editor/registry.ts. */
 export interface TabState {
   id: string;
@@ -25,8 +32,7 @@ export interface TabState {
   mode: TabMode;
   cursor: number;
   scrollTop: number;
-  /** Stamp of the file after the last read or write; null for untitled tabs and unknown ones. */
-  disk: DiskStamp | null;
+  disk: Expected;
   /** Format the note was read with, sent back on write; null lets Rust read it from the file. */
   format: TextFormat | null;
   /** Set while the tab is closed (in memory only; the session file keeps closed tabs apart). */
