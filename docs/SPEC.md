@@ -77,7 +77,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 - **Preserve encoding details**: keep the file's line endings (CRLF or LF) and UTF-8 BOM as found. New files use CRLF without BOM (LF on macOS, §13).
 - **External changes**: on window focus and every 2 seconds while focused, compare the file's mtime/size with the last known state.
   - Tab clean → reload silently, keep cursor and scroll position. A tab in read mode shows the new text.
-  - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view is v1.1. Autosave pauses for that tab until the user chooses Reload or Keep mine.
+  - Tab dirty → info bar: "<name> was changed outside SnipMD and you have changes too." Actions: Open disk version · Reload · Keep mine. "Open disk version" opens the file's current text in a new read-mode tab, next to yours; a real diff view comes later (#95). Autosave pauses for that tab until the user chooses Reload or Keep mine.
   - File gone (deleted or moved) → info bar: "<name> is no longer on disk." The tab keeps its text and turns dirty; autosave pauses. Action: Save again (writes it back to the same path while no file is there; a file there again by then is never replaced, the tab gets the changed bar above instead; a missing folder stays a write failure).
 - **Write failure** (folder deleted, drive removed, read-only): info bar with the error. The tab stays dirty, its content stays in the session, and other tabs and session saving keep working.
 
@@ -191,7 +191,7 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **macOS:** in testing as §13 describes; ad-hoc signed builds until there is a Developer ID. Linux stays out.
 
-**v1.1:** `Ctrl+P` quick open over recent files. Share as one file: export to TextPack (zip of note + images) and import `.textpack` / `.textbundle`. The working format stays plain Markdown.
+**Later, not scheduled:** `Ctrl+P` quick open over recent files (#93). Share as one file: export to TextPack (zip of note + images) and import `.textpack` / `.textbundle` (#94). A diff view for a note changed outside SnipMD (#95). The working format stays plain Markdown.
 
 ## 13. macOS
 
@@ -244,9 +244,9 @@ Every item runs the same command as its key. `Cmd+W` closes the tab, never the w
 | 2 | Writing view | Raw Markdown with light styling; live preview later, maybe |
 | 3 | Default folder for new notes | Last used; first time `Documents\Notes` |
 | 4 | Image location | One folder per note, `<stem>.assets/` |
-| 5 | Finding notes | `Ctrl+P` recent files in v1.1; no sidebar |
-| 6 | External change with local edits | Open disk version · Reload · Keep mine; a diff view is v1.1 |
+| 5 | Finding notes | `Ctrl+P` recent files later (#93); no sidebar |
+| 6 | External change with local edits | Open disk version · Reload · Keep mine; a diff view later (#95) |
 | 7 | Rename | Save As to the same folder; SnipMD never deletes user files |
 | 8 | Warning when quitting | None: autosave and the session already keep everything (§3.3) |
 | 9 | A companion in the app | Snip, a pixel crab in the tab bar: purple body, lime claws (no orange or red, which read as Claude's colour or as an error; no yellow, the warning colour); its friend swaps the two. One fixed look, switched off in the command menu, no colour choice. One Snip that walks to a tab's moment, not one per tab: a crab walking in every tab would cover the titles and keep the bar moving while you type (#72) |
-| — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import in v1.1 |
+| — | Bundled single-file format | Not as working format (breaks plain files, costly autosave, binary diffs). TextPack export/import later (#94) |
