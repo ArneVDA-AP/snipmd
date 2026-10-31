@@ -1,0 +1,5 @@
+# Issue #81 summary (plugin system, being designed by another session)
+Owner's idea 2026-10-31: lean core (core loop SPEC §2, guarantees §3/§8/§9), everything else plugins, with a guide so users and agents write their own.
+Path: 1) first-party typed registry of extension points: commands, context-menu entries, paste/drop handlers, editor extensions (CodeMirror), read-mode renderers, info-bar actions, a CSS layer; move Snip, tables etc. onto it. 2) third-party plugins, off by default, from %APPDATA%/.../plugins/: each in an isolated iframe or worker, talks by messages, never gets invoke/DOM/CodeMirror view; manifest capabilities enforced in Rust; plugins cannot write files themselves; load after first paint; a throwing plugin is turned off with a bar. 3) developer guide + template + test harness.
+Open questions: iframe vs worker memory cost (budget 120 MB); distribution; CSS-only theme plugin as safe first step; signing.
+Feature requests mapped: context menu, tables, rename screenshot, path completion (editor extension), font choice / custom CSS (CSS theme), workspaces, split view, terminal (narrow core command), collaboration (not planned).

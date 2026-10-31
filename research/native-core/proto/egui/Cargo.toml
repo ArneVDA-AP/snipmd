@@ -1,0 +1,13 @@
+[package]
+name = "p_egui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { version = "0.37.0", default-features = false, features = ["default"] }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+opt-level = 3
