@@ -46,3 +46,5 @@ Themes (`probe.cjs`):
 - Cascade layers protect what must stay visible: with `@layer core, theme`, a `!important` in `core` beats a `!important` in `theme` (the info bar stayed `display: block`, `opacity: 1`).
 
 Autocomplete size (`@codemirror/autocomplete` 6.20.4, minified, over `@codemirror/view` + `state` + `language`): +49 kB (+14 kB gzip). It is in `node_modules` already through `lang-markdown`, but not in the startup chunk.
+
+Token apply at startup (`tok.cjs`): `document.documentElement.style.setProperty('--text', …)` applies under the CSP; `setAttribute('style', …)` is refused ("Applying inline style violates … style-src").
