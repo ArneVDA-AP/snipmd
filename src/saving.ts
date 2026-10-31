@@ -85,12 +85,12 @@ async function firstSave(tab: TabState): Promise<boolean> {
   try {
     const choice = await askFirstSave(tab, textOf(tab));
     if (!choice) return false;
+    step = 'save';
     if (choice !== 'other') refuseHeld(tab, `${choice.folder}/${choice.name}`); // before the claim creates the file
     const picked = choice === 'other' ? await pickSavePath(tab.title) : await claimNewNote(choice.folder, choice.name);
     if (!picked) return false;
     const target = normPath(picked);
     refuseHeld(tab, target);
-    step = 'save';
     const text = textOf(tab);
     const stamp = await writeFile(tab, target, text, null, null);
     if (!stamp) return false;
@@ -138,6 +138,7 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
     if (!picked) return false;
     const target = normPath(picked);
     if (samePath(target, old)) return saveTab(tab.id);
+    step = 'save';
     refuseHeld(tab, target);
     step = 'copy the images of';
     const move = await copyAssets(old, target);

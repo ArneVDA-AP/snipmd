@@ -31,12 +31,6 @@ pub enum Absent {
     Absent,
 }
 
-impl From<DiskStamp> for Expected {
-    fn from(s: DiskStamp) -> Self {
-        Expected::Stamp(s)
-    }
-}
-
 /// A write either happened, or was refused because the file is no longer the one the tab knows.
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(untagged)]

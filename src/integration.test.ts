@@ -233,7 +233,7 @@ describe('a deleted note and a new note at its path', () => {
     vi.mocked(readNote).mockImplementation(async (p) => ({ text: disk.get(p)!.text, format: { crlf: false, bom: false }, stamp: disk.get(p)!.stamp }));
     vi.mocked(writeNote).mockImplementation(async (p, text, _f, expected) => {
       const now = disk.get(p)?.stamp ?? null;
-      const found = expected === 'absent' ? now === null : expected === null || (now !== null && now.mtimeMs === expected.mtimeMs);
+      const found = expected === 'absent' ? now === null : expected === null || (now !== null && now.mtimeMs === expected.mtimeMs && now.size === expected.size);
       return found ? { written: put(p, text) } : { changed: now };
     });
     put(PATH, 'mine');
