@@ -1,0 +1,28 @@
+# Review: claude/save-again-absent (issue #79)
+
+Scope: `git diff main...claude/save-again-absent` (13 files). Checks run: `npx vitest run` (33 files, 547 tests pass), `cd src-tauri && cargo test -p snipmd-core` (all suites ok). `cargo check` not run (GTK missing here).
+
+Verdict: the fix closes #79 on both routes it names. Save again now sends `'absent'` (src/external.ts:96), Rust refuses when a file is there (src-tauri/core/src/note.rs:110-115), and the refusal leads to the changed bar (src/external.ts:105-114). A second open tab can no longer take the path through first save or Save As (src/saving.ts:74-77, 88, 92, 141). I checked the behaviours the brief asked about against the source and found no regression:
+- Session restore of `'absent'`: src/session.ts:90-93 parses it. The Rust session side is untyped `serde_json::Value` (src-tauri/core/src/session.rs:7, 65), so the string never makes a session unreadable. A tab with `'absent'` is always dirty (raiseGone runs markDirty, src/external.ts:87), so restore keeps it and does not re-read it (src/tabs.ts:166, 192).
+- External watch: `'absent'` is truthy, so such tabs are now watched (src/external.ts:128). If nothing is there, `matches` holds and nothing happens. If a file appears, the tab goes to raiseChanged. Before the fix, a `disk=null` tab was never watched.
+- Autosave and writeTab read `tab.disk` when the write starts (src/saving.ts:53), so a queued write uses `'absent'` too.
+- flushDirty of closed tabs (src/saving.ts:211): a closed tab carrying a stamp or `'absent'` is refused once another note is at the path. handleRefusedWrite ignores closed tabs (src/external.ts:113). Unwritten edits never age out (src/tabs.ts:121), and reopenClosed opens them as a copy (src/tabs.ts:403-411).
+- Keep mine still sets the current stamp (src/external.ts:77). If the file is gone by then, the write is refused with null and the tab gets the gone bar again.
+
+## Blockers
+None.
+
+## Majors
+None.
+
+## Minors
+| id | severity | location | statement | evidence |
+|---|---|---|---|---|
+| m1 | minor | src/saving.ts:141-149, 92-97; src/tabs.ts:504-512 | refuseHeld checks the path before the awaits. The tab gets its new filePath only in markSaved, after the write. So a save that is still running does not hold its target. Scenario: tab B runs Save As to X, and copyAssets is slow because the image folder is large. Meanwhile untitled tab C does a first save to X through Other folder. refuseHeld(C) passes because B.filePath is still the old path. C writes X. B's `writeFile(..., null)` then overwrites C's note with no check, and two open tabs sit on X. C is clean, so the watch reloads C with B's text without saying anything. This is the same class as #79, but it needs two overlapping saves to one path. | Source reading only, no test produced: `refuseHeld(tab, target); step = 'copy the images of'; const move = await copyAssets(old, target); ... const stamp = await writeFile(tab, target, text, tab.format, null);` |
+| m2 | minor | src-tauri/core/src/note.rs:108-123; src-tauri/core/src/atomic.rs:40 | `'absent'` is checked with a stat, then `fs::rename` replaces whatever is at the path. A file created between the check and the rename is still replaced. The stamp check has the same window. For `Absent`, a no-replace rename would close it: `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING`, or `renameat2(RENAME_NOREPLACE)`, or `hard_link` + remove. | `if now != want { return Ok(WriteOutcome::Changed ...) }` and then `fs::rename(&tmp, target)` |
+| m3 | minor | src-tauri/core/tests/note.rs:83-84 | A stale comment and test. "Save again: the tab dropped its stamp" still writes with `None`, which is no longer what Save again sends. The test now covers an unchecked write, not Save again. | `// Save again: the tab dropped its stamp, so the write recreates the file.` / `written(write(&p, "mine", None, None).unwrap());` |
+| m4 | minor | src-tauri/core/src/note.rs:35-39 | `impl From<DiskStamp> for Expected` is used only by tests (`s.into()`). No production caller uses it (grep of src-tauri/src and core/src finds no `.into()` on a stamp). This goes against conventions rule 10, "no dead exports". | grep for `Expected::\|\.into()` in src-tauri/src, src-tauri/core/src: only the definition |
+| m5 | minor | src/saving.ts:84-92, 135-141; src/infobar.ts:169 | The refusal is reported under the step "choose a place for", so the bar reads "Could not choose a place for Untitled-2: Untitled-1.md is open in another tab". It is an error bar and does not name the other tab, which is clumsy next to SPEC §6.4 "the info bar says so". | `let step = 'choose a place for';` and `` text: `Could not ${what}: ${errorText(err)}` `` |
+| m6 | minor | src/session.ts:90-93; src/external.ts:128 | Upgrade gap. A session written by the old build after a failed Save again (for example a missing folder) holds `disk: null` for a disk tab. After the upgrade, that tab is still unwatched and still writes with no check, which is the #79 behaviour, until one write succeeds. | `parseDisk` returns null for null; the watch filter is `t.filePath && t.disk && ...` |
+| m7 | minor | src/saving.ts:88-92 | If the second refuseHeld fires after claimNewNote, the claimed empty file is left on disk. This needs the claimed path to differ from the pre-checked `${folder}/${name}`, or a tab to open it during the claim, so it is unlikely. | `refuseHeld(tab, \`${choice.folder}/${choice.name}\`)` ... `await claimNewNote(...)` ... `refuseHeld(tab, target);` |
+| m8 | minor | src/integration.test.ts (new describe, writeNote mock) | The mock compares only `mtimeMs` and ignores size, so it is weaker than note::write. No current test depends on the difference. | `now !== null && now.mtimeMs === expected.mtimeMs` |
