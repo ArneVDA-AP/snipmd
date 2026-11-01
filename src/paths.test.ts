@@ -37,4 +37,13 @@ describe('normPath', () => {
     expect(normPath('\\\\srv\\share\\\\n.md')).toBe('//srv/share/n.md');
     expect(normPath('C:\\a\\\\b\\')).toBe('C:/a/b');
   });
+
+  it('resolves . and .. the way Windows does, never above the drive or the share', () => {
+    expect(normPath('C:\\notes\\.\\x.md')).toBe('C:/notes/x.md');
+    expect(normPath('C:/work/../notes/x.md')).toBe('C:/notes/x.md');
+    expect(normPath('C:/../x.md')).toBe('C:/x.md');
+    expect(normPath('//srv/share/../x.md')).toBe('//srv/share/x.md');
+    expect(normPath('/notes/./a/../x.md')).toBe('/notes/x.md');
+    expect(normPath('C:/n/..md/x..md')).toBe('C:/n/..md/x..md');
+  });
 });

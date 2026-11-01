@@ -184,7 +184,7 @@ A held key acts once, except moving between tabs. On macOS, §13 maps these keys
 
 **v1 — in:** tabs; new, open, save, save as; paste and drop screenshots, inline display, expand; session restore and closed-tab restore; find and replace; read mode; open via double-click, drag, CLI; follows Windows light/dark.
 
-**Added after 1.0:** the command menu and its toggles (§4), code highlighting (§5), moving tabs (§4, §10), Snip (§4).
+**Added after 1.0:** the command menu and its toggles (§4), code highlighting (§5), the read-mode extras (line breaks, clickable tasks, Copy buttons, §5) and list and quote editing (§5), moving tabs (§4, §10), Snip (§4), one tab per note (§6.4).
 
 **v1 — deliberately out:** theme gallery, font choice, a settings screen (choices go through the command menu); folder or outline sidebar; split view; export to HTML or PDF; sync, accounts, sharing; plugins, AI features; Linux builds.
 

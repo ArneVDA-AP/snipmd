@@ -252,6 +252,18 @@ describe('a closed tab is a tab without a view', () => {
     expect(snapshot().closedTabs.map((c) => c.tab.id)).not.toContain('e0');
   });
 
+  it('two opens of one note at once give one tab, also when the paths are spelled differently', async () => {
+    await restore(session([tab({ id: 'k1', content: 'k' })]));
+    let release!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r({ text: 'x', format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: 1 } }))));
+    const first = openPath('C:/notes/x.md');
+    const second = openPath('C:\\work\\..\\notes\\.\\X.md');
+    release();
+    await Promise.all([first, second]);
+    expect(getTabs().filter((t) => t.filePath !== null).map((t) => t.filePath)).toEqual(['C:/notes/x.md']);
+    expect(readNote).toHaveBeenCalledTimes(1);
+  });
+
   it('opening a closed note brings the entry back with its id and edits', async () => {
     await restore(session([tab({ id: 'op', title: 'op.md', filePath: 'C:/n/op.md', dirty: true, content: 'unsaved' }), tab({ id: 'oq', content: 'k' })]));
     await closeTab('op');

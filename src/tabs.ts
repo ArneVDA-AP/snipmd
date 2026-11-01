@@ -342,8 +342,20 @@ export function openCopy(title: string, text: string, after?: string): Promise<v
   return addTab(title, null, text, { mode: 'read' }, after);
 }
 
-export async function openPath(path: string): Promise<void> {
+/** Opens still reading their file, by path: a second open of the same note waits for the first. */
+const opening = new Map<string, Promise<void>>();
+
+export function openPath(path: string): Promise<void> {
   const norm = normPath(path);
+  const key = norm.toLowerCase(); // samePath's comparison
+  const running = opening.get(key);
+  if (running) return running.then(() => openPath(norm));
+  const p = openNote(norm).finally(() => opening.delete(key));
+  opening.set(key, p);
+  return p;
+}
+
+async function openNote(norm: string): Promise<void> {
   const existing = byPath(norm, true);
   if (existing) return activate(existing.id);
   // A closed note comes back as itself: same id (its writes still match) and its unsaved edits.
