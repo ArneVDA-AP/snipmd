@@ -1,5 +1,5 @@
 // External changes (SPEC §6.1): notes edited outside SnipMD are reloaded in place, or put in conflict.
-// This module owns the conflict state of a tab and its bar; saving asks it through resolveConflict
+// This module decides when a tab is in conflict (the flag is in diskState.ts) and owns its bars; saving asks it through resolveConflict
 // and handleRefusedWrite. Bar actions hold only the tab id and look the tab up when they run.
 import type { DiskStamp, Expected, TabState } from './types';
 import { readNote, statNote } from './ipc';

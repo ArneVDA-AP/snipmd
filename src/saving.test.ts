@@ -12,6 +12,7 @@ vi.mock('./ipc', () => ({
   claimNewNote: vi.fn(),
   copyAssets: vi.fn()
 }));
+vi.mock('./pet', () => ({ petMoment: vi.fn() }));
 vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 vi.mock('./editor/links', () => ({ rewriteImagePrefix: vi.fn(), rewrittenText: vi.fn(() => 'rewritten') }));
 vi.mock('./tabs', () => ({
@@ -42,6 +43,7 @@ import { handleRefusedWrite, resolveConflict } from './external';
 import { trackImageSave } from './editor/registry';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
+import { petMoment } from './pet';
 
 const mk = (id: string) => ({ id, title: id, filePath: `/n/${id}.md`, dirty: true, text: `text ${id}` });
 const STAMP = { mtimeMs: 1, size: 1 };
@@ -118,6 +120,15 @@ describe('saveTab', () => {
     release();
     await Promise.all([p1, p2]);
     expect(log).toEqual(['start text s1', 'end text s1', 'start newer', 'end newer']);
+  });
+
+  it('a written note is a save for Snip; a refused write is not', async () => {
+    h.tabs = [mk('s1')];
+    vi.mocked(writeNote).mockResolvedValueOnce({ changed: null });
+    await saveTab('s1');
+    expect(petMoment).not.toHaveBeenCalled();
+    await saveTab('s1');
+    expect(petMoment).toHaveBeenCalledWith('saved');
   });
 
   it('clears the tab error after a later success', async () => {

@@ -16,7 +16,6 @@
 
 **[Download for Windows](https://github.com/ArneVDA-AP/snipmd/releases/latest)** · Windows 10 and 11 (x64), a 1.5 MB installer, no admin rights.
 macOS 13+ is in preview: see [Installing on macOS](docs/install-macos.md).
-Some features below come with 1.1 (the command menu, code highlighting, the read-mode extras, tab dragging and Snip); until then they are in the newest pre-release on the [Releases page](https://github.com/ArneVDA-AP/snipmd/releases).
 
 ## Your notes stay yours
 Notes are plain Markdown files with an image folder next to them (`labo-04.md` + `labo-04.assets/`). They open as they are in VS Code, Obsidian and on GitHub, and keep working if you stop using SnipMD. Save a note into an Obsidian vault and Obsidian shows its screenshots; a note open in both apps stays in step.

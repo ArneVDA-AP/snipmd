@@ -21,11 +21,12 @@ SPEC §13 is built and on `main` (PRs #19, #32, #34, #35); `release-macos.yml` b
 ## 1.1
 `v1.1.0-1` to `v1.1.0-4` are pre-releases; `CHANGELOG.md` says what they add. `v1.1.0-4` (Snip walks to the tab, the wake-up friend) is published with the Windows files and a macOS preview.
 
-Open before 1.1.0:
-1. **#79, data safety.** After a note's file is deleted, a new tab can be saved to the same path, and *Save again* in the old tab then overwrites the newer note without a check. Fix: *Save again* writes only while the file is still absent, and no two tabs hold one path. Found by reading the code; a test reproduces it first. #80 (drop *Other folder…*, which proposes the colliding name) is not in 1.1.
-2. **Windows test of `v1.1.0-4`**: `TESTPLAN-WIN11.md` on `test/w11-20261027`, report `findings/windows/w11-20261027.md` on that branch. No report yet. It covers Snip's walk, the friend, reduced motion, and the steps left from the test of `v1.1.0-3` (CT1–CT4, T1, T3). AZERTY (T2) does not block. #79 lands after this test, so the release candidate gets a short retest of saving and the closed-tab bar.
-3. **SPEC §12 promises `Ctrl+P` and TextPack for v1.1**; neither is built. Move them to a later version in §12 before tagging 1.1.0, so the SPEC describes what ships.
-4. **The release itself**: the hygiene pass, a final review, the version set to `1.1.0`, one CHANGELOG section with everything since 1.0.0, then the owner's tag and smoke test step 8 (install over `1.0.0` and over `1.1.0-4`).
+Open before 1.1.0 (the release-candidate PR on `claude/release-1.1.0` holds the version, the CHANGELOG section and the fixes below; the owner merges it and tags):
+1. **Windows test of `v1.1.0-4`**: `TESTPLAN-WIN11.md` on `test/w11-20261027`, report `findings/windows/w11-20261027.md` on that branch. No report yet (checked 2026-11-01). A FOUT within 1.1 scope is fixed on the candidate; the rest becomes an issue; one that needs a product decision goes to the owner.
+2. **Retest of the candidate**: `TESTPLAN-WIN11.md` on `test/w11-20261031`, report `findings/windows/w11-20261031.md`. Saving, *Save again*, one tab per note and the closed-tab bar, because #79 (PR #96) and the one-tab-per-note fixes for opens came after the test of `v1.1.0-4`. Test the build the PR names (a *Release Windows* run on its head, nothing published).
+3. **Owner, before the tag**: the budgets in `docs/releasing.md` measured on the 1.1.0 build (the last table is from 1.0; the startup chunk grew from 397 to 437 KB); merge the candidate PR; tag `v1.1.0`; run *Release macOS* with *publish*; smoke test step 8 (install over `1.0.0` and over `1.1.0-4`).
+
+Done for 1.1.0 (2026-11-01): #79 fixed (PR #96: *Save again* expects no file; a save never takes a path another open tab holds). SPEC §12 matches what ships (PR #97: `Ctrl+P` #93, TextPack #94 and the diff view #95 are later). Hygiene pass and final whole-app review done on the candidate (no blocker; the one major, two tabs on one note through opens, fixed there; minors in #98 and #25). The reviews are on `archive/1.1-process` under `review/release-1.1.0/`.
 
 Settled for 1.1: the setup's "uninstall the older version first" page (#74) is stock Tauri behaviour with no data at risk; the README and release notes say how to update (#77), and a setup that skips the page waits for #51.
 
@@ -44,12 +45,13 @@ Backlog besides that: #80, renaming a note by double-clicking its tab (#59), tel
 ## Decisions in force
 How we work, one line each: what, and why. Autonomous runs add theirs here. Product decisions are in `docs/SPEC.md` §14, build decisions in `docs/ARCHITECTURE.md` "Decisions", release policy in `docs/releasing.md`.
 
-- **Repo front** (owner, 2026-10-24). The root holds only what users and the build need; maintainer docs are in `docs/`, community files in `.github/`, session state (`CLAUDE.md`, this file) and agent files in `.claude/`. Release pages show the version's CHANGELOG section; proposals are issues.
+- **Repo front** (owner, 2026-10-24). The root holds only what users and the build need; maintainer docs are in `docs/`, community files in `.github/`, session state (`CLAUDE.md`, this file) and agent files in `.claude/`. Release pages show the version's CHANGELOG section; proposals are issues. `tools/` counts as build tooling: the workflows run `tools/release` and `tools/measure` (autonomous run, 2026-11-01; moving it would touch three workflows for no user gain).
 - **Contributor rules** (owner, 2026-10-24) live in `docs/CONVENTIONS.md`, which `CLAUDE.md` imports, so a contributor without Claude finds them and sessions read the same text. Product and build decisions moved out of this file for the same reason.
 - **Process records.** Reviews, findings and run args of finished work move to an archive branch at each milestone, not to `main`. Deferred findings become issues. Process output stays out of the code tree.
 - **Test plans** (owner, 2026-10-26). Each step says who does it: the runner (Claude starts a workflow), Claude on the machine with computer use, Claude with one action from the tester (a setting, a prompt, a USB stick), or the tester alone, with the reason. As much as possible goes to the runner and to Claude; the Mac tester works the same way.
 - **thin-* agents.** They stay in `.claude/`, because they are the standard way of working and cloud sessions install them from there.
 - **Windows testing.** A tester session on the owner's PC tests and reports; the cloud session fixes. That keeps one writer for the code.
+- **Pushing from a cloud session.** `git push` is refused when commits carry the private email; commit with the owner's GitHub noreply address set for that command (`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_EMAIL`), which is what an API commit would use (autonomous run, 2026-11-01).
 - **Tags.** A cloud session cannot push tags; the owner pushes the tag, and *Release macOS* is then run on it with *publish* for a macOS preview.
-- **Hygiene pass.** Before each release, a repo-wide pass checks for internal references and comments that no longer match the code.
+- **Hygiene pass.** Before each release, a repo-wide pass checks for internal references and comments that no longer match the code. It also checks the docs against the code and lists dead exports; exports only tests import stay as test seams (autonomous run, 2026-11-01).
 - **Code signing** (owner, 2026-10-24). The owner applies to SignPath Foundation for Windows. The Apple Developer Program ($99 a year) is the owner's call; until then macOS stays a preview.

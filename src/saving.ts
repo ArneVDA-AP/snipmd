@@ -10,6 +10,7 @@ import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { basename, dirname, normPath, samePath } from './paths';
 import { imageSavesSettled } from './editor/registry';
+import { petMoment } from './pet';
 
 /** Per tab: the write in progress, and the one write queued behind it that later saves join. */
 const running = new Map<string, Promise<boolean>>();
@@ -27,7 +28,10 @@ async function writeFile(tab: TabState, path: string, text: string, format: Text
   beginWrite(tab.id);
   try {
     const out = await writeNote(path, text, format, expected);
-    if ('written' in out) return out.written;
+    if ('written' in out) {
+      petMoment('saved'); // only a write: a reload from disk is not the user's save (SPEC §4)
+      return out.written;
+    }
     handleRefusedWrite(tab.id, out.changed);
     return null;
   } finally {

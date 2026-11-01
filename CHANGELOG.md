@@ -2,6 +2,29 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-01
+
+Everything new since 1.0.0. The pre-releases below were steps on the way for the Windows and Mac tests.
+
+### Added
+- Command menu (`Ctrl+Shift+P`, `⇧⌘P` on macOS): every command and five toggles, kept in the session: line breaks in read mode (off), clickable tasks in read mode, a Copy button on code blocks, a match count in find and Show Snip (on).
+- Syntax highlighting of fenced code in writing and reading for JavaScript, TypeScript, JSON, CSS, HTML, Python, Rust, SQL, shell and YAML; each language loads the first time a block names it.
+- Moving tabs: drag a tab, or `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown`; the order is kept in the session.
+- Snip, a small pixel crab right of the `+` button. It walks to the tab where something happens and reacts there: it claps when a screenshot lands, is relieved when a closed tab comes back and looks worried when a note changed outside SnipMD. It naps when nothing is saved for a while, and the next save brings a friend who wakes it; a note reloaded after a change made elsewhere no longer counts as a save. With reduced motion it stays where it is. Switch it off with Show Snip in the command menu.
+
+### Changed
+- Lists and quotes follow the Markdown structure: Enter on an empty item or quote line ends the block, Tab nests an item to the width of its marker, ordered lists stay numbered after any edit, and Backspace leaves an empty item in two presses.
+- The first-save bar says why Save is off: the name is taken, holds a folder (use Other folder…), or has a character a file name cannot hold.
+- `Untitled-N` takes the lowest number no open or closed tab uses.
+- A note reloaded from disk shows its new text in read mode too.
+- Fenced code has no spelling squiggles, and code in a block without highlighting has the text colour while writing, as in read mode.
+- The macOS `.dmg` without a Developer ID signature is named `*.preview.dmg`.
+
+### Fixed
+- *Save again* on a note whose file was deleted could write over a newer note saved at the same path meanwhile. It now recreates the file only while nothing is there; otherwise the tab asks, as for any change made elsewhere. A note can no longer be saved to a path that is open in another tab.
+- Read mode showed a bullet as well as the checkbox of a task.
+- On macOS, Escape did not close the find panel after a click on one of its buttons, and the find and file-name fields autocorrected and capitalized.
+
 ## [1.1.0-4] - 2026-10-27
 
 A pre-release for the Windows test of Snip's new moves.
@@ -78,6 +101,7 @@ The first full release. It replaces the 0.1.0 prototype; open tabs and untitled 
 ## [0.1.0] - 2026-10-17
 Prototype.
 
+[1.1.0]: https://github.com/ArneVDA-AP/snipmd/compare/v1.0.0...v1.1.0
 [1.1.0-4]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-3...v1.1.0-4
 [1.1.0-3]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-2...v1.1.0-3
 [1.1.0-2]: https://github.com/ArneVDA-AP/snipmd/compare/v1.1.0-1...v1.1.0-2
