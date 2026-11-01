@@ -1,6 +1,6 @@
 # SnipMD – testplan Windows 11 (31 oktober 2026): hertest voor 1.1.0
 
-Dit plan test de release-kandidaat **SnipMD 1.1.0** (PR `claude/release-1.1.0`) vóór de tag. Na de test van `v1.1.0-4` (`TESTPLAN-WIN11.md` op `test/w11-20261027`) veranderde er code op één plek: opslaan (#79, PR #96). *Save again* bij een verwijderde notitie schrijft niet meer over een nieuwere notitie op hetzelfde pad. Ook kan een notitie niet meer bewaard worden op een pad dat al in een andere tab open staat. Dit plan hertest daarom opslaan en de balk van een gesloten tab. Al de rest dekt het plan van 27 oktober.
+Dit plan test de release-kandidaat **SnipMD 1.1.0** (PR #100, commit 1a3e086) vóór de tag. Na de test van `v1.1.0-4` (`TESTPLAN-WIN11.md` op `test/w11-20261027`) veranderde er code op één plek: opslaan (#79, PR #96). *Save again* bij een verwijderde notitie schrijft niet meer over een nieuwere notitie op hetzelfde pad. Ook kan een notitie niet meer bewaard worden op een pad dat al in een andere tab open staat. Daarnaast opent een notitie die al open staat nooit een tweede tab, ook niet bij twee dubbelklikken tegelijk, en een notitie die van schijf herladen wordt maakt Snip niet meer wakker. Dit plan hertest daarom opslaan en de balk van een gesloten tab. Al de rest dekt het plan van 27 oktober.
 
 ## Wie doet wat
 Zelfde indeling als op 27 oktober:
@@ -17,10 +17,10 @@ Rapporteer elke ID als **OK**, **FOUT** (met wat er wel gebeurde) of **NIET GETE
 ## R. Runner (al gestart door Claude)
 | ID | Wat | Waar |
 |---|---|---|
-| R1 | Typecheck, unit tests en core tests; bouw op `windows-latest`; installer onder 10 MB. | *Release Windows*, handmatige run op `claude/release-1.1.0` (alleen `build`, niets gepubliceerd). Het artifact bevat de setup. |
-| R2 | Schone installatie: stil installeren, starten, verwijderen; screenshots van het echte venster. | *Windows run* op `claude/release-1.1.0`. |
+| R1 | Typecheck, unit tests en core tests; bouw op `windows-latest`; installer onder 10 MB. | *Release Windows* run 16 op 1a3e086 (alleen `build`, niets gepubliceerd). Het artifact bevat de setup. |
+| R2 | Schone installatie: stil installeren, starten, verwijderen; screenshots van het echte venster. | *Windows run* 15 op 1a3e086. |
 
-De PR van de kandidaat noemt het runnummer en de commit van de build die getest wordt. Test alleen die build.
+Krijgt PR #100 nog een commit, dan noemt de PR de nieuwe run. Test alleen de build die de PR noemt.
 
 ## Regels voor de Claude-sessie
 Dezelfde regels als op 27 oktober:
@@ -60,12 +60,13 @@ Noteer de Windows-versie en build, de schermschaal, en de SnipMD-versie die nu g
 | G3 | Verplaats `u1.md` weer naar de Prullenbak, ga terug naar SnipMD (balk *no longer on disk*). Typ `nog oud` in de tab. Sluit hem met `Ctrl+W`. | De onderste balk `u1.md closed.` en een blijvende waarschuwing `u1.md was closed with changes that are not on disk.` met *Restore*. |
 | G4 | Nieuwe tab, typ `nieuw`. `Ctrl+S`, *Other folder…*, bewaar als `zz-w11-test\u1.md`. | Dat lukt nu (de oude tab is dicht). `u1.md` bevat `nieuw`. |
 | G5 | Klik *Restore* in de waarschuwing van G3. | Geen tweede tab op `u1.md`: de tab met `nieuw` wordt actief, en ernaast opent een leestab `u1.md (closed)` met `nog oud`. `u1.md` bevat nog altijd `nieuw`. |
+| O1 | Sluit `u1.md`'s tabs niet. Dubbelklik in Verkenner twee keer snel na elkaar op `zz-w11-test\hertest-een.md` (staat al open), en daarna twee keer snel op een notitie die nog niet open is, bv. `zz-w11-test\w1.md` uit het plan van 27 oktober. | Telkens één tab: de open tab wordt actief, en de nieuwe notitie opent één keer. |
 | K1 | Sluit SnipMD (met toestemming van de tester) en start het opnieuw via het Startmenu. Druk `Ctrl+Shift+T` tot er niets meer terugkomt. | De tabs komen terug. Geen gesloten tab schrijft over `u1.md`: dat bevat nog `nieuw`. |
 
 ## Rapport
 Claude schrijft één bestand `findings/windows/w11-20261031.md` op de branch `test/w11-20261031`, of geeft het aan de tester als de sessie niet kan pushen:
 1. de gegevens uit stap 0 en de getest build (runnummer en commit);
-2. een tabel `| ID | OK/FOUT/NIET GETEST | wat je zag | screenshot |` voor R, I, S, G en K1;
+2. een tabel `| ID | OK/FOUT/NIET GETEST | wat je zag | screenshot |` voor R, I, S, G, O1 en K1;
 3. per FOUT: de stappen, wat je verwachtte en wat er gebeurde;
 4. prompts en balkteksten letterlijk;
 5. wat opviel.
