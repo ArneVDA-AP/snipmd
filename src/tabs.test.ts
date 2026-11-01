@@ -264,6 +264,29 @@ describe('a closed tab is a tab without a view', () => {
     expect(readNote).toHaveBeenCalledTimes(1);
   });
 
+  it('a second open of a note that cannot be read does not try again: one error', async () => {
+    await restore(session([tab({ id: 'k2', content: 'k' })]));
+    let fail!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((_, r) => (fail = () => r(new Error('locked')))));
+    const first = openPath('C:/notes/locked.md');
+    const second = openPath('C:/notes/locked.md');
+    fail();
+    await Promise.all([first, second]);
+    expect(readNote).toHaveBeenCalledTimes(1);
+    expect(getTabs().map((t) => t.id)).toEqual(['k2']);
+  });
+
+  it('a note saved to the path while its open reads the file keeps one tab', async () => {
+    await restore(session([tab({ id: 'sv', content: 'mine' }), tab({ id: 'k3', content: 'k' })]));
+    let release!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r({ text: 'mine', format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: 4 } }))));
+    const open = openPath('C:/notes/y.md');
+    markSaved('sv', { text: 'mine', stamp: { mtimeMs: 1, size: 4 }, path: 'C:/notes/y.md' });
+    release();
+    await open;
+    expect(getTabs().filter((t) => t.filePath === 'C:/notes/y.md').map((t) => t.id)).toEqual(['sv']);
+  });
+
   it('opening a closed note brings the entry back with its id and edits', async () => {
     await restore(session([tab({ id: 'op', title: 'op.md', filePath: 'C:/n/op.md', dirty: true, content: 'unsaved' }), tab({ id: 'oq', content: 'k' })]));
     await closeTab('op');

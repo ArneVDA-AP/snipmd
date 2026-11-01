@@ -342,14 +342,22 @@ export function openCopy(title: string, text: string, after?: string): Promise<v
   return addTab(title, null, text, { mode: 'read' }, after);
 }
 
-/** Opens still reading their file, by path: a second open of the same note waits for the first. */
+/**
+ * Opens still reading their file, by path: a second open of the same note waits for the first and
+ * shows its tab. A failed first open is not tried again: its error is already on screen.
+ */
 const opening = new Map<string, Promise<void>>();
 
 export function openPath(path: string): Promise<void> {
   const norm = normPath(path);
   const key = norm.toLowerCase(); // samePath's comparison
   const running = opening.get(key);
-  if (running) return running.then(() => openPath(norm));
+  if (running) {
+    return running.then(() => {
+      const tab = byPath(norm, true);
+      if (tab) return activate(tab.id);
+    });
+  }
   const p = openNote(norm).finally(() => opening.delete(key));
   opening.set(key, p);
   return p;
@@ -363,6 +371,8 @@ async function openNote(norm: string): Promise<void> {
   if (closed) return void (await reopenClosed(closed.id));
   try {
     const note = await readNote(norm);
+    const saved = byPath(norm, true); // a first save or Save As took the path during the read
+    if (saved) return activate(saved.id);
     await addTab(basename(norm), norm, note.text, { disk: note.stamp, format: note.format });
   } catch (err) {
     showError(`open ${basename(norm)}`, err);
