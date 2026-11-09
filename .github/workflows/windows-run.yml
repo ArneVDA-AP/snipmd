@@ -1,7 +1,8 @@
 name: Windows run
 
 # Manual: builds the release app on a Windows runner, measures the SPEC §9 budgets with
-# tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, and uploads
+# tools/measure/measure.ps1, screenshots the real window with tools/measure/shots.ps1, drives the
+# saving and closed-tab scenarios with tools/measure/retest.ps1, and uploads
 # the results as a workflow artifact (kept 30 days). A second job, which runs no repository code,
 # pushes the same files to the branch test/windows-run-<run number>, so they can be read with git.
 # A runner is not an ordinary laptop: the numbers are a reference; release budgets are measured on
@@ -63,6 +64,15 @@ jobs:
           $sleep = @(); if ('${{ inputs.snip_sleep }}' -eq 'true') { $sleep = @('-SnipSleep') }
           powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/ui @sleep 2>&1 | Tee-Object results/windows-ci/shots.txt
 
+      # The script writes results/windows-ci/retest.txt itself; the tee keeps the step's console log.
+      # It may fail without stopping the steps below; the last step turns the run red if it did.
+      - name: Retest scenarios
+        id: retest
+        continue-on-error: true
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File tools/measure/retest.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/windows-ci 2>&1 | Tee-Object results/windows-ci/retest-log.txt
+
       - name: Clean-install smoke test
         continue-on-error: true
         shell: powershell
@@ -86,6 +96,13 @@ jobs:
             results/ui
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Fail the run on a retest FOUT
+        if: always() && steps.retest.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "retest FOUT, see windows-ci/retest.txt"
+          exit 1
 
   # The build job above never holds a write token; this one only gets the files and pushes them.
   branch:
@@ -111,5 +128,5 @@ jobs:
           git init -q
           git add -A
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -qm "Windows run $RUN on $SHA: budgets and screenshots"
+            commit -qm "Windows run $RUN on $SHA: budgets, screenshots and retest"
           git push -q "https://x-access-token:$TOKEN@github.com/$REPO" "HEAD:refs/heads/test/windows-run-$RUN"

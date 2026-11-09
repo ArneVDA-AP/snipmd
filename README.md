@@ -16,7 +16,6 @@
 
 **[Download for Windows](https://github.com/ArneVDA-AP/snipmd/releases/latest)** · Windows 10 and 11 (x64), a 1.5 MB installer, no admin rights.
 macOS 13+ is in preview: see [Installing on macOS](docs/install-macos.md).
-Some features below come with 1.1 (the command menu, code highlighting, the read-mode extras, tab dragging and Snip); until then they are in the newest pre-release on the [Releases page](https://github.com/ArneVDA-AP/snipmd/releases).
 
 ## Your notes stay yours
 Notes are plain Markdown files with an image folder next to them (`labo-04.md` + `labo-04.assets/`). They open as they are in VS Code, Obsidian and on GitHub, and keep working if you stop using SnipMD. Save a note into an Obsidian vault and Obsidian shows its screenshots; a note open in both apps stays in step.
@@ -58,7 +57,7 @@ On macOS, `Cmd` replaces `Ctrl`, except `Ctrl+Tab`, which stays `Ctrl`, and repl
 ## Install
 Download `SnipMD_<version>_x64-setup.exe` from [Releases](https://github.com/ArneVDA-AP/snipmd/releases/latest). It installs per user, registers `.md` and `.markdown`, and fetches WebView2 if Windows lacks it; pick SnipMD once under *Open with* to open notes with a double-click. The installer is not code-signed yet, so SmartScreen may warn on the first run: choose *More info*, then *Run anyway*. Signing is on its way: see the [code signing policy](docs/code-signing.md).
 
-To update, close SnipMD and run the new setup. If it offers to uninstall the older version first, either choice keeps your notes and open tabs; leave *Delete the application data* unticked.
+To update, run the new setup; if SnipMD is running, it asks to close it. The setup shows an *Already Installed* page on every update and recommends uninstalling the older version first; either choice keeps your notes and open tabs, so leave *Delete the application data* unticked.
 
 An MSI for managed installs and a portable exe are on the same page.
 

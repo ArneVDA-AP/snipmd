@@ -1,6 +1,6 @@
 // Shared types.
 
-export type TabMode = 'edit' | 'read';
+type TabMode = 'edit' | 'read';
 
 /** Line endings and BOM of a note as found on disk (SPEC §6.1). */
 export interface TextFormat {
@@ -59,9 +59,9 @@ export interface SessionFile {
   settings: Settings;
 }
 
-export type InfoKind = 'info' | 'warning' | 'error';
+type InfoKind = 'info' | 'warning' | 'error';
 
-export interface InfoAction {
+interface InfoAction {
   label: string;
   run: () => void;
   primary?: boolean;
