@@ -134,9 +134,21 @@ function pruneClosed(now: number): void {
   tabs = tabs.filter((t) => !gone.has(t));
 }
 
+/**
+ * Per tab: the path its running first save or Save As writes to. The tab holds that path from the
+ * save's check until `markSaved` gives it, so an open or another save meanwhile finds it.
+ */
+const held = new Map<string, string>();
+
+/** Holds `path` for tab `id` while its save runs; without a path, lets it go. */
+export function holdPath(id: string, path?: string): void {
+  if (path) held.set(id, path);
+  else held.delete(id);
+}
+
 /** The open tab, or else the most recently closed one, of the note at `path`. */
 const byPath = (path: string, open: boolean): TabState | undefined =>
-  (open ? getTabs() : closedTabs()).find((t) => t.filePath !== null && samePath(t.filePath, path));
+  (open ? getTabs() : closedTabs()).find((t) => [t.filePath, held.get(t.id)].some((p) => p && samePath(p, path)));
 
 /** The open tab of the note at `path`: one tab per note (SPEC §6.4). */
 export const openTabAt = (path: string): TabState | undefined => byPath(path, true);

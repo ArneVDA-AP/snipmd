@@ -5,7 +5,7 @@ import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
 import { beginWrite, endWrite, inConflict } from './diskState';
 import { handleRefusedWrite, resolveConflict } from './external';
-import { allTabs, getTab, markSaved, openTab, openTabAt, setLastFolder, textOf } from './tabs';
+import { allTabs, getTab, holdPath, markSaved, openTab, openTabAt, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { basename, dirname, normPath, samePath } from './paths';
@@ -73,11 +73,13 @@ function writeTab(tab: TabState): Promise<boolean> {
 
 /**
  * Two open tabs on one file would write over each other, so a save never takes a path another open
- * tab holds. A closed tab may: reopening it joins the open one and keeps its unsaved text in a copy.
+ * tab holds or is saving to; from here until the save ends, the path is held for this one. A closed
+ * tab may hold it: reopening it joins the open one and keeps its unsaved text in a copy.
  */
-function refuseHeld(tab: TabState, path: string): void {
+function hold(tab: TabState, path: string): void {
   const held = openTabAt(path);
   if (held && held !== tab) throw new Error(`${basename(path)} is open in another tab`);
+  holdPath(tab.id, path);
 }
 
 /**
@@ -90,11 +92,11 @@ async function firstSave(tab: TabState): Promise<boolean> {
     const choice = await askFirstSave(tab, textOf(tab));
     if (!choice) return false;
     step = 'save';
-    if (choice !== 'other') refuseHeld(tab, `${choice.folder}/${choice.name}`); // before the claim creates the file
+    if (choice !== 'other') hold(tab, `${choice.folder}/${choice.name}`); // before the claim creates the file
     const picked = choice === 'other' ? await pickSavePath(tab.title) : await claimNewNote(choice.folder, choice.name);
     if (!picked) return false;
     const target = normPath(picked);
-    refuseHeld(tab, target);
+    hold(tab, target);
     const text = textOf(tab);
     const stamp = await writeFile(tab, target, text, null, null);
     if (!stamp) return false;
@@ -104,6 +106,8 @@ async function firstSave(tab: TabState): Promise<boolean> {
   } catch (err) {
     showError(`${step} ${tab.title}`, err, errorKey(tab.id));
     return false;
+  } finally {
+    holdPath(tab.id);
   }
   await imageSavesSettled(tab.id); // a paste that started before the save may still land in scratch
   await moveImages(tab);
@@ -143,7 +147,7 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
     const target = normPath(picked);
     if (samePath(target, old)) return saveTab(tab.id);
     step = 'save';
-    refuseHeld(tab, target);
+    hold(tab, target);
     step = 'copy the images of';
     const move = await copyAssets(old, target);
     step = 'save';
@@ -159,6 +163,8 @@ async function copyTo(tab: TabState, old: string): Promise<boolean> {
   } catch (err) {
     showError(`${step} ${tab.title}`, err, errorKey(tab.id));
     return false;
+  } finally {
+    holdPath(tab.id);
   }
 }
 

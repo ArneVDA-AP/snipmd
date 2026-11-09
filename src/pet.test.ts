@@ -19,6 +19,7 @@ for (const [id, left] of [['a', 0], ['b', 60]] as const) {
 }
 /** The walks the crabs started, as their first and last pose; a still placement (duration 0) is no walk. */
 const walks = () => played.filter((p) => p.el.tagName === 'svg' && p.opts.duration).map((p) => [p.keys[0].transform, p.keys.at(-1)!.transform]);
+const lastOf = (el: Element) => played.filter((p) => p.el === el).at(-1)!;
 
 async function mounted(dpr = 1, on = true) {
   vi.resetModules();
@@ -111,7 +112,6 @@ describe('Snip', () => {
     vi.advanceTimersByTime(10 * 60_000);
     pet.petMoment('saved');
     const friend = slot.querySelector('svg.friend') as SVGSVGElement;
-    const lastOf = (el: Element) => played.filter((p) => p.el === el).at(-1)!;
     // from x = 1024, looking left at Snip, to one cell right of it
     expect(walks()).toEqual([['translateX(924px) scaleX(1)', 'translateX(24px) scaleX(1)']]);
     expect(state()).toBe('sleep');
@@ -142,6 +142,41 @@ describe('Snip', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(state()).toBe('worried');
     expect(walks()[1]).toEqual(['translateX(24px) scaleX(-1)', 'translateX(924px) scaleX(-1)']);
+  });
+
+  it('a second save while the friend walks in changes nothing: the one visit ends with Snip awake at home', async () => {
+    const { pet, slot, svg, state } = await mounted();
+    vi.advanceTimersByTime(10 * 60_000);
+    pet.petMoment('saved');
+    await vi.advanceTimersByTimeAsync(300);
+    pet.petMoment('saved'); // an autosave after a short pause, or Ctrl+S
+    await vi.advanceTimersByTimeAsync(0);
+    const friend = slot.querySelector('svg.friend')!;
+    expect(walks()).toEqual([['translateX(924px) scaleX(1)', 'translateX(24px) scaleX(1)']]); // one walk-in, not cut
+    lastOf(friend).done();
+    await vi.advanceTimersByTimeAsync(500 + 1200 + 700);
+    lastOf(friend).done(); // the friend walks off
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(friend.classList.contains('gone')).toBe(true);
+    expect(state()).toBe('idle');
+    expect(lastOf(svg).keys[0].transform).toBe('translateX(0px) scaleX(1)');
+  });
+
+  it('a nap due while Snip plays a moment at a tab waits until it is home, and the next save wakes it there', async () => {
+    const { pet, svg, state } = await mounted();
+    vi.advanceTimersByTime(10 * 60_000 - 1200); // mounted() spent 200 ms: the nap is due in 1 s
+    pet.petMoment('worried', 'a');
+    played.at(-1)!.done(); // arrives at tab a
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(state()).toBe('worried');
+    await vi.advanceTimersByTimeAsync(3000); // the worry is over: Snip walks home
+    expect(walks().at(-1)).toEqual(['translateX(-88px) scaleX(-1)', 'translateX(0px) scaleX(-1)']);
+    played.at(-1)!.done();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(state()).toBe('sleep');
+    expect(lastOf(svg).keys[0].transform).toBe('translateX(0px) scaleX(1)'); // asleep at home
+    pet.petMoment('saved');
+    expect(walks().at(-1)![1]).toBe('translateX(24px) scaleX(1)'); // the friend comes to Snip's home
   });
 
   it('idle at home it glances right now and then, at irregular times, and looks back', async () => {

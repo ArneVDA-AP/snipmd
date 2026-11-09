@@ -20,6 +20,7 @@ vi.mock('./tabs', () => ({
   openTab: (id: string) => h.tabs.find((t) => t.id === id),
   allTabs: () => h.tabs,
   openTabAt: () => undefined,
+  holdPath: vi.fn(),
   textOf: (t: { text: string }) => t.text,
   markSaved: vi.fn((id: string, w: { text: string; path?: string }) => {
     const t = h.tabs.find((x) => x.id === id);
@@ -129,6 +130,18 @@ describe('saveTab', () => {
     expect(petMoment).not.toHaveBeenCalled();
     await saveTab('s1');
     expect(petMoment).toHaveBeenCalledWith('saved');
+  });
+
+  it('a first save and a Save As are saves for Snip too', async () => {
+    h.tabs = [untitled(), mk('d')];
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    vi.mocked(pickSavePath).mockResolvedValueOnce('/n/x.md').mockResolvedValueOnce('/m/b.md');
+    vi.mocked(promoteUntitled).mockResolvedValue(null);
+    vi.mocked(copyAssets).mockResolvedValue(null);
+    expect(await saveTab('u')).toBe(true);
+    expect(vi.mocked(petMoment).mock.calls).toEqual([['saved']]);
+    expect(await saveAs('d')).toBe(true);
+    expect(vi.mocked(petMoment).mock.calls).toEqual([['saved'], ['saved']]);
   });
 
   it('clears the tab error after a later success', async () => {

@@ -89,14 +89,14 @@ let reducedMotion: MediaQueryList | undefined; // made on first use: one live qu
 const still = () => (reducedMotion ??= matchMedia('(prefers-reduced-motion: reduce)')).matches;
 const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-/** One timer for the nap; a save only notes the time, so a save every second costs no timer. */
+/**
+ * One timer for the nap; a save only notes the time, so a save every second costs no timer. A visit
+ * under way plays out first: idle is only shown at home, so Snip naps there once it is idle.
+ */
 function napCheck(): void {
   const left = lastSave + SLEEP_MS - Date.now();
-  if (left <= 0) {
-    clearTimeout(backTimer);
-    show('sleep');
-  }
-  setTimeout(napCheck, left > 0 ? left : SLEEP_MS);
+  if (left <= 0 && state === 'idle') show('sleep');
+  setTimeout(napCheck, left > 0 ? left : state === 'sleep' ? SLEEP_MS : 1000);
 }
 
 /** Fills the tab bar's slot with Snip, idle, and shows it or not. `tab` finds a tab's element in the bar. */
@@ -214,7 +214,8 @@ function glance(): void {
 export function petMoment(moment: Moment, tab?: string): void {
   if (moment === 'saved') {
     lastSave = Date.now();
-    if (state === 'sleep' && snip) void wakeUp();
+    // A friend in view is already on its way to wake Snip: a second save changes nothing.
+    if (state === 'sleep' && snip && (friend?.svg.classList.contains('gone') ?? true)) void wakeUp();
     return;
   }
   if (snip) void visitTab(moment, tab); // a moment before Snip is mounted is let go
@@ -268,14 +269,15 @@ async function wakeUp(): Promise<void> {
   if (!f) return show('idle');
   const cell = cellPx();
   const away = Math.ceil((window.innerWidth - slot.getBoundingClientRect().left) / cell) * cell;
-  place(f, away, 1); // a friend still leaving from the last nap turns round off-screen
+  place(f, away, 1);
   f.svg.classList.remove('gone');
   const leave = async () => {
-    if (!(await walk(f, away))) return; // a newer visit turned it round
+    await walk(f, away);
     f.svg.classList.add('gone');
     f.svg.getAnimations({ subtree: true }).forEach((a) => a.cancel()); // nothing plays out of sight
   };
-  if (!(await walk(f, snip.x + cell * (CELLS + 1))) || me !== visit) return leave();
+  await walk(f, snip.x + cell * (CELLS + 1));
+  if (me !== visit) return leave();
   f.set('clap'); // the tap
   await wait(500);
   if (me !== visit) return leave();
