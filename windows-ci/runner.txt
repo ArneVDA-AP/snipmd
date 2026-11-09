@@ -1,0 +1,1 @@
+Runner: Microsoft Windows Server 2025 Datacenter build 26100, INTEL(R) XEON(R) PLATINUM 8573C, 16 GB
