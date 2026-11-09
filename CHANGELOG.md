@@ -23,6 +23,7 @@ Everything new since 1.0.0. The pre-releases below were steps on the way for the
 ### Fixed
 - *Save again* on a note whose file was deleted could write over a newer note saved at the same path meanwhile. It now recreates the file only while nothing is there; otherwise the tab asks, as for any change made elsewhere. A note can no longer be saved to a path that is open in another tab.
 - Read mode showed a bullet as well as the checkbox of a task.
+- A note opened twice, by a path with `.` or `..` in it or by two quick opens of the same file, now opens one tab.
 - On macOS, Escape did not close the find panel after a click on one of its buttons, and the find and file-name fields autocorrected and capitalized.
 
 ## [1.1.0-4] - 2026-10-27

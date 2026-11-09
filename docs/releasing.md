@@ -40,7 +40,7 @@ On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\co
 5. Double-click a `.md` file in Explorer: it opens as a tab in the running window.
 6. Close and start again: the tabs are back.
 7. Open `tools/fixtures/evil.md`: nothing runs, no image from outside the note's folder loads, and clicking a link opens the browser, never the app window. Read mode (`Ctrl+E`) the same.
-8. Install over the previous release: with the last published version installed and a few tabs open, run the new setup. It asks to close SnipMD, installs without a downgrade prompt (also from a pre-release such as `1.1.0-3` to `1.1.0`), Settings → Apps lists one SnipMD with the new version, and the tabs and notes are back.
+8. Install over the previous release: with the last published version installed and a few tabs open, run the new setup. It asks to close SnipMD, installs without a downgrade prompt (also from a pre-release such as `1.1.0-3` to `1.1.0`), Settings → Apps lists one SnipMD with the new version, and the tabs and notes are back. The MSI path from a pre-release (the `1.1.0-4` MSI to the `1.1.0` MSI) is not part of this test and has not been tried.
 9. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
 ### Measuring the budgets
