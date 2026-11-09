@@ -518,7 +518,14 @@ try {
     $closedWrite = Session-Time
     Start-App
     # The restarted app writes the session once its restore is done; until then the file is the old one.
-    $fresh = Wait-Session { param($x) (Session-Time) -gt $closedWrite } 8000
+    # Time first, then the read, then the time again: content read before a newer write must not count as it.
+    $fresh = $null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $fresh -and $sw.ElapsedMilliseconds -lt 8000) {
+      $t1 = Session-Time
+      if ($t1 -gt $closedWrite) { $x = Read-Session; if ($x -and (Session-Time) -eq $t1) { $fresh = $x } }
+      if (-not $fresh) { Start-Sleep -Milliseconds 100 }
+    }
     Note "tabs before: $before"
     if ($fresh) {
       $after = & $key $fresh
