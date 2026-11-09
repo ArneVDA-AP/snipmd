@@ -47,8 +47,9 @@ New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
 $report = Join-Path $Out 'retest.txt'
 $snapDir = Join-Path $Out 'retest-session'
+# Results of an earlier run in the same folder must not sit next to this run's verdicts.
+Remove-Item -Recurse -Force $report, $snapDir, (Join-Path $Out 'retest-*.png') -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $snapDir | Out-Null
-if (Test-Path $report) { Remove-Item $report }
 
 # One spelling of every path (the long one, not RUNNER~1): the app compares paths as strings.
 $tmp = [RWin]::Long([IO.Path]::GetTempPath().TrimEnd('\'))
@@ -68,6 +69,18 @@ function Say([string]$line) {
 # ---- the app ----
 $script:app = $null
 $script:hwnd = [IntPtr]::Zero
+# Every snip-md this script started. Cleanup stops only these, never an instance someone else started.
+$script:started = New-Object System.Collections.Generic.List[int]
+
+function Foreign { @(Get-Process snip-md -ErrorAction SilentlyContinue | Where-Object { -not $script:started.Contains($_.Id) }) }
+
+# A launch next to an instance the script did not start would be forwarded to it (single instance).
+function Start-Snip([string[]]$files) {
+  if ((Foreign).Count -gt 0) { throw 'a SnipMD this script did not start is running; nothing was launched' }
+  $p = [System.Diagnostics.Process]::Start((New-Psi $files))
+  $script:started.Add($p.Id)
+  return $p
+}
 
 function Ready-Count { if (Test-Path $perfLog) { @(Get-Content $perfLog | Where-Object { $_ -like "ready`t*" }).Count } else { 0 } }
 
@@ -82,7 +95,7 @@ function New-Psi([string[]]$files) {
 
 function Start-App {
   $before = Ready-Count
-  $script:app = [System.Diagnostics.Process]::Start((New-Psi @()))
+  $script:app = Start-Snip @()
   $sw = [Diagnostics.Stopwatch]::StartNew()
   while ((Ready-Count) -le $before) {
     if ($sw.ElapsedMilliseconds -gt 30000) { throw 'SnipMD did not report ready within 30 s' }
@@ -264,10 +277,11 @@ function New-SavedNote([string]$text, [string]$name) {
   Keys '{ENTER}' 300
 }
 
-# Saves a new note, retrying Enter once when the bar had not enabled Save yet; the session or $null.
-function Save-Note([string]$text, [string]$name) {
+# Saves a new note (typed name $name, or the proposed one when empty) and waits for its tab on $file;
+# retries Enter once when the bar had not enabled Save yet. The session or $null.
+function Save-Note([string]$text, [string]$name, [string]$file = $name) {
   New-SavedNote $text $name
-  $path = Note-Path $name
+  $path = Note-Path $file
   $s = Wait-Session { param($x) (OpenAt $x $path).Count -ge 1 } 5000
   if (-not $s) { Keys '{ENTER}' 300; $s = Wait-Session { param($x) (OpenAt $x $path).Count -ge 1 } 5000 }
   return $s
@@ -280,16 +294,21 @@ function Remove-AndWaitGone([string]$path) {
   return Wait-Session { param($x) $t = OpenAt $x $path; $t.Count -eq 1 -and $t[0].dirty -eq $true } 8000
 }
 
+function Session-Time { (Get-Item -LiteralPath $sessionFile).LastWriteTimeUtc }
+function Ms-Of([string]$path) { ([DateTimeOffset](Get-Item -LiteralPath $path).LastWriteTimeUtc).ToUnixTimeMilliseconds() }
+
 $seedId = 'seed-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
 # Written as text: a tabs list of one must stay a list (the page ignores a session without tabs).
 $seed = '{"version":3,"activeTabId":"ID","lastFolder":FOLDER,"tabs":[{"id":"ID","title":"Untitled-1","filePath":null,"content":"","dirty":false,"mode":"edit","cursor":0,"scrollTop":0,"disk":null,"format":null}],"closedTabs":[],"settings":{}}'
 [IO.File]::WriteAllText($sessionFile, $seed.Replace('ID', $seedId).Replace('FOLDER', ($notes | ConvertTo-Json)))
+$scriptStart = Get-Date
 
 Say "SnipMD retest $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Say "exe: $Exe ($((Get-Item $Exe).VersionInfo.ProductVersion))"
 Say "data: $data"
 Say "notes: $notes"
 Say "seeded session.json: one empty untitled tab ($seedId), lastFolder = the notes folder"
+Say 'S4b, S5b and O2 are additions to the test plan, not rows of it.'
 Say ''
 
 $hertest = Note-Path 'hertest-een.md'
@@ -297,12 +316,19 @@ $u1 = Note-Path 'u1.md'; $u2 = Note-Path 'u2.md'; $u3 = Note-Path 'u3.md'; $u4 =
 $w1 = Note-Path 'w1.md'
 
 try {
+  $seeded = Session-Time
   Start-App
+  # Every first save below goes to lastFolder: if the app did not take the seed, it would save into
+  # Documents\Notes instead. Its own rewrite of session.json with the seed shows it took it.
+  $taken = Wait-Session { param($x) (Session-Time) -gt $seeded -and @(@($x.tabs) | Where-Object { $_.id -eq $seedId }).Count -eq 1 -and (Same $x.lastFolder $notes) } 8000
+  if (-not $taken) {
+    Say 'FOUT     setup: the app did not rewrite session.json with the seeded tab and lastFolder; no block ran'
+    $verdicts.Add('FOUT')
+    throw 'seeded session not taken'
+  }
 
   Block 'S1' 'first save through the bar' @() {
-    New-SavedNote '# Hertest een' ''
-    $s = Wait-Session { param($x) (OpenAt $x $hertest).Count -ge 1 } 5000
-    if (-not $s) { Keys '{ENTER}' 300; $s = Wait-Session { param($x) (OpenAt $x $hertest).Count -ge 1 } 5000 }
+    $s = Save-Note '# Hertest een' '' 'hertest-een.md'
     $t = Read-Note $hertest
     Note-File 'hertest-een.md' $hertest
     Expect ($null -ne $t -and $t.Contains('# Hertest een')) 'hertest-een.md is in the notes folder with the heading'
@@ -317,8 +343,12 @@ try {
     $t = Read-Note $hertest
     Note-File 'hertest-een.md after 2.5 s' $hertest
     Expect ($null -ne $t -and $t.Contains('Autosave regel')) 'the file holds the typed line'
-    $s = Wait-Session { param($x) $a = OpenAt $x $hertest; $a.Count -eq 1 -and $a[0].dirty -eq $false } 3000
-    Expect ($null -ne $s) 'session: the tab is clean again'
+    # The session must have been written after that save: the tab's stamp is the file's size and mtime now.
+    $s = Wait-Session { param($x) $a = OpenAt $x $hertest; $a.Count -eq 1 -and $a[0].dirty -eq $false -and $a[0].disk -and
+      [long]$a[0].disk.size -eq (Get-Item -LiteralPath $hertest).Length -and [Math]::Abs([double]$a[0].disk.mtimeMs - (Ms-Of $hertest)) -le 1 } 3000
+    $d = (OpenAt (Read-Session) $hertest)[0].disk
+    Note ("session stamp: size {0}, mtimeMs {1}; file: size {2}, mtimeMs {3}" -f $d.size, $d.mtimeMs, (Get-Item -LiteralPath $hertest).Length, (Ms-Of $hertest))
+    Expect ($null -ne $s) 'session rewritten after the autosave: the tab is clean with the stamp of the new file'
   }
 
   Block 'G1-G2' 'closed tab comes back' @('S1') {
@@ -329,13 +359,16 @@ try {
     $s1 = Wait-Session { param($x) (ClosedAt $x $hertest).Count -eq 1 -and (OpenAt $x $hertest).Count -eq 0 } 4000
     if ($s1) { Note ("after Ctrl+W: tabs {0} -> {1}, closedTabs {2} -> {3}" -f $tabs0, @($s1.tabs).Count, $closed0, @($s1.closedTabs).Count) }
     Expect ($s1 -and @($s1.closedTabs).Count -eq $closed0 + 1 -and @($s1.tabs).Count -eq $tabs0 - 1) 'Ctrl+W: closedTabs grows by one with hertest-een.md, tabs shrinks by one'
+    $cursor = if ($s1) { (ClosedAt $s1 $hertest)[0].tab.cursor } else { $null }
     Keys '^+t' 300
     $s2 = Wait-Session { param($x) (OpenAt $x $hertest).Count -eq 1 -and (ClosedAt $x $hertest).Count -eq 0 } 4000
     if ($s2) { Note ("after Ctrl+Shift+T: tabs {0}, closedTabs {1}" -f @($s2.tabs).Count, @($s2.closedTabs).Count) }
     Expect ($s2 -and @($s2.closedTabs).Count -eq $closed0 -and @($s2.tabs).Count -eq $tabs0) 'Ctrl+Shift+T: the tab is back on the same filePath, both counts as before'
+    $back = if ($s2) { (OpenAt $s2 $hertest)[0].cursor } else { $null }
+    Expect ($cursor -gt 0 -and $back -eq $cursor) "the cursor is where it was: $cursor at the close, $back after the restore"
   }
 
-  Block 'S4b' 'Save again writes a gone note back' @() {
+  Block 'S4b' '(addition, not a plan row) Save again writes a gone note back' @() {
     $s = Save-Note 'twee' 'u2.md'
     Note-File 'u2.md after the save' $u2
     if (-not $s -or $null -eq (Read-Note $u2)) { throw 'could not create u2.md through the bar' }
@@ -356,14 +389,16 @@ try {
     Note-File 'u1.md after the save' $u1
     if (-not $s -or $null -eq (Read-Note $u1)) { throw 'could not create u1.md through the bar' }
     $g = Remove-AndWaitGone $u1
-    Expect (-not (Test-Path -LiteralPath $u1)) 'u1.md is gone from disk'
-    Expect ($null -ne $g) 'session: the u1.md tab turned dirty and keeps its text (the gone bar was raised)'
-    if ($g) { Note ("u1.md tab content: {0}" -f (Show (OpenAt $g $u1)[0].content)) }
+    Expect ($null -ne $g) 'session: the u1.md tab turned dirty (the gone bar was raised)'
+    $content = if ($g) { (OpenAt $g $u1)[0].content } else { $null }
+    Expect ($content -eq 'oud') "the tab keeps its text: $(Show $content)"
+    # The tab is in conflict now: neither the watch, autosave nor the blur flush may write it back.
+    Start-Sleep -Milliseconds 2500
+    Blur-Snip
+    Expect (-not (Test-Path -LiteralPath $u1)) 'u1.md is still gone 2.5 s and a blur later: the app did not recreate it'
   }
 
-  Block 'S5/S5b' 'a new tab cannot be saved onto the path of an open tab' @('S4') {
-    $s0 = Read-Session
-    $tabs0 = @($s0.tabs).Count
+  Block 'S5/S5b' 'a new tab cannot be saved onto the path of an open tab (S5b is an addition)' @('S4') {
     New-SavedNote 'nieuw-s5' 'u1.md'
     Start-Sleep -Milliseconds 1500
     # While the bar is open, typing goes into its name field; once Enter closed it, back into the note.
@@ -423,21 +458,21 @@ try {
     $t = Read-Note $u3
     Note-File 'u3.md after G4' $u3
     Expect ($s4 -and $null -ne $t -and $t.Contains('nieuw-g4')) 'G4: the new tab saved as u3.md holds its text'
+    # Ctrl+Shift+T, where the plan clicks Restore in the G3 warning: both call the same restore.
     Keys '^+t' 300
-    $s5 = Wait-Session { param($x) (Titled $x 'u3.md (closed)').Count -ge 1 } 5000
+    $null = Wait-Session { param($x) (Titled $x 'u3.md (closed)').Count -ge 1 } 5000
     Blur-Snip
     $s5 = Read-Session
     $copy = (Titled $s5 'u3.md (closed)')[0]
     Note ("G5: tabs on u3.md: {0}, closed entries on u3.md: {1}" -f (OpenAt $s5 $u3).Count, (ClosedAt $s5 $u3).Count)
     Expect ((OpenAt $s5 $u3).Count -eq 1 -and (ClosedAt $s5 $u3).Count -eq 0) 'G5: no second tab on u3.md, the closed entry is used up'
-    Expect ($copy -and $null -eq $copy.filePath -and "$($copy.content)".Contains('nog oud')) 'G5: its unsaved text is in an untitled tab u3.md (closed)'
+    Expect ($copy -and $null -eq $copy.filePath -and $copy.mode -eq 'read' -and "$($copy.content)".Contains('nog oud')) "G5: its unsaved text is in an untitled read-only tab u3.md (closed) (mode: $($copy.mode))"
     Note-File 'u3.md after G5 and a blur' $u3
     $t = Read-Note $u3
     Expect ($null -ne $t -and $t.Contains('nieuw-g4') -and -not $t.Contains('nog oud')) 'G5: u3.md still holds the newer tab''s text'
   }
 
-  Block 'O1/O2' 'one tab per note on open (second launch, forwarded)' @('S1') {
-    function Launch([string]$path) { [System.Diagnostics.Process]::Start((New-Psi @($path))) }
+  Block 'O1/O2' 'one tab per note on open, second launch forwarded (O2 is an addition)' @('S1') {
     function Done($procs) {
       foreach ($p in $procs) {
         if ($p.WaitForExit(10000)) { continue }
@@ -445,55 +480,74 @@ try {
       }
     }
     $h = (OpenAt (Read-Session) $hertest)[0].id
-    Done @((Launch $hertest), (Launch $hertest))
-    $s = Wait-Session { param($x) $x.activeTabId -eq $h } 5000
+    Done @((Start-Snip @($hertest)), (Start-Snip @($hertest)))
+    $null = Wait-Session { param($x) $x.activeTabId -eq $h } 5000
     Start-Sleep -Milliseconds 1200
     $s = Read-Session
     Expect ($s -and $s.activeTabId -eq $h -and (OpenAt $s $hertest).Count -eq 1) "O1 open note twice: one tab on hertest-een.md ($((OpenAt $s $hertest).Count)), and it is active"
     [IO.File]::WriteAllText($w1, "# W1`r`n")
-    Done @((Launch $w1), (Launch $w1))
+    Done @((Start-Snip @($w1)), (Start-Snip @($w1)))
     $null = Wait-Session { param($x) (OpenAt $x $w1).Count -ge 1 } 6000
     Start-Sleep -Milliseconds 1500
     $s = Read-Session
     Expect ((OpenAt $s $w1).Count -eq 1) "O1 new note twice: one tab on w1.md ($((OpenAt $s $w1).Count))"
     $dots = Join-Path $notes 'sub\..\hertest-een.md'
-    Done @(Launch $dots)
-    $s = Wait-Session { param($x) $x.activeTabId -eq $h } 5000
+    Done @(Start-Snip @($dots))
+    $null = Wait-Session { param($x) $x.activeTabId -eq $h } 5000
     Start-Sleep -Milliseconds 1200
     $s = Read-Session
     Expect ($s -and $s.activeTabId -eq $h -and (OpenAt $s $hertest).Count -eq 1 -and @(@($s.tabs) | Where-Object { "$($_.filePath)" -like '*..*' }).Count -eq 0) "O2 $dots : the open tab became active, still one tab ($((OpenAt $s $hertest).Count)), no path with .. in the session"
     Expect (@(Get-Process snip-md -ErrorAction SilentlyContinue).Count -eq 1) 'one snip-md process left'
   }
 
-  Block 'K1' 'restart brings the same tabs back; a gone note stays unwritten' @() {
+  Block 'K1' 'restart brings the same tabs back; no gone or closed note is written' @() {
     $s = Save-Note 'vier' 'u4.md'
     if (-not $s -or $null -eq (Read-Note $u4)) { throw 'could not create u4.md through the bar' }
     if (-not (Remove-AndWaitGone $u4)) { throw 'u4.md tab did not turn dirty after the delete' }
+    # Closed with its unwritten text, so a closed entry with a path crosses the restart.
+    Select-Tab $u4
+    Keys '^w' 300
+    if (-not (Wait-Session { param($x) $c = ClosedAt $x $u4; $c.Count -eq 1 -and $c[0].tab.dirty -eq $true } 4000)) { throw 'u4.md did not become a dirty closed entry' }
     $u1Before = Read-Note $u1; $u3Before = Read-Note $u3
-    $key = { param($x) (@($x.tabs) | ForEach-Object { if ($_.filePath) { Norm $_.filePath } else { $_.title } }) -join ' | ' }
-    $before = & $key (Read-Session)
+    $tag = { param($t) $(if ($t.filePath) { Norm $t.filePath } else { $t.title }) + $(if ($t.dirty) { ' (dirty)' } else { '' }) }
+    $key = { param($x) ((@($x.tabs) | ForEach-Object { & $tag $_ }) -join ' | ') + ' || closed: ' + ((@($x.closedTabs) | ForEach-Object { & $tag $_.tab }) -join ' | ') }
     $how = Stop-App
     Note "close: $how"
     Expect ($how -eq 'closed') 'the window closed within 10 s'
+    $before = & $key (Read-Session)
+    $closedWrite = Session-Time
     Start-App
-    Start-Sleep -Milliseconds 3000
-    for ($i = 0; $i -lt 3; $i++) { Blur-Snip }
-    $after = & $key (Read-Session)
+    # The restarted app writes the session once its restore is done; until then the file is the old one.
+    $fresh = Wait-Session { param($x) (Session-Time) -gt $closedWrite } 8000
     Note "tabs before: $before"
-    Note "tabs after:  $after"
-    Expect ($before -eq $after) 'the same tabs are back, in the same order'
-    # Ctrl+Shift+T until the closed list is empty: no closed tab may write over a note.
+    if ($fresh) {
+      $after = & $key $fresh
+      Note "tabs after:  $after"
+      Expect ($before -eq $after) 'the restarted app wrote the same tabs and closed entries, in the same order, with the same dirty flags'
+    } else {
+      Expect $false 'session.json not rewritten after restart'
+    }
+    for ($i = 0; $i -lt 3; $i++) { Blur-Snip }
+    # Ctrl+Shift+T until the closed list is empty: no reopened tab may write over a note.
     for ($i = 0; $i -lt 6 -and @((Read-Session).closedTabs).Count -gt 0; $i++) { Keys '^+t' 1200 }
     Blur-Snip
-    Note ("closedTabs left: {0}" -f @((Read-Session).closedTabs).Count)
-    Expect (-not (Test-Path -LiteralPath $u4)) 'u4.md (gone before the restart) was not written'
+    $s = Read-Session
+    Note ("closedTabs left: {0}" -f @($s.closedTabs).Count)
+    Expect ((OpenAt $s $u4).Count -eq 1) 'the sweep reopened the closed u4.md tab'
+    Expect (-not (Test-Path -LiteralPath $u4)) 'u4.md (gone and closed before the restart) was not written'
     Expect ((Read-Note $u1) -eq $u1Before) "u1.md unchanged: $(Show (Read-Note $u1))"
     Expect ((Read-Note $u3) -eq $u3Before) "u3.md unchanged: $(Show (Read-Note $u3))"
   }
 } finally {
   $how = Stop-App
   Write-Host "final close: $how"
-  Get-Process snip-md -ErrorAction SilentlyContinue | Stop-Process -Force
+  # Only what this script started (its name and start time guard against a reused process id).
+  foreach ($id in $script:started) {
+    $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+    if ($p -and $p.ProcessName -eq 'snip-md' -and $p.StartTime -ge $scriptStart) { $p.Kill() }
+  }
+  foreach ($p in (Foreign)) { Say "left running: snip-md $($p.Id), which this script did not start" }
+  Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }
 
 $fout = @($verdicts | Where-Object { $_ -eq 'FOUT' }).Count
@@ -501,6 +555,5 @@ $ok = @($verdicts | Where-Object { $_ -eq 'OK' }).Count
 $skipped = @($verdicts | Where-Object { $_ -eq 'SKIPPED' }).Count
 Say ''
 Say "retest: $ok OK, $fout FOUT, $skipped SKIPPED"
-Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 if ($fout -gt 0) { exit 1 }
 exit 0

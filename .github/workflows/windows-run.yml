@@ -65,7 +65,9 @@ jobs:
           powershell -ExecutionPolicy Bypass -File tools/measure/shots.ps1 -Exe src-tauri/target/release/snip-md.exe -Out results/ui @sleep 2>&1 | Tee-Object results/windows-ci/shots.txt
 
       # The script writes results/windows-ci/retest.txt itself; the tee keeps the step's console log.
+      # It may fail without stopping the steps below; the last step turns the run red if it did.
       - name: Retest scenarios
+        id: retest
         continue-on-error: true
         shell: powershell
         run: |
@@ -95,6 +97,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Fail the run on a retest FOUT
+        if: always() && steps.retest.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "retest FOUT, see windows-ci/retest.txt"
+          exit 1
+
   # The build job above never holds a write token; this one only gets the files and pushes them.
   branch:
     needs: run
@@ -119,5 +128,5 @@ jobs:
           git init -q
           git add -A
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -qm "Windows run $RUN on $SHA: budgets and screenshots"
+            commit -qm "Windows run $RUN on $SHA: budgets, screenshots and retest"
           git push -q "https://x-access-token:$TOKEN@github.com/$REPO" "HEAD:refs/heads/test/windows-run-$RUN"
