@@ -145,6 +145,7 @@ describe('Snip', () => {
   });
 
   it('a second save while the friend walks in changes nothing: the one visit ends with Snip awake at home', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // glances at whole 20 s from the mount: none during the visit
     const { pet, slot, svg, state } = await mounted();
     vi.advanceTimersByTime(10 * 60_000);
     pet.petMoment('saved');
@@ -163,6 +164,7 @@ describe('Snip', () => {
   });
 
   it('a nap due while Snip plays a moment at a tab waits until it is home, and the next save wakes it there', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // glances at whole 20 s from the mount: none during the visit
     const { pet, svg, state } = await mounted();
     vi.advanceTimersByTime(10 * 60_000 - 1200); // mounted() spent 200 ms: the nap is due in 1 s
     pet.petMoment('worried', 'a');
@@ -180,8 +182,8 @@ describe('Snip', () => {
   });
 
   it('idle at home it glances right now and then, at irregular times, and looks back', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // before the mount, which times the first glance
     const { svg } = await mounted();
-    vi.spyOn(Math, 'random').mockReturnValue(0);
     const poses = () => played.filter((p) => p.el === svg).map((p) => p.keys[0].transform);
     await vi.advanceTimersByTimeAsync(45_000); // the first glance comes within 45 s
     expect(poses()).toContain('translateX(0px) scaleX(-1)');
