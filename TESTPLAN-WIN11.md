@@ -10,7 +10,7 @@ Dit plan vervangt het plan van 27 oktober (v1.1.0-4) en dat van 31 oktober (kand
 
 Test alleen de build die de PR noemt (P31:23). Krijgt de PR nog een commit met code, dan vervangen een nieuwe run en commit deze waarden en begint I1b opnieuw.
 
-Volgorde: R, 0, I, W/N, CT, T1 (mag tijdens de wachttijd van CT5b of los), B, K1, Rapport; T3 loopt vanaf K1. Het blok "S/G/O" hoort erbij zolang `<RUN2>` leeg is. "Na de release" volgt pas na de tag en de publicatie.
+Volgorde: R, 0, I, W/N, CT, T1 (mag tijdens de wachttijd van CT5b of los), B, K1, Rapport; T3 loopt vanaf K1. Het blok "S/G/O" is gedekt door run `42553525549` (zie R-C); alleen S3, S5c, S6b en S7 blijven voor jou, als er tijd is. "Na de release" volgt pas na de tag en de publicatie.
 
 ## Wie doet wat
 Zoveel mogelijk doe jij met je eigen hand; Claude controleert daarna offscreen.
@@ -52,7 +52,7 @@ De runners hebben op `6e62404` al gedraaid. Claude leest de uitkomst (C-off); ji
 |---|---|---|---|---|---|
 | R-A | C-off | Lees *Release Windows* run `42549469763`: `gh run view 42549469763 --json headSha,conclusion`. | De kop begint met `6e62404` en de run is geslaagd. Dit vervangt R1 en R2 van P27 (typecheck, tests, bouw, installer onder 10 MB). | C-off 2 | P27:22-23; P31:20 |
 | R-B | C-off | Lees *Windows run* `42549472467` op `6e62404`, gestart met `snip_sleep` aan: de smoke- en screenshotstappen hebben `continue-on-error`, dus de groene status van de run bewijst niets. Het bewijs is `install-smoke.txt` met "SMOKE TEST PASSED" en `shots.txt` met 12 shots, beide op de branch `test/windows-run-18`. Claude leest ook de budgets in `results/windows-ci/` (alleen als referentie, een runner is geen laptop) en de screenshots van het echte venster in licht en donker, ook Snip slapend. Resultaat: `geslaagd (run 18 op 6e62404): 12 screenshots, ook snip-sleep licht en donker; clean-install smoke PASSED; runnerbudgets als referentie: plakken 103 ms, geheugen 91,6 MB, installer 1,48 MB, pagina tot klaar 193 ms`. | `install-smoke.txt` bevat "SMOKE TEST PASSED" en `shots.txt` telt 12 shots. `ui/snip-sleep-light.png` en `ui/snip-sleep-dark.png` verschillen van elkaar. Dit vervangt R3 tot R5 van P27. | C-off 3 | P27:24-26; P31:21; rapport 26 okt R5 |
-| R-C | C-off | Lees de tweede *Windows run* met het hertestscript voor S, G, O1 en K1f: `<RUN2>` op `<SHA2>`. | Elke rij S1 tot K1f van het blok "S/G/O" staat in de uitvoer als geslaagd, of Claude noteert welke rij ontbreekt. Dit telt alleen als `<SHA2>` dezelfde app-code heeft als `6e62404`: `git diff --stat 6e62404 <SHA2> -- src src-tauri` toont niets (alleen tools, workflow en docs mogen verschillen). Zolang `<RUN2>` leeg is, doe jij het hele blok "S/G/O". | C-off 2 | P31:44-64 |
+| R-C | C-off | Lees de tweede *Windows run* met het hertestscript voor S, G, O1 en K1f: `42553525549` (run 21) op `955a918`. | Elke rij S1 tot K1f van het blok "S/G/O" staat in de uitvoer als geslaagd, of Claude noteert welke rij ontbreekt. Dit telt alleen als `955a918` dezelfde app-code heeft als `6e62404`: `git diff --stat 6e62404 955a918 -- src src-tauri` toont niets (gecontroleerd op 2026-11-09: leeg). Uitkomst op de branch `test/windows-run-21`: 10 OK, 0 FOUT, 0 SKIPPED. Niet door het script gedreven: S3, S5c, S6b en S7. | C-off 2 | P31:44-64 |
 
 ## 0. Gegevens
 | ID | Wie | Doe | Verwacht | Min | Bron |
@@ -134,8 +134,8 @@ Je meet op de geïnstalleerde kandidaat, in je eigen PowerShell-venster, niet in
 | B4 | C-off | Claude leest de grootte van `SnipMD_1.1.0_x64-setup.exe` uit I1b (het script geeft geen installer-rij voor een geïnstalleerde exe), zet de tabel in `docs/releasing.md` in plaats van de vorige meting en vergelijkt met de doelen. | Doelen: Ctrl+V van een 4K-screenshot < 150 ms; geheugen < 120 MB; installer < 10 MB; eigen start < 150 ms; dubbelklik tot typen (koud) < 1 s. De vorige meting (1.0, 21 okt): 62-70 ms, 98-104 MB, 1,37 MB, 131-139 ms, 722-784 ms. Een waarde boven het doel gaat naar jou. | C-off 8 | docs/releasing.md:49-57 |
 | K1 | E, C-off | (1) Start SnipMD via het Startmenu. (2) Claude vergelijkt `session.json` met de kopie uit I1. (3) Jij zegt of Snip thuis staat. | Je tabs en de testtabs komen terug. Snip staat thuis. | E 2 · C-off 1 | P27:82 |
 
-## S/G/O. Terugvalblok opslaan (verplicht zolang `<RUN2>` leeg is)
-Dit blok dekt opslaan, *Save again*, één tab per notitie en gesloten tabs. Zolang `<RUN2>` leeg is, doe je het hele blok vóór de tag. Is `<RUN2>` ingevuld en dekte de run een rij, dan vervalt die rij; Claude noemt welke rijen overblijven (R-C). Het draait na I4. **Claude vraagt de go-ahead voor dit blok aan het begin.** Zonder go-ahead doe jij ook het typen in SnipMD. Alles in Verkenner of Kladblok doe jij. Claude controleert bestandsinhoud met `Get-Content` (C-off) en schrijft balktekst letterlijk over. De rijen staan in de volgorde waarin ze op elkaar voortbouwen. De ID's S1 tot S7, G1 tot G5, O1 en K1f komen uit P31 (daar heet K1f "K1").
+## S/G/O. Terugvalblok opslaan (gedekt door run 42553525549; alleen S3, S5c, S6b en S7 als er tijd is)
+Dit blok dekt opslaan, *Save again*, één tab per notitie en gesloten tabs. Run 42553525549 (run 21, kop 955a918) dekte S1, S2, S4, S5, S6, G1 tot G5, O1 en K1f met 10 OK; die rijen vervallen. S3, S5c, S6b en S7 (bestandsdialogen en *Keep mine*) dreef het script niet; doe die alleen als er tijd is, met F0 en K0 als voor- en nawerk. Het draait na I4. **Claude vraagt de go-ahead voor dit blok aan het begin.** Zonder go-ahead doe jij ook het typen in SnipMD. Alles in Verkenner of Kladblok doe jij. Claude controleert bestandsinhoud met `Get-Content` (C-off) en schrijft balktekst letterlijk over. De rijen staan in de volgorde waarin ze op elkaar voortbouwen. De ID's S1 tot S7, G1 tot G5, O1 en K1f komen uit P31 (daar heet K1f "K1").
 
 | ID | Wie | Doe | Verwacht | Min | Bron |
 |---|---|---|---|---|---|
@@ -241,7 +241,7 @@ Alle getallen zijn schattingen in minuten, door een script uit de kolom *Min* op
 |---|---|---|---|
 | Voor de tag, verplicht (R, 0, I, W/N, CT2 tot CT4, T1, B, K1, rapport en afronden) | 73 | 58 | 26 |
 | Voor de tag, optioneel (headless gedekt: CT1, CT5a, CT5b, CT5c) | 23 | 0 | 14 |
-| Blok S/G/O (verplicht zolang `<RUN2>` leeg is) | 19 | 17 | 31 |
+| Blok S/G/O (als er tijd is: S3, S5c, S6b, S7) | 19 | 17 | 31 |
 | Na de release (SM0 tot SM8b-6) | 53 | 31 | 0 |
 
 ## Bronnen
