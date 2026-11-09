@@ -1,0 +1,38 @@
+SnipMD retest 2026-11-09 02:04:56
+exe: D:\a\snipmd\snipmd\src-tauri\target\release\snip-md.exe (1.1.0)
+data: C:\Users\runneradmin\AppData\Local\Temp\snipmd-retest-89665afd\data
+notes: C:\Users\runneradmin\AppData\Local\Temp\snipmd-retest-89665afd\notes
+seeded session.json: one empty untitled tab (seed-02576c58), lastFolder = the notes folder
+
+FOUT     S1 first save through the bar
+         hertest-een.md: 15 bytes "# Hertest een\r\n"
+         [ok] hertest-een.md is in the notes folder with the heading
+         [x]  session: a clean tab titled hertest-een.md on that file (title: )
+         took 13.5 s
+SKIPPED  S2 autosave
+         needs S1, which was not OK
+SKIPPED  G1-G2 closed tab comes back
+         needs S1, which was not OK
+FOUT     S4b Save again writes a gone note back
+         u2.md after the save: 6 bytes "twee\r\n"
+         error: could not create u2.md through the bar
+         took 15.0 s
+FOUT     S4 a deleted note raises the gone state
+         u1.md after the save: 5 bytes "oud\r\n"
+         error: could not create u1.md through the bar
+         took 15.0 s
+SKIPPED  S5/S5b a new tab cannot be saved onto the path of an open tab
+         needs S4, which was not OK
+SKIPPED  S6 Save again does not overwrite a newer file
+         needs S4, S5/S5b, which was not OK
+FOUT     G3-G5 closed tab with unwritten edits, then a new note on its path, then restore
+         error: could not create u3.md through the bar
+         took 14.9 s
+SKIPPED  O1/O2 one tab per note on open (second launch, forwarded)
+         needs S1, which was not OK
+FOUT     K1 restart brings the same tabs back; a gone note stays unwritten
+         error: could not create u4.md through the bar
+         took 14.9 s
+final close: closed
+
+retest: 0 OK, 5 FOUT, 5 SKIPPED
