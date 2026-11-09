@@ -157,9 +157,10 @@ function Read-Session {
   }
   return $null
 }
-function OpenAt($s, [string]$path) { @(@($s.tabs) | Where-Object { Same $_.filePath $path }) }
-function ClosedAt($s, [string]$path) { @(@($s.closedTabs) | Where-Object { Same $_.tab.filePath $path }) }
-function Titled($s, [string]$title) { @(@($s.tabs) | Where-Object { $_.title -eq $title }) }
+# Always an array (the comma keeps it one): in Windows PowerShell 5.1 a lone object has no .Count.
+function OpenAt($s, [string]$path) { , @(@($s.tabs) | Where-Object { Same $_.filePath $path }) }
+function ClosedAt($s, [string]$path) { , @(@($s.closedTabs) | Where-Object { Same $_.tab.filePath $path }) }
+function Titled($s, [string]$title) { , @(@($s.tabs) | Where-Object { $_.title -eq $title }) }
 
 # Polls session.json until $cond holds; the session or $null after the timeout.
 function Wait-Session([scriptblock]$cond, [int]$timeoutMs = 6000) {
