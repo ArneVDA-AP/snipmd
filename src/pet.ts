@@ -165,13 +165,13 @@ const easeAt = (p: number) => Math.acos(1 - 2 * p) / Math.PI;
 
 /**
  * Walks `crab` sideways to `to`, one cell per step, looking where it goes: slow to start, quicker in
- * the middle, slowing to stop. Resolves false when a newer walk took over.
+ * the middle, slowing to stop. Resolves when it arrives or a newer walk took over.
  */
-async function walk(crab: Crab, to: number): Promise<boolean> {
+async function walk(crab: Crab, to: number): Promise<void> {
   const cell = cellPx();
   let at = crab.x;
   if (crab.walker && crab.walking) {
-    // A cut walk: start from the last cell its keyframes reached; cancelling it resolves its walk false.
+    // A cut walk: start from the last cell its keyframes reached; cancelling it ends its walk.
     const t = crab.walker.effect?.getComputedTiming().progress ?? 1;
     at = crab.path.filter((k) => k.offset <= t).at(-1)!.x;
   }
@@ -189,9 +189,8 @@ async function walk(crab: Crab, to: number): Promise<boolean> {
   try {
     await a.finished;
     crab.walking = false;
-    return true;
   } catch {
-    return false; // cancelled by a newer walk
+    // cancelled by a newer walk, which owns the crab now
   }
 }
 

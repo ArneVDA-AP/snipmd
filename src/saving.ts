@@ -5,7 +5,7 @@ import { askFirstSave } from './firstSaveBar';
 import { rewriteImagePrefix, rewrittenText } from './editor/links';
 import { beginWrite, endWrite, inConflict } from './diskState';
 import { handleRefusedWrite, resolveConflict } from './external';
-import { allTabs, getTab, holdPath, markSaved, openTab, openTabAt, setLastFolder, textOf } from './tabs';
+import { allTabs, getTab, heldBy, holdPath, markSaved, openTab, openTabAt, setLastFolder, textOf } from './tabs';
 import { flushSession, scheduleSessionSave } from './session';
 import { clearInfo, showError } from './infobar';
 import { basename, dirname, normPath, samePath } from './paths';
@@ -73,12 +73,13 @@ function writeTab(tab: TabState): Promise<boolean> {
 
 /**
  * Two open tabs on one file would write over each other, so a save never takes a path another open
- * tab holds or is saving to; from here until the save ends, the path is held for this one. A closed
- * tab may hold it: reopening it joins the open one and keeps its unsaved text in a copy.
+ * tab holds, or any tab, closed too, is saving to; from here until the save ends, the path is held
+ * for this one. A closed tab's own path may be taken: reopening it joins the open one and keeps its
+ * unsaved text in a copy.
  */
 function hold(tab: TabState, path: string): void {
-  const held = openTabAt(path);
-  if (held && held !== tab) throw new Error(`${basename(path)} is open in another tab`);
+  const other = (id: string | undefined) => id !== undefined && id !== tab.id;
+  if (other(openTabAt(path)?.id) || other(heldBy(path))) throw new Error(`${basename(path)} is open in another tab`);
   holdPath(tab.id, path);
 }
 

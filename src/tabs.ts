@@ -136,7 +136,7 @@ function pruneClosed(now: number): void {
 
 /**
  * Per tab: the path its running first save or Save As writes to. The tab holds that path from the
- * save's check until `markSaved` gives it, so an open or another save meanwhile finds it.
+ * save's check until the save ends, failed or not, so an open or another save meanwhile finds it.
  */
 const held = new Map<string, string>();
 
@@ -145,6 +145,9 @@ export function holdPath(id: string, path?: string): void {
   if (path) held.set(id, path);
   else held.delete(id);
 }
+
+/** The tab whose running save holds `path`, open or closed. */
+export const heldBy = (path: string): string | undefined => [...held].find(([, p]) => samePath(p, path))?.[0];
 
 /** The open tab, or else the most recently closed one, of the note at `path`. */
 const byPath = (path: string, open: boolean): TabState | undefined =>

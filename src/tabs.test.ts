@@ -843,4 +843,19 @@ describe('a first save or Save As holds its path while it runs', () => {
     expect(await saved).toBe(true);
     expect(vi.mocked(writeNote).mock.calls.map((c) => c[0])).toEqual(['C:/n/q.md']);
   });
+
+  it('a Save As still holds its path after its tab is closed: a second save to it is refused', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('a text'));
+    await restore(session([tab({ id: 'a3', title: 'a3.md', filePath: 'C:/n/a3.md' }), tab({ id: 'u3', title: 'Untitled-1', content: 'mine' })]));
+    vi.mocked(pickSavePath).mockResolvedValue('C:/n/q3.md');
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    const saved = saveAs('a3');
+    await flush(); // the Save As copies the images
+    await closeTab('a3');
+    expect(await saveTab('u3')).toBe(false);
+    expect(vi.mocked(showError).mock.calls[0].slice(0, 2)).toEqual(['save Untitled-1', new Error('q3.md is open in another tab')]);
+    copied();
+    expect(await saved).toBe(true);
+    expect(vi.mocked(writeNote).mock.calls.map((c) => [c[0], c[1]])).toEqual([['C:/n/q3.md', 'a text']]);
+  });
 });

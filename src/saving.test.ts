@@ -21,6 +21,7 @@ vi.mock('./tabs', () => ({
   allTabs: () => h.tabs,
   openTabAt: () => undefined,
   holdPath: vi.fn(),
+  heldBy: () => undefined,
   textOf: (t: { text: string }) => t.text,
   markSaved: vi.fn((id: string, w: { text: string; path?: string }) => {
     const t = h.tabs.find((x) => x.id === id);
