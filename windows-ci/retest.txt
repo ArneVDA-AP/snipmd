@@ -1,0 +1,79 @@
+SnipMD retest 2026-11-09 02:19:20
+exe: D:\a\snipmd\snipmd\src-tauri\target\release\snip-md.exe (1.1.0)
+data: C:\Users\runneradmin\AppData\Local\Temp\snipmd-retest-09f38d86\data
+notes: C:\Users\runneradmin\AppData\Local\Temp\snipmd-retest-09f38d86\notes
+seeded session.json: one empty untitled tab (seed-33d74061), lastFolder = the notes folder
+
+OK       S1 first save through the bar
+         hertest-een.md: 13 bytes "# Hertest een"
+         [ok] hertest-een.md is in the notes folder with the heading
+         [ok] session: a clean tab titled hertest-een.md on that file (title: hertest-een.md)
+         took 2.9 s
+OK       S2 autosave
+         hertest-een.md after 2.5 s: 29 bytes "# Hertest een\r\nAutosave regel"
+         [ok] the file holds the typed line
+         [ok] session: the tab is clean again
+         took 3.8 s
+OK       G1-G2 closed tab comes back
+         after Ctrl+W: tabs 2 -> 1, closedTabs 0 -> 1
+         [ok] Ctrl+W: closedTabs grows by one with hertest-een.md, tabs shrinks by one
+         after Ctrl+Shift+T: tabs 2, closedTabs 0
+         [ok] Ctrl+Shift+T: the tab is back on the same filePath, both counts as before
+         took 1.0 s
+OK       S4b Save again writes a gone note back
+         u2.md after the save: 4 bytes "twee"
+         [ok] after deleting u2.md the tab turned dirty (the gone bar was raised)
+         u2.md after F6, Enter: 4 bytes "twee"
+         [ok] u2.md is back with the tab's text
+         [ok] session: the u2.md tab is clean
+         took 5.6 s
+OK       S4 a deleted note raises the gone state
+         u1.md after the save: 3 bytes "oud"
+         [ok] u1.md is gone from disk
+         [ok] session: the u1.md tab turned dirty and keeps its text (the gone bar was raised)
+         u1.md tab content: "oud"
+         took 4.5 s
+OK       S5/S5b a new tab cannot be saved onto the path of an open tab
+         [ok] the bar closed on Enter: typing after it went back into the note (text "nieuw-s5 na")
+         u1.md: - bytes ""
+         [ok] no u1.md appeared on disk
+         [ok] session after a blur: the new tab is still untitled with its text (title: Untitled-2, filePath: )
+         [ok] session: still exactly one tab on u1.md
+         took 9.3 s
+OK       S6 Save again does not overwrite a newer file
+         wrote u1.md from outside: "van buiten\r\n"
+         u1.md after Save again and a blur: 12 bytes "van buiten\r\n"
+         [ok] u1.md keeps the outside content, unwritten
+         [ok] session: the u1.md tab is still dirty with its own text
+         [ok] the changed bar was up: Open disk version opened 'u1.md (disk)' with "van buiten\n"
+         took 6.9 s
+OK       G3-G5 closed tab with unwritten edits, then a new note on its path, then restore
+         [ok] G3: closedTabs holds u3.md, dirty, with "drie nog oud"
+         [ok] G3: the close wrote no u3.md
+         u3.md after G4: 8 bytes "nieuw-g4"
+         [ok] G4: the new tab saved as u3.md holds its text
+         G5: tabs on u3.md: 1, closed entries on u3.md: 0
+         [ok] G5: no second tab on u3.md, the closed entry is used up
+         [ok] G5: its unsaved text is in an untitled tab u3.md (closed)
+         u3.md after G5 and a blur: 8 bytes "nieuw-g4"
+         [ok] G5: u3.md still holds the newer tab's text
+         took 13.2 s
+OK       O1/O2 one tab per note on open (second launch, forwarded)
+         [ok] O1 open note twice: one tab on hertest-een.md (1), and it is active
+         [ok] O1 new note twice: one tab on w1.md (1)
+         [ok] O2 C:\Users\runneradmin\AppData\Local\Temp\snipmd-retest-09f38d86\notes\sub\..\hertest-een.md : the open tab became active, still one tab (1), no path with .. in the session
+         [ok] one snip-md process left
+         took 5.2 s
+OK       K1 restart brings the same tabs back; a gone note stays unwritten
+         close: closed
+         [ok] the window closed within 10 s
+         tabs before: Untitled-1 | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/hertest-een.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u2.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u1.md | u1.md (disk) | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u3.md | u3.md (closed) | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/w1.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u4.md
+         tabs after:  Untitled-1 | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/hertest-een.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u2.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u1.md | u1.md (disk) | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u3.md | u3.md (closed) | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/w1.md | C:/Users/runneradmin/AppData/Local/Temp/snipmd-retest-09f38d86/notes/u4.md
+         [ok] the same tabs are back, in the same order
+         closedTabs left: 0
+         [ok] u4.md (gone before the restart) was not written
+         [ok] u1.md unchanged: "van buiten\r\n"
+         [ok] u3.md unchanged: "nieuw-g4"
+         took 19.6 s
+
+retest: 10 OK, 0 FOUT, 0 SKIPPED
