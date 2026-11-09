@@ -1,0 +1,394 @@
+[
+ {
+  "png": "CT2-dpr1-home.png",
+  "size": [
+   30,
+   28
+  ],
+  "box_dev": [
+   3,
+   5,
+   22,
+   20
+  ],
+  "box_cells": [
+   11.0,
+   10.0
+  ],
+  "background": [
+   [
+    243,
+    243,
+    243
+   ]
+  ],
+  "stray_colours": 0,
+  "stray_pixels": 0,
+  "stray_sample": [],
+  "runs_not_whole_cells": {},
+  "enlarged": "CT2-dpr1-home-x8.png",
+  "dsf": "1",
+  "cell_dev": 2
+ },
+ {
+  "png": "CT2-dpr1-at-tab.png",
+  "size": [
+   30,
+   28
+  ],
+  "box_dev": [
+   3,
+   3,
+   22,
+   22
+  ],
+  "box_cells": [
+   11.0,
+   11.0
+  ],
+  "background": [],
+  "stray_colours": 0,
+  "stray_pixels": 0,
+  "stray_sample": [],
+  "runs_not_whole_cells": {},
+  "enlarged": "CT2-dpr1-at-tab-x8.png",
+  "dsf": "1",
+  "cell_dev": 2
+ },
+ {
+  "png": "CT2-dpr2-home.png",
+  "size": [
+   60,
+   56
+  ],
+  "box_dev": [
+   6,
+   10,
+   44,
+   40
+  ],
+  "box_cells": [
+   11.0,
+   10.0
+  ],
+  "background": [
+   [
+    243,
+    243,
+    243
+   ]
+  ],
+  "stray_colours": 0,
+  "stray_pixels": 0,
+  "stray_sample": [],
+  "runs_not_whole_cells": {},
+  "enlarged": "CT2-dpr2-home-x8.png",
+  "dsf": "2",
+  "cell_dev": 4
+ },
+ {
+  "png": "CT2-dpr2-at-tab.png",
+  "size": [
+   60,
+   56
+  ],
+  "box_dev": [
+   6,
+   6,
+   44,
+   44
+  ],
+  "box_cells": [
+   11.0,
+   11.0
+  ],
+  "background": [],
+  "stray_colours": 0,
+  "stray_pixels": 0,
+  "stray_sample": [],
+  "runs_not_whole_cells": {},
+  "enlarged": "CT2-dpr2-at-tab-x8.png",
+  "dsf": "2",
+  "cell_dev": 4
+ },
+ {
+  "png": "CT2-dpr1_25-home.png",
+  "size": [
+   38,
+   35
+  ],
+  "box_dev": [
+   4,
+   8,
+   22,
+   20
+  ],
+  "box_cells": [
+   11.0,
+   10.0
+  ],
+  "background": [
+   [
+    243,
+    243,
+    243
+   ]
+  ],
+  "stray_colours": 10,
+  "stray_pixels": 82,
+  "stray_sample": [
+   [
+    [
+     206,
+     218,
+     184
+    ],
+    14
+   ],
+   [
+    [
+     132,
+     168,
+     68
+    ],
+    12
+   ],
+   [
+    [
+     116,
+     95,
+     163
+    ],
+    2
+   ],
+   [
+    [
+     102,
+     127,
+     61
+    ],
+    2
+   ]
+  ],
+  "runs_not_whole_cells": {
+   "1": 30,
+   "5": 8,
+   "3": 12,
+   "9": 2,
+   "17": 2
+  },
+  "enlarged": "CT2-dpr1_25-home-x8.png",
+  "dsf": "1.25",
+  "cell_dev": 2
+ },
+ {
+  "png": "CT2-dpr1_25-at-tab.png",
+  "size": [
+   38,
+   35
+  ],
+  "box_dev": [
+   4,
+   6,
+   22,
+   22
+  ],
+  "box_cells": [
+   11.0,
+   11.0
+  ],
+  "background": [
+   [
+    156,
+    123,
+    224
+   ]
+  ],
+  "stray_colours": 8,
+  "stray_pixels": 72,
+  "stray_sample": [
+   [
+    [
+     215,
+     227,
+     193
+    ],
+    22
+   ],
+   [
+    [
+     135,
+     171,
+     71
+    ],
+    16
+   ],
+   [
+    [
+     116,
+     95,
+     163
+    ],
+    2
+   ],
+   [
+    [
+     102,
+     127,
+     61
+    ],
+    2
+   ]
+  ],
+  "runs_not_whole_cells": {
+   "1": 52,
+   "9": 10,
+   "5": 18,
+   "13": 2,
+   "3": 16
+  },
+  "enlarged": "CT2-dpr1_25-at-tab-x8.png",
+  "dsf": "1.25",
+  "cell_dev": 2
+ },
+ {
+  "png": "CT2-dpr1_5-home.png",
+  "size": [
+   45,
+   42
+  ],
+  "box_dev": [
+   5,
+   7,
+   32,
+   30
+  ],
+  "box_cells": [
+   10.666666666666666,
+   10.0
+  ],
+  "background": [
+   [
+    243,
+    243,
+    243
+   ]
+  ],
+  "stray_colours": 6,
+  "stray_pixels": 120,
+  "stray_sample": [
+   [
+    [
+     170,
+     193,
+     127
+    ],
+    36
+   ],
+   [
+    [
+     109,
+     111,
+     112
+    ],
+    6
+   ],
+   [
+    [
+     183,
+     161,
+     229
+    ],
+    48
+   ],
+   [
+    [
+     80,
+     57,
+     125
+    ],
+    6
+   ]
+  ],
+  "runs_not_whole_cells": {
+   "2": 54,
+   "8": 18,
+   "5": 18,
+   "14": 3,
+   "32": 3,
+   "26": 3
+  },
+  "enlarged": "CT2-dpr1_5-home-x8.png",
+  "dsf": "1.5",
+  "cell_dev": 3
+ },
+ {
+  "png": "CT2-dpr1_5-at-tab.png",
+  "size": [
+   45,
+   42
+  ],
+  "box_dev": [
+   4,
+   7,
+   33,
+   30
+  ],
+  "box_cells": [
+   11.0,
+   10.0
+  ],
+  "background": [
+   [
+    176,
+    199,
+    133
+   ]
+  ],
+  "stray_colours": 5,
+  "stray_pixels": 90,
+  "stray_sample": [
+   [
+    [
+     109,
+     111,
+     112
+    ],
+    6
+   ],
+   [
+    [
+     189,
+     167,
+     235
+    ],
+    48
+   ],
+   [
+    [
+     80,
+     57,
+     125
+    ],
+    6
+   ],
+   [
+    [
+     145,
+     145,
+     145
+    ],
+    6
+   ]
+  ],
+  "runs_not_whole_cells": {
+   "5": 30,
+   "8": 39,
+   "2": 66,
+   "14": 3
+  },
+  "enlarged": "CT2-dpr1_5-at-tab-x8.png",
+  "dsf": "1.5",
+  "cell_dev": 3
+ }
+]

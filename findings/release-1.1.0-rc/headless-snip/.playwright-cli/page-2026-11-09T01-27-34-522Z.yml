@@ -1,0 +1,47 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - tablist "Notes" [ref=e4]:
+        - tab "labo-04.md Close labo-04.md" [selected] [ref=e5]:
+          - generic [ref=e6]: labo-04.md
+          - button "Close labo-04.md" [ref=e7]
+        - tab "Untitled-2 Close Untitled-2" [ref=e10]:
+          - generic [ref=e11]: Untitled-2
+          - button "Close Untitled-2" [ref=e12]
+        - tab "meeting-notes.md Close meeting-notes.md" [ref=e15]:
+          - generic [ref=e16]: meeting-notes.md
+          - button "Close meeting-notes.md" [ref=e17]
+        - tab "todo.md Close todo.md" [ref=e20]:
+          - generic [ref=e21]: todo.md
+          - button "Close todo.md" [ref=e22]
+      - button "New tab (Ctrl+T)" [ref=e25]
+      - generic [ref=e30]:
+        - button "Minimize" [ref=e31]
+        - button "Maximize" [ref=e33]
+        - button "Close" [ref=e36]
+    - main [ref=e39]:
+      - textbox "Note" [active] [ref=e43]:
+        - generic [ref=e44]: "# Labo 04: DHCP"
+        - generic [ref=e46]: De client krijgt geen adres.
+        - generic [ref=e48]: "- APIPA-adres `169.254.12.7`: de DHCP-server antwoordt niet."
+        - generic [ref=e49]: "- Scope staat op *inactive*."
+        - generic [ref=e51]: "> Na activeren van de scope: adres binnen 2 s."
+  - region "Snip demo" [ref=e53]:
+    - paragraph [ref=e54]: Kies een tab en speel een moment. Snip loopt erheen, reageert en loopt terug. Bij "Geen tab", een tab buiten beeld of met reduced motion blijft hij staan. Na 10 minuten zonder opslaan slaapt hij; de volgende save brengt een vriendje dat hem wekt.
+    - generic [ref=e55]:
+      - generic [ref=e56]: Tab
+      - button "labo-04.md" [ref=e57] [cursor=pointer]
+      - button "Untitled-2" [ref=e58] [cursor=pointer]
+      - button "meeting-notes.md" [ref=e59] [cursor=pointer]
+      - button "todo.md" [pressed] [ref=e60] [cursor=pointer]
+      - button "Geen tab" [ref=e61] [cursor=pointer]
+    - generic [ref=e62]:
+      - generic [ref=e63]: Moment
+      - button "Afbeelding geplakt" [ref=e64] [cursor=pointer]
+      - button "Gewijzigd buiten SnipMD" [ref=e65] [cursor=pointer]
+      - button "Tab teruggehaald" [ref=e66] [cursor=pointer]
+      - button "Twee kort na elkaar" [ref=e67] [cursor=pointer]
+    - generic [ref=e68]:
+      - generic [ref=e69]: Dutje
+      - button "10 minuten later" [ref=e70] [cursor=pointer]
+      - button "Opslaan" [ref=e71] [cursor=pointer]

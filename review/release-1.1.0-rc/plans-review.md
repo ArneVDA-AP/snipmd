@@ -1,0 +1,73 @@
+# Review of the two 1.1.0 release plans
+
+Scope: `OUT\plan-minimal.md` (PM) and `OUT\plan-complete.md` (PC), against the repo gates in `RC\docs\releasing.md`, `RC\.claude\ROADMAP.md`, `RC\.claude\CLAUDE.md`, `IN\pr100.md`, `IN\facts.md`, the two Windows test plans (P27 = `IN\TESTPLAN-WIN11-20261027.md`, P31 = `IN\TESTPLAN-WIN11-20261031.md`) and the five reader deliverables (DC, SW, OM, RM, SC in OUT).
+
+Method: thin-review method 4 (budget, dependencies, gates). Line numbers refer to the file named. "Observed" means a command output or a quoted line. "Inferred" means a conclusion that no command confirmed.
+
+Commands run for this review (read-only):
+- `git show v1.0.0:src-tauri/src/lib.rs | grep -n SNIPMD_DATA_DIR` printed line 154: `if let Some(dir) = std::env::var_os("SNIPMD_DATA_DIR")...`. The same grep on `v1.1.0-4` printed line 133.
+- `powershell -NoProfile -Command 'Test-Path "%LOCALAPPDATA%\SnipMD\snip-md.exe"; Test-Path "$env:LOCALAPPDATA\SnipMD\snip-md.exe"; Get-ExecutionPolicy'` printed `False`, `True`, `RemoteSigned`.
+- `git diff --stat HEAD 1a3e086 -- tools/measure/measure.ps1` in REPO printed nothing (exit 0). The script is the same on the old test branch and on the RC.
+- Arithmetic of both critical paths. PM: 388, 271 and 117 minutes, and 146 owner minutes. PC: 345, 310 and 215 minutes, and 145 owner minutes. All sums match the plans.
+
+## Blockers
+
+| id | severity | plan | location | statement | evidence |
+|---|---|---|---|---|---|
+| B1 | blocker | complete | PC:109 (5.6), PC:168-172 (D9) | PC drops smoke step 8 over 1.0.0, and under D4 option B it also drops the leg over 1.1.0-4. Step 5.6 is a same-version reinstall, and PC says so itself. The reason that D9 gives is false. 1.0.0 can be installed on the owner's PC in an isolated data folder, and PM 8.6 shows a guarded route. 1.0.0 is `Latest`, so most users take this update path. | `RC\docs\releasing.md:43`: "Install over the previous release: with the last published version installed and a few tabs open, run the new setup." `IN\pr100.md:25` and `RC\.claude\ROADMAP.md:27`: "smoke test step 8 (install over `1.0.0` and over `1.1.0-4`)". PC:109 gate: "This is a same-version reinstall and proves the shipped bytes only, not an upgrade." PC:172: "stays untested unless the owner provides a machine with 1.0.0 ... Reason: no machine here has 1.0.0". `git show v1.0.0:src-tauri/src/lib.rs` line 154 reads `SNIPMD_DATA_DIR`, so a 1.0.0 leg can run without access to the owner's session. The 2.4 runner leg is optional (D5), and PC:171 says a silent `/S` install "does not show what users see". |
+
+## Majors
+
+| id | severity | plan | location | statement | evidence |
+|---|---|---|---|---|---|
+| M1 | major | complete | PC:143 (failure branch, class 2) | PC rewrites the repo rule for FOUTs. A Snip motion FOUT, or any "cosmetic or minor" FOUT, becomes a 1.1.1 issue with no rebuild and no owner decision. No gate in 4.7 or 5.1 to 5.3 asks for "no open FOUT in 1.1 scope". A Snip FOUT from the W and N steps, the core of the -4 round, therefore ships without a check. | `RC\.claude\ROADMAP.md:25`: "A FOUT within 1.1 scope is fixed on the candidate; the rest becomes an issue; one that needs a product decision goes to the owner." PC:143: "Class 2: cosmetic or minor, or a Snip motion detail. It becomes an issue for 1.1.1. No rebuild." PC:98 gate (4.7): "Every FOUT is classified". PC:104-106 (5.1 to 5.3) have no FOUT gate. |
+| M2 | major | complete | PC:33, PC:76 (2.1), PC:85 (3.1), PC:95-96 (4.4, 4.5) | PC counts the Chromium demo as the Windows result for most of the -4 round. On the owner's screen it runs only W1 (inside CT1 and CT2) and the nap steps P1 and N2b. W2 to W9, N1 and N3 never run in the real window. W4, W5 and W6 start from a Recycle Bin move and the file watcher, and the demo cannot produce either. | `RC\docs\CONVENTIONS.md:58`: the browser smoke test "does not replace the Windows test". OM:19: "The demo cannot show a deleted file, a conflict, the Recycle Bin". OM 2.3 lists "The real paste, the file watcher, and the Recycle Bin raising the moments" under "Only the real window proves". PC:33 says W1-W9 and N1-N3 gate the tag. PC:76 says "Mark each step that the headless check (3.1) ... already covers". PC:95 (4.4) and PC:96 (4.5) list no W2 to W9, N1 or N3. PM:29 keeps them in the real window. |
+| M3 | major | complete | PC:36, PC:122 (6.8) | PC moves CT3, CT4 and T2 after the tag, and no owner decision covers the move. The ROADMAP puts them in the round that has to pass before 1.1.0. T3 is not counted here, because D8 puts T3 to the owner. | `RC\.claude\ROADMAP.md:12`: "a pulled USB stick, Ctrl+1 on a real AZERTY keyboard, the first window 7 px above the screen ... (fixed in #38, not yet seen on a real screen). The 1.1 test plan carries them as CT4, T2 and CT3." ROADMAP:25 lists that plan as "Open before 1.1.0". PC:36: "CT3, CT4, T2 \| No". The D list (PC:160-174) has no decision for these steps. |
+| M4 | major | minimal | PM:40 (1.2), PM:150-153 (failure branch) | When PM fixes code (D1, D2, D3 or D9 option (b), or a FOUT), no step reviews the fix diff. The tag then holds code that no review saw. The only review ran on 1a3e086. PM also has no `/simplify` step. | `RC\docs\releasing.md:6`: "A release is tagged on the owner's go, after the Windows tests and a final review." `RC\.claude\CLAUDE.md:13`: merge "once CI is green and its review has no open blocker or major". `RC\.claude\CLAUDE.md:19`: "Before finishing a change, run `/simplify`." PM:40 gate: "CI `check` and `check-macos` are green ... Release Windows and Windows run are green". PM:151: "S1 runs `npm run lint`, `npm test` and `cargo test -p snipmd-core`." Neither line names a review. PC has the review at 1.4 (PC:66) and in failure step 2 (PC:146). |
+| M5 | major | minimal | PM:39 (1.1), PM:179 (D10), PM:65 and PM:73 (4.1, 5.1), PM:81-83 (6.1, 6.3) | PM asks for the computer-use go-ahead once, at 1.1, before any install. No block asks for it again when it starts. D10 also names only CU-2 and CU-1. Phase 6 has Claude drive the owner's window outside both blocks (W1 after each scale change, then W1, W3 and nap 3 in CT5), and its only safeguard is "consent" for captures. | `IN\facts.md:32`: "Computer use on the desktop only when there is no practical alternative, announced beforehand, with explicit go-ahead each time." PM:39 gate: "D10 says which computer-use blocks have a go-ahead." PM:179: "(a) A go-ahead for CU-2 ... and CU-1 ..., each announced before it starts." PM:65 and PM:73 gates have no go-ahead condition. PM:83: "Claude runs W1, W3, and nap 3 with N1 to N2." |
+
+## Minors
+
+| id | severity | plan | location | statement | evidence |
+|---|---|---|---|---|---|
+| m1 | minor | minimal | PM:146-147 | PM also rewrites ROADMAP:25. Under PM, a FOUT that is in 1.1 scope but "not small" becomes a 1.1.1 issue. This is only minor, because the 7.2 and 8.1 gates still block on any open FOUT in 1.1 scope. | PM:147: "Outside scope, or not small: it becomes an issue labelled for 1.1.1." PM:93 gate: "No FOUT in 1.1 scope is open." PM:110: "No open FOUT in 1.1 scope." |
+| m2 | minor | minimal | PM:94 (7.3) | The 7.3 gate hardcodes 1a3e086. After a fix in 1.2, the tested head is a different commit, so the gate fails or tests the wrong range. | PM:94: "`git diff 1a3e086 HEAD --stat` lists only `CHANGELOG.md` and `docs/releasing.md`." PM:40: "The new run replaces run 16 in every step below." |
+| m3 | minor | minimal | PM:127-130 | Under path B, PM sets the CHANGELOG date to 2026-11-10 on 2026-11-09. That is before T3, before the 8.2 dry run and before the 8.1 go/no-go. If any of these moves the tag, another docs commit and another CI run follow. This is not a dependency defect, because the date is not compiled into the app (RM 1.3). | PM:127: "Today: 1.1 to 7.3." PM:130: "Step 7.3 then sets the CHANGELOG date to 2026-11-10." RM:44: the grep for CHANGELOG in src and src-tauri found no hit. |
+| m4 | minor | minimal | PM:47 (2.2) | PM's runner estimate for the sleep shot contradicts the reader's number. | PM:47: "dispatch Windows run with `snip_sleep=true` on the branch (35 more runner minutes)". OM:70: "(about 10 minutes longer)". |
+| m5 | minor | minimal | whole plan | PM has no step for the #98 item 7 tests. SC is the only reader that rates an item "take before the tag", and that item is item 7. PM:177 adds only a CHANGELOG line. | SC:87: "7 \| No test that a reload does not wake Snip ... \| Yes \| Unit tests only". A grep of PM for "item 7" finds nothing. PC 1.3(f) and 5.1 do have the step. |
+| m6 | minor | minimal | PM:95 (7.4) | PM files no issue for DC m7 (drive-relative and `\\?\` spellings). #98 item 6 covers only the UNC case (DC m6). | DC:76 (m7). PM:95 files issues for "SW M1, M2 and its minors, and one for DC m5" only. PC:117 does file m6 and m7. |
+| m7 | minor | complete | PC:97 (4.6) | The budgets command uses cmd syntax inside PowerShell. `%LOCALAPPDATA%` is not expanded there, so measure.ps1 throws at once. The script's default exe is already the installed one, so the `-Exe` argument can simply be dropped. | Observed: `Test-Path "%LOCALAPPDATA%\SnipMD\snip-md.exe"` gave `False`, and `Test-Path "$env:LOCALAPPDATA\SnipMD\snip-md.exe"` gave `True`. `RC\tools\measure\measure.ps1:44`: `if (-not (Test-Path $Exe)) { throw "No SnipMD exe at $Exe" }`. measure.ps1:28: `[string]$Exe = "$env:LOCALAPPDATA\SnipMD\snip-md.exe"`. |
+| m8 | minor | complete | PC:97 (4.6) | The 4.6 gate asks for every value, but on the installed exe the script gives no installer row. No step in PC supplies the size of the setup. PM 7.1 takes it from the downloaded setup. | measure.ps1:22: "installer: size of the NSIS setup next to the exe, when there is one." PC:97 gate: "Each value is under its SPEC section 9 target." `RC\docs\releasing.md:55` has an Installer row. |
+| m9 | minor | complete | PC:95 (4.4), PC:128 | The 4.4 estimate is lower than the readers' numbers. That understates the owner time of path F and path S. | PC:95: 60 min for S, G, O, K0, P1 and N2b. OM section 3: "computer use would need about 45 minutes for S1-K1". The P1 row (DC:91) and the N2b nap each wait 10 minutes. 45 + 10 + 10 = 65 minutes [computed], before the rows S4b, S5b, S5c, S6b, K0 and O2 that PC:76 adds. |
+| m10 | minor | complete | PC:85 (3.1) | The headless check estimate is lower than the readers' numbers. | PC:85: 45 min. OM's demo minutes for W1 to N3 are 10+3+5+5+5+4+2+3+3+2+4+3 = 49, plus 5 for CT1, before the CT2 and CT5 pre-checks [computed from the OM:58-72 rows]. PM:51 gives 60 to 75. |
+| m11 | minor | complete | PC:94 (4.3) | On path S, 4.3 depends on 1.5F, which runs only on path F. As written, path S has no runnable predecessor for 4.3. | PC:94: Depends on "4.2, 1.5F". PC:48: "Steps marked [F] run only on path F." |
+| m12 | minor | complete | PC:63 (1.1), PC:85 (3.1) | On path F, 3.1 runs "from the worktree of 1.1, on the tested head". That worktree was made in 1.1, before the fix in 1.3, and no step moves it to the new head. | PC:63: "Make a fresh worktree of `claude/release-1.1.0`" (depends on 0.1). PC:85: "from the worktree of 1.1, on the tested head" (depends on "1.1, 1.4 [F]"). |
+| m13 | minor | complete | PC:65 (1.3), PC:104 (5.1) | The commit steps do not state the public-repo commit rule. PC states the rule only for the PR body (1.6). | `RC\.claude\CLAUDE.md:14`: "A commit message ends with `Co-Authored-By: Claude` and nothing else." PC:69 states it for the PR body only. |
+| m14 | minor | complete | PC:104 (5.1, path S) | On path S, PC adds the #98 item 7 tests after the Windows test and after the final review. No review covers them. PC has no branch for a test that fails at that point. | PC:104: "On path S, add here the #98 item 7 tests". SC:87: "If a test fails, that is a defect to report, not to fix before the tag without the owner knowing." |
+| m15 | minor | complete | PC:57 (0.2), PC:96 (4.5) | In 4.5, the session takes captures of the owner's desktop, but no go-ahead gate covers it. In 0.2, PC says computer use stays with the owner. | PC:96: "The session records and checks the captures." `IN\facts.md:32`: "explicit go-ahead each time". |
+
+Not filed as defects:
+- The CHANGELOG date change after the tested build, in both plans. No workflow reads the date (RM:43), and it is not compiled into the app (RM:44). Both plans have a diff gate (PM:94, PC:104).
+- The model names in the session cards of both plans. The cards are internal plan text. Both plans forbid model names in public text (PM:95, PC:69).
+- Commits to `main`. No step in either plan commits to `main`. The owner does the Dependabot merges in PC (1.2, 6.4).
+
+## Reader majors and the step that acts on each
+
+Each reader finding of severity major has a step in both plans. No reader reports a blocker.
+
+| Reader finding | minimal | complete |
+|---|---|---|
+| DC M1 (open during save gives two tabs) | D1 (a): ship. 7.4 corrects PR #100 and #98. D8 words the CHANGELOG line. | Path F: fix in 1.3(b). Path S: corrections in 1.6 and 1.7. |
+| DC M2 (no S4b) | 2.4(c), 4.1 | 2.1 |
+| DC M3 (P31 relies on P27) | P27 in full on the RC (choice 2, phase 5) | Combined plan 2.1. Its real-window coverage falls short (M2). |
+| SW M1 (two saves leave Snip asleep) | D9 (a): issue in 7.4. 5.2 limits input to one save. | D2: fix in 1.3(c). N2b in 3.1 and 4.4. |
+| SW M2 (nap during a moment) | D9 (a): issue in 7.4 | D2: fix in 1.3(d) |
+| SW M3 (W1 expectation) | 2.4(a) | 2.1 |
+
+## Missing from both
+
+1. Smoke steps 1 to 7 and step 9 on the published 1.1.0 setup. `RC\docs\releasing.md:35-44` defines them. For 1.0.0, steps 1 to 6 ran on the published installer (`RC\.claude\ROADMAP.md:8`). Neither plan runs step 3 (real paste), step 5 (double-click open) or step 7 (`evil.md`) on the shipped 1.1.0 bytes. The Windows run covers a silent install, a start and an uninstall on the runner only (P31:21).
+2. The MSI update from 1.1.0-4 to 1.1.0. Both plans name it as a risk (PM:187, PC:194). Neither plan tests it, and neither adds a caveat to the release notes. RM:38 marks it as a conjecture.
+3. The README:60 gap about the kill prompt (SC section 3). If SnipMD still runs, the uninstaller asks "SnipMD is running! Click OK to kill it". Neither plan rewords the README line or decides to keep it.
+4. A rule for `Latest` when step 8 fails after publication. PM:163 says only that the fix goes to 1.1.1. PC has no failed step 8 to act on (B1). Neither plan says whether 1.1.0 then stays `Latest`, is marked as a pre-release, or gets a release-note warning.
+5. #98 item 2 (a 1.0 session with two tabs on one path). The 1.0.0 leg of step 8 is the only real run that could seed such a session. Neither plan seeds it. [inferred]

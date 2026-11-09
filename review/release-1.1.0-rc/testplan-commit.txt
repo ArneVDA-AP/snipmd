@@ -1,0 +1,9 @@
+Test plan Windows 11 for the 1.1.0 candidate (build 6e62404)
+
+Replaces the plans of 27 and 31 October, which were never run. The owner
+installs the candidate over 1.1.0-4, checks Snip in the real window,
+the hardware cases and one day of use; headless and runner results cover
+the rest and are cited per row. The saving and closed-tab block stays
+mandatory until the runner retest script has a run on this code.
+
+Co-Authored-By: Claude

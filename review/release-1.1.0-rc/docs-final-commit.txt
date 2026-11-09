@@ -1,0 +1,8 @@
+Docs for 1.1.0: one tab per note, the setup's update page, the MSI caveat
+
+CHANGELOG 1.1.0 gets the line for one tab per note on open. The README
+says what the setup shows when SnipMD is running and on every update
+(the Already Installed page, #74). The smoke test notes that the MSI path
+from a pre-release has not been tried.
+
+Co-Authored-By: Claude

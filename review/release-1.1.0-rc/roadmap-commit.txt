@@ -1,0 +1,10 @@
+ROADMAP: what is left before the 1.1.0 tag after the candidate checks
+
+The three code defects are fixed and merged, the headless Snip checks
+are rerun on the fixed code, the minors are issues #106 and #107, and
+the owner's test plan is on test/w11-20261109. Adds the decisions of
+this run: Dependabot freeze until the tag, the Snip test approach, the
+runner retest script, the install route, the asset pack, and T3 as the
+gate.
+
+Co-Authored-By: Claude

@@ -1,0 +1,32 @@
+  // W9: Show Snip off through the command menu, a moment on t1, then on again.
+  await ready(page);
+  const p0 = await pre(page);
+  const g = await geom(page);
+  const toggle = async () => {
+    await page.keyboard.press('Control+Shift+P');
+    await sleep(250);
+    await page.keyboard.type('snip');
+    await sleep(250);
+    const menu = await page.evaluate(() => [...document.querySelectorAll('[role=option], .palette li, .menu li')].slice(0, 5).map((e) => e.textContent.trim()));
+    await page.keyboard.press('Enter');
+    await sleep(250);
+    await page.keyboard.press('Escape');
+    await sleep(250);
+    return menu;
+  };
+  await sample(page);
+  const menuOff = await toggle();
+  await page.evaluate(() => window.__h.mark('toggled-off'));
+  const off = await page.evaluate(() => { const p = document.querySelector('.pet'); return { hidden: p.hidden, rect: p.getBoundingClientRect().toJSON(), display: getComputedStyle(p).display }; });
+  await page.evaluate(() => window.__h.press('labo-04.md'));
+  await sleep(150);
+  await page.evaluate(() => window.__h.press('Afbeelding geplakt'));
+  await sleep(400);
+  const shots = [await shot(page, 'W9-off-moment.png')];
+  await sleep(2600);
+  const menuOn = await toggle();
+  await page.evaluate(() => window.__h.mark('toggled-on'));
+  await sleep(800);
+  const on = await page.evaluate(() => { const p = document.querySelector('.pet'); return { hidden: p.hidden, rect: p.getBoundingClientRect().toJSON() }; });
+  shots.push(await shot(page, 'W9-on.png'));
+  return { case: 'W9', pre: p0, geom: g, extra: { menuOff, off, menuOn, on }, shots, ...(await collect(page)) };
