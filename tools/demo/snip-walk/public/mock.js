@@ -1,6 +1,6 @@
 // A stand-in for Tauri, set before the app loads: four notes, writes that succeed, no files on disk.
 (function () {
-  var dir = 'C:/Users/arne/Documents/Notes/';
+  var dir = 'C:/Users/demo/Documents/Notes/';
   function tab(id, title, file, content) {
     return { id: id, title: title, filePath: file ? dir + file : null, content: content, dirty: false, mode: 'edit', cursor: 0, scrollTop: 0, disk: file ? { mtimeMs: 1, size: 1 } : null, format: null };
   }
@@ -10,7 +10,7 @@
     'todo.md': '# Todo\n\n- Verslag labo 04 afwerken\n- Screenshots RADIUS-test\n'
   };
   var session = {
-    version: 3, activeTabId: 't1', untitledCounter: 3, lastFolder: dir, closedTabs: [],
+    version: 3, activeTabId: 't1', lastFolder: dir, closedTabs: [],
     tabs: [
       tab('t1', 'labo-04.md', 'labo-04.md', notes['labo-04.md']),
       tab('t2', 'Untitled-2', null, '# Ideeën\n\nSnip loopt naar de tab waar iets gebeurt.\n'),

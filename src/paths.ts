@@ -1,9 +1,23 @@
 // Path helpers. Paths are normalized once where they enter the app (open, save, session restore);
 // everything after that compares with samePath.
 
-/** Forward slashes, no duplicate or trailing slash. A leading `//` (UNC share) stays. */
+/**
+ * Forward slashes, no duplicate or trailing slash, `.` and `..` resolved as Windows does (never above
+ * the drive or the `//server/share`). A leading `//` (UNC share) stays.
+ */
 export function normPath(p: string): string {
-  return p.replace(/\\/g, '/').replace(/(?!^)\/{2,}/g, '/').replace(/(.)\/$/, '$1');
+  const s = p.replace(/\\/g, '/').replace(/(?!^)\/{2,}/g, '/').replace(/(.)\/$/, '$1');
+  if (!/(^|\/)\.\.?(\/|$)/.test(s)) return s;
+  const unc = s.startsWith('//');
+  const parts = s.slice(unc ? 2 : 0).split('/');
+  const root = unc ? 2 : 1;
+  const out = parts.slice(0, root);
+  for (const part of parts.slice(root)) {
+    if (part === '..') {
+      if (out.length > root) out.pop();
+    } else if (part !== '.') out.push(part);
+  }
+  return (unc ? '//' : '') + out.join('/');
 }
 
 /** Windows paths are case-insensitive. */

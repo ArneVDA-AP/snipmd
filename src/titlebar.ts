@@ -7,7 +7,7 @@ import { icon } from './icons';
 import { IS_MAC, keys } from './platform';
 import type { TabState } from './types';
 
-export interface TitlebarHandlers {
+interface TitlebarHandlers {
   select: (id: string) => void;
   /** Enter in the strip: show the tab and move focus into it. */
   open: (id: string) => void;

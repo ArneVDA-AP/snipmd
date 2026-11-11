@@ -134,9 +134,24 @@ function pruneClosed(now: number): void {
   tabs = tabs.filter((t) => !gone.has(t));
 }
 
+/**
+ * Per tab: the path its running first save or Save As writes to. The tab holds that path from the
+ * save's check until the save ends, failed or not, so an open or another save meanwhile finds it.
+ */
+const held = new Map<string, string>();
+
+/** Holds `path` for tab `id` while its save runs; without a path, lets it go. */
+export function holdPath(id: string, path?: string): void {
+  if (path) held.set(id, path);
+  else held.delete(id);
+}
+
+/** The tab whose running save holds `path`, open or closed. */
+export const heldBy = (path: string): string | undefined => [...held].find(([, p]) => samePath(p, path))?.[0];
+
 /** The open tab, or else the most recently closed one, of the note at `path`. */
 const byPath = (path: string, open: boolean): TabState | undefined =>
-  (open ? getTabs() : closedTabs()).find((t) => t.filePath !== null && samePath(t.filePath, path));
+  (open ? getTabs() : closedTabs()).find((t) => [t.filePath, held.get(t.id)].some((p) => p && samePath(p, path)));
 
 /** The open tab of the note at `path`: one tab per note (SPEC §6.4). */
 export const openTabAt = (path: string): TabState | undefined => byPath(path, true);
@@ -342,8 +357,28 @@ export function openCopy(title: string, text: string, after?: string): Promise<v
   return addTab(title, null, text, { mode: 'read' }, after);
 }
 
-export async function openPath(path: string): Promise<void> {
+/**
+ * Opens still reading their file, by path: a second open of the same note waits for the first and
+ * shows its tab. A failed first open is not tried again: its error is already on screen.
+ */
+const opening = new Map<string, Promise<void>>();
+
+export function openPath(path: string): Promise<void> {
   const norm = normPath(path);
+  const key = norm.toLowerCase(); // samePath's comparison
+  const running = opening.get(key);
+  if (running) {
+    return running.then(() => {
+      const tab = byPath(norm, true);
+      if (tab) return activate(tab.id);
+    });
+  }
+  const p = openNote(norm).finally(() => opening.delete(key));
+  opening.set(key, p);
+  return p;
+}
+
+async function openNote(norm: string): Promise<void> {
   const existing = byPath(norm, true);
   if (existing) return activate(existing.id);
   // A closed note comes back as itself: same id (its writes still match) and its unsaved edits.
@@ -351,6 +386,8 @@ export async function openPath(path: string): Promise<void> {
   if (closed) return void (await reopenClosed(closed.id));
   try {
     const note = await readNote(norm);
+    const saved = byPath(norm, true); // a first save or Save As took the path during the read
+    if (saved) return activate(saved.id);
     await addTab(basename(norm), norm, note.text, { disk: note.stamp, format: note.format });
   } catch (err) {
     showError(`open ${basename(norm)}`, err);
@@ -511,6 +548,5 @@ export function markSaved(id: string, written: { text: string; stamp: DiskStamp;
   }
   tab.disk = written.stamp;
   if (textOf(tab) === written.text) tab.dirty = false;
-  petMoment('saved');
   changed({ immediate: true }); // SPEC §7: the session is written right after a save
 }

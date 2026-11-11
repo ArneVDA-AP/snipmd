@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionFile, TabState } from './types';
 
-vi.mock('./ipc', () => ({ readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn() }));
+vi.mock('./ipc', () => ({
+  readNote: vi.fn(), saveSessionRaw: vi.fn(), loadSessionRaw: vi.fn(), statNote: vi.fn(),
+  writeNote: vi.fn(), pickSavePath: vi.fn(), copyAssets: vi.fn(), promoteUntitled: vi.fn(async () => null)
+}));
+vi.mock('./firstSaveBar', () => ({ askFirstSave: vi.fn() }));
 vi.mock('./infobar', () => ({ showError: vi.fn(), clearInfo: vi.fn(), clearTabInfo: vi.fn() }));
 vi.mock('./preview/render', () => ({
   renderRead: vi.fn(async (_id: string, text: string) => Object.assign(document.createElement('article'), { textContent: text }))
@@ -10,7 +14,10 @@ vi.mock('./titlebar', () => ({ Titlebar: class {} }));
 vi.mock('./session', () => ({ bindSessionSource: vi.fn(), scheduleSessionSave: vi.fn() }));
 vi.mock('./pet', () => ({ petMoment: vi.fn() }));
 
-import { readNote } from './ipc';
+import { copyAssets, pickSavePath, readNote, statNote, writeNote } from './ipc';
+import { askFirstSave } from './firstSaveBar';
+import { saveAs, saveTab } from './saving';
+import { checkTabs } from './external';
 import { renderRead } from './preview/render';
 import { clearTabInfo, showError } from './infobar';
 import { scheduleSessionSave } from './session';
@@ -250,6 +257,41 @@ describe('a closed tab is a tab without a view', () => {
     await restore(session([tab({ id: 'e0' }), tab({ id: 'e1', content: 'k' })]));
     expect(await closeTab('e0')).toBeUndefined();
     expect(snapshot().closedTabs.map((c) => c.tab.id)).not.toContain('e0');
+  });
+
+  it('two opens of one note at once give one tab, also when the paths are spelled differently', async () => {
+    await restore(session([tab({ id: 'k1', content: 'k' })]));
+    let release!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r({ text: 'x', format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: 1 } }))));
+    const first = openPath('C:/notes/x.md');
+    const second = openPath('C:\\work\\..\\notes\\.\\X.md');
+    release();
+    await Promise.all([first, second]);
+    expect(getTabs().filter((t) => t.filePath !== null).map((t) => t.filePath)).toEqual(['C:/notes/x.md']);
+    expect(readNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second open of a note that cannot be read does not try again: one error', async () => {
+    await restore(session([tab({ id: 'k2', content: 'k' })]));
+    let fail!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((_, r) => (fail = () => r(new Error('locked')))));
+    const first = openPath('C:/notes/locked.md');
+    const second = openPath('C:/notes/locked.md');
+    fail();
+    await Promise.all([first, second]);
+    expect(readNote).toHaveBeenCalledTimes(1);
+    expect(getTabs().map((t) => t.id)).toEqual(['k2']);
+  });
+
+  it('a note saved to the path while its open reads the file keeps one tab', async () => {
+    await restore(session([tab({ id: 'sv', content: 'mine' }), tab({ id: 'k3', content: 'k' })]));
+    let release!: () => void;
+    vi.mocked(readNote).mockReturnValueOnce(new Promise((r) => (release = () => r({ text: 'mine', format: { crlf: false, bom: false }, stamp: { mtimeMs: 1, size: 4 } }))));
+    const open = openPath('C:/notes/y.md');
+    markSaved('sv', { text: 'mine', stamp: { mtimeMs: 1, size: 4 }, path: 'C:/notes/y.md' });
+    release();
+    await open;
+    expect(getTabs().filter((t) => t.filePath === 'C:/notes/y.md').map((t) => t.id)).toEqual(['sv']);
   });
 
   it('opening a closed note brings the entry back with its id and edits', async () => {
@@ -719,7 +761,6 @@ describe('markSaved and markDirty', () => {
     applyToTab('ms', { changes: { from: 2, insert: '!' } });
     markSaved('ms', { text: 'v1', stamp });
     expect(getTab('ms')).toMatchObject({ dirty: true, disk: stamp });
-    expect(petMoment).toHaveBeenCalledWith('saved');
     markSaved('ms', { text: 'v1!', stamp: { mtimeMs: 4, size: 3 } });
     expect(getTab('ms')).toMatchObject({ dirty: false, disk: { mtimeMs: 4, size: 3 } });
     markSaved('nope', { text: '', stamp });
@@ -738,5 +779,83 @@ describe('markSaved and markDirty', () => {
     markDirty('md');
     expect(getTab('md')?.dirty).toBe(true);
     expect(snapshot().tabs[0].content).toBe('kept');
+  });
+
+  it('a reload from disk is not a save: Snip sleeps on', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('v1'));
+    await restore(session([tab({ id: 'rl', title: 'rl.md', filePath: 'C:/n/rl.md' })]));
+    const newer = { mtimeMs: 2, size: 2 };
+    vi.mocked(statNote).mockResolvedValue(newer);
+    vi.mocked(readNote).mockResolvedValue({ ...note('v2'), stamp: newer });
+    await checkTabs(); // the watch finds the file changed outside and reloads the clean tab
+    expect(getTab('rl')).toMatchObject({ disk: newer, dirty: false });
+    expect(petMoment).not.toHaveBeenCalled();
+  });
+});
+
+describe('a first save or Save As holds its path while it runs', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  const onPath = (p: string) => getTabs().filter((t) => t.filePath === p).map((t) => t.id);
+  let copied: () => void;
+  beforeEach(() => {
+    [writeNote, pickSavePath, copyAssets, askFirstSave].forEach((f) => vi.mocked(f).mockReset());
+    vi.mocked(writeNote).mockResolvedValue({ written: { mtimeMs: 7, size: 6 } });
+    vi.mocked(copyAssets).mockImplementation(() => new Promise((r) => (copied = () => r(null))));
+  });
+
+  it('an open of the path while the first save writes shows the saving tab, not a second one', async () => {
+    await restore(session([tab({ id: 'u', title: 'Untitled-1', content: 'mine' })]));
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    vi.mocked(pickSavePath).mockResolvedValue('C:/n/p.md');
+    let written!: () => void;
+    vi.mocked(writeNote).mockImplementation(() => new Promise((r) => (written = () => r({ written: { mtimeMs: 9, size: 4 } }))));
+    vi.mocked(readNote).mockResolvedValue(note('older file'));
+    const save = saveTab('u');
+    await flush(); // the save waits on its write
+    await openPath('C:/n/p.md'); // a double-click in Explorer, whose read ends first
+    written();
+    expect(await save).toBe(true);
+    expect(onPath('C:/n/p.md')).toEqual(['u']);
+  });
+
+  it('an open of the path while Save As copies the images shows the saving tab, not a second one', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('a text'));
+    await restore(session([tab({ id: 'a', title: 'a.md', filePath: 'C:/n/a.md' })]));
+    vi.mocked(pickSavePath).mockResolvedValue('C:/n/q.md');
+    const saved = saveAs('a');
+    await flush(); // the Save As copies the images
+    await openPath('C:/n/q.md');
+    copied();
+    expect(await saved).toBe(true);
+    expect(onPath('C:/n/q.md')).toEqual(['a']);
+  });
+
+  it('a second save to the path a running Save As holds is refused with the open-in-another-tab bar', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('a text'));
+    await restore(session([tab({ id: 'a', title: 'a.md', filePath: 'C:/n/a.md' }), tab({ id: 'u', title: 'Untitled-1', content: 'mine' })]));
+    vi.mocked(pickSavePath).mockResolvedValue('C:/n/q.md');
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    const saved = saveAs('a');
+    await flush();
+    expect(await saveTab('u')).toBe(false);
+    expect(vi.mocked(showError).mock.calls[0].slice(0, 2)).toEqual(['save Untitled-1', new Error('q.md is open in another tab')]);
+    copied();
+    expect(await saved).toBe(true);
+    expect(vi.mocked(writeNote).mock.calls.map((c) => c[0])).toEqual(['C:/n/q.md']);
+  });
+
+  it('a Save As still holds its path after its tab is closed: a second save to it is refused', async () => {
+    vi.mocked(readNote).mockResolvedValue(note('a text'));
+    await restore(session([tab({ id: 'a3', title: 'a3.md', filePath: 'C:/n/a3.md' }), tab({ id: 'u3', title: 'Untitled-1', content: 'mine' })]));
+    vi.mocked(pickSavePath).mockResolvedValue('C:/n/q3.md');
+    vi.mocked(askFirstSave).mockResolvedValue('other');
+    const saved = saveAs('a3');
+    await flush(); // the Save As copies the images
+    await closeTab('a3');
+    expect(await saveTab('u3')).toBe(false);
+    expect(vi.mocked(showError).mock.calls[0].slice(0, 2)).toEqual(['save Untitled-1', new Error('q3.md is open in another tab')]);
+    copied();
+    expect(await saved).toBe(true);
+    expect(vi.mocked(writeNote).mock.calls.map((c) => [c[0], c[1]])).toEqual([['C:/n/q3.md', 'a text']]);
   });
 });

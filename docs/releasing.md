@@ -40,7 +40,7 @@ On a machine without SnipMD (or after uninstalling it and removing `%APPDATA%\co
 5. Double-click a `.md` file in Explorer: it opens as a tab in the running window.
 6. Close and start again: the tabs are back.
 7. Open `tools/fixtures/evil.md`: nothing runs, no image from outside the note's folder loads, and clicking a link opens the browser, never the app window. Read mode (`Ctrl+E`) the same.
-8. Install over the previous release: with the last published version installed and a few tabs open, run the new setup. It asks to close SnipMD, installs without a downgrade prompt (also from a pre-release such as `1.1.0-3` to `1.1.0`), Settings → Apps lists one SnipMD with the new version, and the tabs and notes are back.
+8. Install over the previous release: with the last published version installed and a few tabs open, run the new setup. It asks to close SnipMD, installs without a downgrade prompt (also from a pre-release such as `1.1.0-3` to `1.1.0`), Settings → Apps lists one SnipMD with the new version, and the tabs and notes are back. The MSI path from a pre-release (the `1.1.0-4` MSI to the `1.1.0` MSI) is not part of this test and has not been tried.
 9. Uninstall from Settings → Apps: notes and images in `Documents\Notes` stay.
 
 ### Measuring the budgets
@@ -55,6 +55,9 @@ Last measured on an i7-8700K desktop, Windows 11 23H2, 2026-10-21 (`main` at e95
 | Installer | < 10 MB | 1.37 MB |
 | SnipMD's own start (page load to typing) | < 150 ms | 131–139 ms |
 | Double-click to typing, cold start | < 1 s | 722–784 ms |
+
+### Retest scenarios
+`tools\measure\retest.ps1 -Exe <path to snip-md.exe> -Out <folder>` drives the real app with keys, in its own data and notes folders under `%TEMP%`, through the saving and closed-tab scenarios of the Windows test plan: the first save through the bar, autosave, *Save again* for a deleted note (written back, and refused when a newer file is there), no save onto the path of an open tab, closing and restoring a tab (also one with unwritten edits whose path a new note took), one tab per note when a second launch forwards a path (twice in a row, and spelled with `..`), and a restart. It judges each step only by the files on disk and `session.json`, so it does not check bar texts, the native dialogs (*Other folder…*, Save As) or how anything looks; those stay with the manual test. SnipMD must be closed before it starts, and the PC left alone while it runs (under two minutes on the runner): it types into the window it started, and a SnipMD started meanwhile would take its launches. It stops only the processes it started. The *Windows run* workflow runs it after the screenshots; the verdicts are in `retest.txt` among the run's results, and a block that is not OK has a window shot next to it. A FOUT does not stop the later steps (the smoke test, the upload, the results branch), and a last step then fails the run.
 
 ## macOS
 SnipMD for macOS ships as one universal app (Apple Silicon and Intel) in `SnipMD_<version>_universal.dmg` (`SnipMD_<version>_universal.preview.dmg` while it has no Developer ID signature), for macOS 13 Ventura or later (SPEC §13). Target size: under 10 MB (SPEC §9).
