@@ -58,7 +58,8 @@ export function createEditorState(tabId: string, doc: string): EditorState {
       drawSelection(),
       dropCursor(),
       EditorView.lineWrapping,
-      EditorView.contentAttributes.of({ spellcheck: 'true', 'aria-label': 'Note' }),
+      // Off: the webview on Windows checks in English only and underlines a note in any other language (#109).
+      EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': 'Note' }),
       markdownSupport,
       syntaxHighlighting(highlight),
       syntaxHighlighting(classHighlighter),

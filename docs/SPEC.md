@@ -55,6 +55,7 @@ Everything in this spec serves these three steps. The keys are the Windows ones;
 ## 5. Editor
 
 - CodeMirror 6, raw Markdown with light styling: headings larger, Markdown syntax characters dimmed, bold/italic rendered. No live preview (hiding syntax) in v1.
+- No spell check in the editor: the webview on Windows checks in English only and underlines almost every word of a note in another language. A setting to turn it on comes later (#109).
 - **Inline images:** every image link `![alt](path)` that points to a local image gets a block widget directly below its line. Max height 360px, max width 100%, `border-radius: 6px`. Clicking toggles full height. Missing files show a clear "image not found: <path>" placeholder, never a perpetual "loading".
 - Images inside fenced code blocks are not rendered.
 - **Lists and quotes** follow the Markdown structure, so what read mode shows matches what was typed:

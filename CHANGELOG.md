@@ -2,6 +2,11 @@
 
 All notable changes to SnipMD. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- The editor no longer checks spelling. On Windows the check knew English only and underlined almost every word of a note in another language. A setting to turn it on is planned (#109).
+
 ## [1.1.0] - 2026-11-01
 
 Everything new since 1.0.0. The pre-releases below were steps on the way for the Windows and Mac tests.
